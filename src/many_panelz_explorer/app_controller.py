@@ -293,6 +293,44 @@ class AppController:
                         preferences.powershell5_terminal_startup_position
                     )
                 ),
+                windows_terminal_executable=preferences.windows_terminal_executable,
+                windows_terminal_open_args_template=(
+                    preferences.windows_terminal_open_args_template
+                ),
+                windows_terminal_command_args_template=(
+                    preferences.windows_terminal_command_args_template
+                ),
+                windows_terminal_startup_position=(
+                    normalize_terminal_startup_position(
+                        preferences.windows_terminal_startup_position
+                    )
+                ),
+                alacritty_terminal_executable=(
+                    preferences.alacritty_terminal_executable
+                ),
+                alacritty_terminal_open_args_template=(
+                    preferences.alacritty_terminal_open_args_template
+                ),
+                alacritty_terminal_command_args_template=(
+                    preferences.alacritty_terminal_command_args_template
+                ),
+                alacritty_terminal_startup_position=(
+                    normalize_terminal_startup_position(
+                        preferences.alacritty_terminal_startup_position
+                    )
+                ),
+                wezterm_terminal_executable=preferences.wezterm_terminal_executable,
+                wezterm_terminal_open_args_template=(
+                    preferences.wezterm_terminal_open_args_template
+                ),
+                wezterm_terminal_command_args_template=(
+                    preferences.wezterm_terminal_command_args_template
+                ),
+                wezterm_terminal_startup_position=(
+                    normalize_terminal_startup_position(
+                        preferences.wezterm_terminal_startup_position
+                    )
+                ),
             )
         )
 

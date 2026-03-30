@@ -127,6 +127,9 @@ def test_resolve_terminal_launcher_paths_uses_comspec_env_and_pwsh_path(
 ) -> None:
     cmd_path = tmp_path / "cmd.exe"
     pwsh_path = tmp_path / "pwsh.exe"
+    wt_path = tmp_path / "wt.exe"
+    alacritty_path = tmp_path / "alacritty.exe"
+    wezterm_path = tmp_path / "wezterm-gui.exe"
     powershell5_path = (
         tmp_path
         / "Windows"
@@ -137,6 +140,9 @@ def test_resolve_terminal_launcher_paths_uses_comspec_env_and_pwsh_path(
     )
     cmd_path.write_text("", encoding="utf-8")
     pwsh_path.write_text("", encoding="utf-8")
+    wt_path.write_text("", encoding="utf-8")
+    alacritty_path.write_text("", encoding="utf-8")
+    wezterm_path.write_text("", encoding="utf-8")
     powershell5_path.parent.mkdir(parents=True, exist_ok=True)
     powershell5_path.write_text("", encoding="utf-8")
 
@@ -144,17 +150,30 @@ def test_resolve_terminal_launcher_paths_uses_comspec_env_and_pwsh_path(
     monkeypatch.setenv("SYSTEMROOT", str(tmp_path / "Windows"))
     monkeypatch.setenv("PATH", str(tmp_path))
 
-    resolved_comspec, resolved_pwsh, resolved_powershell5 = (
+    (
+        resolved_comspec,
+        resolved_pwsh,
+        resolved_powershell5,
+        resolved_windows_terminal,
+        resolved_alacritty,
+        resolved_wezterm,
+    ) = (
         resolve_terminal_launcher_paths(
             comspec_executable="%ComSpec%",
             pwsh_executable="pwsh.exe",
             powershell5_executable="powershell.exe",
+            windows_terminal_executable="wt.exe",
+            alacritty_executable="alacritty.exe",
+            wezterm_executable="wezterm-gui.exe",
         )
     )
 
     assert resolved_comspec == str(cmd_path)
     assert resolved_pwsh == str(pwsh_path)
     assert resolved_powershell5 == str(powershell5_path)
+    assert resolved_windows_terminal == str(wt_path)
+    assert resolved_alacritty == str(alacritty_path)
+    assert resolved_wezterm == str(wezterm_path)
 
 
 def test_resolve_powershell_command_paths_returns_empty_when_missing(

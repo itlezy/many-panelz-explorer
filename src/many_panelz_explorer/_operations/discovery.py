@@ -26,15 +26,21 @@ from .types import (
     BACKEND_TERACOPY,
     BACKEND_UNSTOPPABLE,
     COMPANION_TOOL_NOT_FOUND,
+    DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
     DEFAULT_COMSPEC_TERMINAL_EXECUTABLE,
     DEFAULT_RIMRAF_EXE,
     DEFAULT_SYSTEM_POWERSHELL5_FALLBACK,
     DEFAULT_SYSTEM_PWSH_FALLBACK,
     DEFAULT_TERA_COPY_EXE,
     DEFAULT_UNSTOPPABLE_EXE,
+    DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+    DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+    TERMINAL_LAUNCHER_ALACRITTY,
     TERMINAL_LAUNCHER_COMSPEC,
     TERMINAL_LAUNCHER_POWERSHELL5,
     TERMINAL_LAUNCHER_PWSH,
+    TERMINAL_LAUNCHER_WEZTERM,
+    TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
     OperationExecutionPreferences,
     TerminalLauncherId,
 )
@@ -197,6 +203,35 @@ def resolve_terminal_launcher_path(
             default_names=("pwsh.exe", "pwsh"),
             fallback="",
         )
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return _resolve_terminal_candidate(
+            configured,
+            default_names=(
+                DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+                "wt",
+            ),
+            fallback="",
+        )
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return _resolve_terminal_candidate(
+            configured,
+            default_names=(
+                DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+                "alacritty",
+            ),
+            fallback="",
+        )
+    if launcher_id == TERMINAL_LAUNCHER_WEZTERM:
+        return _resolve_terminal_candidate(
+            configured,
+            default_names=(
+                DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+                "wezterm.exe",
+                "wezterm-gui",
+                "wezterm",
+            ),
+            fallback="",
+        )
     return _resolve_powershell5_terminal_path(configured)
 
 
@@ -205,7 +240,10 @@ def resolve_terminal_launcher_paths(
     comspec_executable: str,
     pwsh_executable: str,
     powershell5_executable: str,
-) -> tuple[str, str, str]:
+    windows_terminal_executable: str,
+    alacritty_executable: str,
+    wezterm_executable: str,
+) -> tuple[str, str, str, str, str, str]:
     """Resolve all terminal launcher executable paths."""
 
     return (
@@ -220,6 +258,18 @@ def resolve_terminal_launcher_paths(
         resolve_terminal_launcher_path(
             launcher_id=TERMINAL_LAUNCHER_POWERSHELL5,
             configured_executable=powershell5_executable,
+        ),
+        resolve_terminal_launcher_path(
+            launcher_id=TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
+            configured_executable=windows_terminal_executable,
+        ),
+        resolve_terminal_launcher_path(
+            launcher_id=TERMINAL_LAUNCHER_ALACRITTY,
+            configured_executable=alacritty_executable,
+        ),
+        resolve_terminal_launcher_path(
+            launcher_id=TERMINAL_LAUNCHER_WEZTERM,
+            configured_executable=wezterm_executable,
         ),
     )
 

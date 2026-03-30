@@ -138,11 +138,21 @@ def load_operations_preferences(
         dialog.default_terminal_launcher_combo,
         preferences.default_terminal_launcher,
     )
-    resolved_comspec, resolved_pwsh, resolved_powershell5 = (
+    (
+        resolved_comspec,
+        resolved_pwsh,
+        resolved_powershell5,
+        resolved_windows_terminal,
+        resolved_alacritty,
+        resolved_wezterm,
+    ) = (
         resolve_terminal_launcher_paths(
             comspec_executable=preferences.comspec_terminal_executable,
             pwsh_executable=preferences.pwsh_terminal_executable,
             powershell5_executable=preferences.powershell5_terminal_executable,
+            windows_terminal_executable=preferences.windows_terminal_executable,
+            alacritty_executable=preferences.alacritty_terminal_executable,
+            wezterm_executable=preferences.wezterm_terminal_executable,
         )
     )
     dialog.comspec_terminal_executable_edit.setText(
@@ -192,6 +202,54 @@ def load_operations_preferences(
     dialog.set_combo_value(
         dialog.powershell5_terminal_startup_position_combo,
         preferences.powershell5_terminal_startup_position,
+    )
+    dialog.windows_terminal_executable_edit.setText(
+        _preferred_terminal_executable_text(
+            configured=preferences.windows_terminal_executable,
+            resolved=resolved_windows_terminal,
+        )
+    )
+    dialog.windows_terminal_open_args_edit.setText(
+        preferences.windows_terminal_open_args_template
+    )
+    dialog.windows_terminal_command_args_edit.setText(
+        preferences.windows_terminal_command_args_template
+    )
+    dialog.set_combo_value(
+        dialog.windows_terminal_startup_position_combo,
+        preferences.windows_terminal_startup_position,
+    )
+    dialog.alacritty_terminal_executable_edit.setText(
+        _preferred_terminal_executable_text(
+            configured=preferences.alacritty_terminal_executable,
+            resolved=resolved_alacritty,
+        )
+    )
+    dialog.alacritty_terminal_open_args_edit.setText(
+        preferences.alacritty_terminal_open_args_template
+    )
+    dialog.alacritty_terminal_command_args_edit.setText(
+        preferences.alacritty_terminal_command_args_template
+    )
+    dialog.set_combo_value(
+        dialog.alacritty_terminal_startup_position_combo,
+        preferences.alacritty_terminal_startup_position,
+    )
+    dialog.wezterm_terminal_executable_edit.setText(
+        _preferred_terminal_executable_text(
+            configured=preferences.wezterm_terminal_executable,
+            resolved=resolved_wezterm,
+        )
+    )
+    dialog.wezterm_terminal_open_args_edit.setText(
+        preferences.wezterm_terminal_open_args_template
+    )
+    dialog.wezterm_terminal_command_args_edit.setText(
+        preferences.wezterm_terminal_command_args_template
+    )
+    dialog.set_combo_value(
+        dialog.wezterm_terminal_startup_position_combo,
+        preferences.wezterm_terminal_startup_position,
     )
     dialog.context_code_editor_executable_edit.setText(
         preferences.context_tool_code_editor_exe_path
@@ -320,13 +378,25 @@ def sync_color_preview(target: QLabel, color_hex: str) -> None:
 def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
     """Refresh read-only diagnostics for terminals and core shell tools."""
 
-    resolved_comspec, resolved_pwsh, resolved_powershell5 = (
+    (
+        resolved_comspec,
+        resolved_pwsh,
+        resolved_powershell5,
+        resolved_windows_terminal,
+        resolved_alacritty,
+        resolved_wezterm,
+    ) = (
         resolve_terminal_launcher_paths(
             comspec_executable=dialog.comspec_terminal_executable_edit.text().strip(),
             pwsh_executable=dialog.pwsh_terminal_executable_edit.text().strip(),
             powershell5_executable=(
                 dialog.powershell5_terminal_executable_edit.text().strip()
             ),
+            windows_terminal_executable=(
+                dialog.windows_terminal_executable_edit.text().strip()
+            ),
+            alacritty_executable=dialog.alacritty_terminal_executable_edit.text().strip(),
+            wezterm_executable=dialog.wezterm_terminal_executable_edit.text().strip(),
         )
     )
     dialog.resolved_comspec_terminal_path_label.setText(f"ComSpec: {resolved_comspec}")
@@ -334,9 +404,19 @@ def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
     dialog.resolved_powershell5_terminal_path_label.setText(
         f"Windows PowerShell 5.1: {resolved_powershell5}"
     )
+    dialog.resolved_windows_terminal_path_label.setText(
+        f"Windows Terminal: {resolved_windows_terminal}"
+    )
+    dialog.resolved_alacritty_terminal_path_label.setText(
+        f"Alacritty: {resolved_alacritty}"
+    )
+    dialog.resolved_wezterm_terminal_path_label.setText(f"WezTerm: {resolved_wezterm}")
     dialog.resolved_comspec_terminal_path_label.setToolTip(resolved_comspec)
     dialog.resolved_pwsh_terminal_path_label.setToolTip(resolved_pwsh)
     dialog.resolved_powershell5_terminal_path_label.setToolTip(resolved_powershell5)
+    dialog.resolved_windows_terminal_path_label.setToolTip(resolved_windows_terminal)
+    dialog.resolved_alacritty_terminal_path_label.setToolTip(resolved_alacritty)
+    dialog.resolved_wezterm_terminal_path_label.setToolTip(resolved_wezterm)
     resolved_cmd, resolved_robocopy = resolve_system_command_paths()
     dialog.resolved_cmd_path_label.setText(f"ComSpec: {resolved_cmd}")
     dialog.resolved_robocopy_path_label.setText(f"Robocopy: {resolved_robocopy}")
@@ -443,6 +523,40 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         ),
         powershell5_terminal_startup_position=str(
             dialog.powershell5_terminal_startup_position_combo.currentData()
+        ),
+        windows_terminal_executable=(
+            dialog.windows_terminal_executable_edit.text().strip()
+        ),
+        windows_terminal_open_args_template=(
+            dialog.windows_terminal_open_args_edit.text().strip()
+        ),
+        windows_terminal_command_args_template=(
+            dialog.windows_terminal_command_args_edit.text().strip()
+        ),
+        windows_terminal_startup_position=str(
+            dialog.windows_terminal_startup_position_combo.currentData()
+        ),
+        alacritty_terminal_executable=(
+            dialog.alacritty_terminal_executable_edit.text().strip()
+        ),
+        alacritty_terminal_open_args_template=(
+            dialog.alacritty_terminal_open_args_edit.text().strip()
+        ),
+        alacritty_terminal_command_args_template=(
+            dialog.alacritty_terminal_command_args_edit.text().strip()
+        ),
+        alacritty_terminal_startup_position=str(
+            dialog.alacritty_terminal_startup_position_combo.currentData()
+        ),
+        wezterm_terminal_executable=dialog.wezterm_terminal_executable_edit.text().strip(),
+        wezterm_terminal_open_args_template=(
+            dialog.wezterm_terminal_open_args_edit.text().strip()
+        ),
+        wezterm_terminal_command_args_template=(
+            dialog.wezterm_terminal_command_args_edit.text().strip()
+        ),
+        wezterm_terminal_startup_position=str(
+            dialog.wezterm_terminal_startup_position_combo.currentData()
         ),
         context_tool_code_editor_exe_path=(
             dialog.context_code_editor_executable_edit.text().strip()

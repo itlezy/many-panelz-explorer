@@ -21,7 +21,14 @@ OperationStatus = Literal[
 ]
 OperationDispatchMode = Literal["queue", "launch_now_no_wait", "run_now_wait"]
 OperationConflictPolicy = Literal["overwrite", "skip", "rename", "cancel"]
-TerminalLauncherId = Literal["comspec", "pwsh", "powershell5"]
+TerminalLauncherId = Literal[
+    "comspec",
+    "pwsh",
+    "powershell5",
+    "windows_terminal",
+    "alacritty",
+    "wezterm",
+]
 TerminalStartupPosition = Literal[
     "normal",
     "maximized",
@@ -95,6 +102,9 @@ DEFAULT_SYSTEM_POWERSHELL5_FALLBACK = ""
 TERMINAL_LAUNCHER_COMSPEC: TerminalLauncherId = "comspec"
 TERMINAL_LAUNCHER_PWSH: TerminalLauncherId = "pwsh"
 TERMINAL_LAUNCHER_POWERSHELL5: TerminalLauncherId = "powershell5"
+TERMINAL_LAUNCHER_WINDOWS_TERMINAL: TerminalLauncherId = "windows_terminal"
+TERMINAL_LAUNCHER_ALACRITTY: TerminalLauncherId = "alacritty"
+TERMINAL_LAUNCHER_WEZTERM: TerminalLauncherId = "wezterm"
 DEFAULT_TERMINAL_LAUNCHER: TerminalLauncherId = TERMINAL_LAUNCHER_COMSPEC
 DEFAULT_TERMINAL_STARTUP_POSITION: TerminalStartupPosition = "normal"
 DEFAULT_COMSPEC_TERMINAL_EXECUTABLE = "%ComSpec%"
@@ -110,6 +120,21 @@ DEFAULT_POWERSHELL5_TERMINAL_OPEN_ARGS_TEMPLATE = (
     "-NoExit -Command Set-Location -LiteralPath {folder}"
 )
 DEFAULT_POWERSHELL5_TERMINAL_COMMAND_ARGS_TEMPLATE = "-NoExit -Command {shell_command}"
+DEFAULT_WINDOWS_TERMINAL_EXECUTABLE = "wt.exe"
+DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE = "-d {folder}"
+DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE = (
+    "new-tab -d {folder} cmd.exe /K {shell_command}"
+)
+DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE = "alacritty.exe"
+DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE = "--working-directory {folder}"
+DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE = (
+    "--working-directory {folder} --hold -e cmd.exe /K {shell_command}"
+)
+DEFAULT_WEZTERM_TERMINAL_EXECUTABLE = "wezterm-gui.exe"
+DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE = "start --cwd {folder}"
+DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE = (
+    "start --cwd {folder} cmd.exe /K {shell_command}"
+)
 
 
 @dataclass(frozen=True)

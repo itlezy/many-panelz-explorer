@@ -8,6 +8,7 @@ import webbrowser
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QObject, Signal
@@ -37,6 +38,9 @@ if TYPE_CHECKING:
     from ..window import ExplorerWindow
 
 
+_DETECTION_CACHE_TTL_SECONDS = 2.0
+
+
 @dataclass
 class _ScriptMenuState:
     menu: QMenu
@@ -47,6 +51,14 @@ class _ScriptMenuState:
     loading: bool = False
     scripts: list[RunnableScript] | None = None
     error: str | None = None
+
+
+@dataclass(slots=True)
+class _DetectionCacheEntry:
+    """Store one short-lived context detection result."""
+
+    expires_at: float
+    result: ContextDetectionResult
 
 
 class _ScriptLoaderSignals(QObject):
@@ -101,6 +113,7 @@ class ContextMenuController(QObject):
         self._script_loader = _AsyncScriptLoader(self)
         self._script_loader.signals.loaded.connect(self._on_scripts_loaded)
         self._script_menu_states: dict[tuple[str, str, str], _ScriptMenuState] = {}
+        self._detection_cache: dict[tuple[str, int], _DetectionCacheEntry] = {}
         self._last_rebuild_signature: tuple[object, ...] | None = None
         self._owned_menus: list[QMenu] = []
 
@@ -132,13 +145,22 @@ class ContextMenuController(QObject):
             str(preferences.powershell5_terminal_executable),
             str(preferences.powershell5_terminal_open_args_template),
             str(preferences.powershell5_terminal_command_args_template),
+            str(preferences.windows_terminal_executable),
+            str(preferences.windows_terminal_open_args_template),
+            str(preferences.windows_terminal_command_args_template),
+            str(preferences.alacritty_terminal_executable),
+            str(preferences.alacritty_terminal_open_args_template),
+            str(preferences.alacritty_terminal_command_args_template),
+            str(preferences.wezterm_terminal_executable),
+            str(preferences.wezterm_terminal_open_args_template),
+            str(preferences.wezterm_terminal_command_args_template),
         )
         if signature == self._last_rebuild_signature:
             return
-        detector = ContextDetector(
-            immediate_child_scan_cap=preferences.context_immediate_child_scan_cap
+        detected = self._detect_context(
+            active_path,
+            immediate_child_scan_cap=preferences.context_immediate_child_scan_cap,
         )
-        detected = detector.detect(active_path)
         self._rebuild_menu_from_detection(
             detected=detected,
             tools=ContextToolRegistry(preferences),
@@ -174,6 +196,28 @@ class ContextMenuController(QObject):
         if detected.node_roots:
             mode_menu = self._track_menu(self._menu.addMenu("Node / JS / TS Project"))
             self._populate_node_mode(mode_menu, detected.node_roots, tools)
+
+    def _detect_context(
+        self,
+        active_path: Path,
+        *,
+        immediate_child_scan_cap: int,
+    ) -> ContextDetectionResult:
+        """Return a cached context detection result for one active path."""
+
+        cache_key = (str(active_path), int(immediate_child_scan_cap))
+        cached_entry = self._detection_cache.get(cache_key)
+        current_time = monotonic()
+        if cached_entry is not None and cached_entry.expires_at >= current_time:
+            return cached_entry.result
+
+        detector = ContextDetector(immediate_child_scan_cap=immediate_child_scan_cap)
+        detected = detector.detect(active_path)
+        self._detection_cache[cache_key] = _DetectionCacheEntry(
+            expires_at=current_time + _DETECTION_CACHE_TTL_SECONDS,
+            result=detected,
+        )
+        return detected
 
     def _populate_python_mode(
         self,

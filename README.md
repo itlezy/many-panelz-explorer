@@ -33,7 +33,7 @@ A multi-panel, Windows-focused file explorer built with PySide6. Supports splitt
 - **Always on top** - per-window toggle
 - **Hidden files toggle** - show/hide hidden and system files
 - **Storage overview row** - optional second status-bar row listing used/total space for all discovered roots (drives, partitions, and Windows mount points)
-- **Terminal integration** - open PowerShell (Windows) or x-terminal-emulator (Linux) at the current path
+- **Terminal integration** - open Command Prompt, PowerShell, Windows Terminal, Alacritty, or WezTerm (Windows) or x-terminal-emulator (Linux) at the current path
 - **Dynamic Context menu** - mode-aware actions for Python, Git, and Node folders (including immediate-child project detection)
 - **Properties dialog** - path, type, size, and file count for selected items
 - **Settings dialog** - searchable preferences with live preview, tint sliders, and tint color pickers
@@ -379,7 +379,7 @@ uv lock --check
 
 ### Terminal launch fails
 
-- Windows: uses `powershell -NoExit`. Fails if PowerShell is not in PATH.
+- Windows: supports configurable Command Prompt, PowerShell 7, Windows PowerShell 5.1, Windows Terminal, Alacritty, and WezTerm launchers.
 - Linux: requires `x-terminal-emulator` in PATH.
 - Error shown as a critical dialog.
 

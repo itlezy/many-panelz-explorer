@@ -13,6 +13,9 @@ from many_panelz_explorer._operations.backend_options import (
 from many_panelz_explorer._operations.types import (
     BACKEND_PYTHON,
     BACKEND_RECYCLE_BIN,
+    DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+    DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_CMD_DELETE_ARGS,
     DEFAULT_COMSPEC_TERMINAL_COMMAND_ARGS_TEMPLATE,
     DEFAULT_COMSPEC_TERMINAL_EXECUTABLE,
@@ -33,6 +36,12 @@ from many_panelz_explorer._operations.types import (
     DEFAULT_TERMINAL_LAUNCHER,
     DEFAULT_TERMINAL_STARTUP_POSITION,
     DEFAULT_UNSTOPPABLE_EXE,
+    DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+    DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+    DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
     DISPATCH_MODE_QUEUE,
     QUEUE_VIEW_DOCK,
     SHORTCUT_BEHAVIOR_DIRECT,
@@ -123,6 +132,30 @@ class UiPreferences:
         DEFAULT_POWERSHELL5_TERMINAL_COMMAND_ARGS_TEMPLATE
     )
     powershell5_terminal_startup_position: str = DEFAULT_TERMINAL_STARTUP_POSITION
+    windows_terminal_executable: str = DEFAULT_WINDOWS_TERMINAL_EXECUTABLE
+    windows_terminal_open_args_template: str = (
+        DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    windows_terminal_command_args_template: str = (
+        DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    windows_terminal_startup_position: str = DEFAULT_TERMINAL_STARTUP_POSITION
+    alacritty_terminal_executable: str = DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE
+    alacritty_terminal_open_args_template: str = (
+        DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    alacritty_terminal_command_args_template: str = (
+        DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    alacritty_terminal_startup_position: str = DEFAULT_TERMINAL_STARTUP_POSITION
+    wezterm_terminal_executable: str = DEFAULT_WEZTERM_TERMINAL_EXECUTABLE
+    wezterm_terminal_open_args_template: str = (
+        DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    wezterm_terminal_command_args_template: str = (
+        DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    wezterm_terminal_startup_position: str = DEFAULT_TERMINAL_STARTUP_POSITION
     file_open_overrides_json: str = "{}"
     total_commander_executable: str = DEFAULT_TOTAL_COMMANDER_EXECUTABLE
     total_commander_source_args_template: str = (

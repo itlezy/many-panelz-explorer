@@ -14,12 +14,18 @@ from PySide6.QtWidgets import (
 )
 
 from ..._operations.types import (
+    DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_COMSPEC_TERMINAL_COMMAND_ARGS_TEMPLATE,
     DEFAULT_COMSPEC_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_POWERSHELL5_TERMINAL_COMMAND_ARGS_TEMPLATE,
     DEFAULT_POWERSHELL5_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_PWSH_TERMINAL_COMMAND_ARGS_TEMPLATE,
     DEFAULT_PWSH_TERMINAL_OPEN_ARGS_TEMPLATE,
+    DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
 )
 from ..._settings.manager import SettingsManager
 from ...constants import APP_DISPLAY_NAME, APP_VERSION
@@ -517,6 +523,12 @@ def build_terminal_tool_rows(
         "Windows PowerShell 5.1",
         "powershell5",
     )
+    dialog.default_terminal_launcher_combo.addItem(
+        "Windows Terminal",
+        "windows_terminal",
+    )
+    dialog.default_terminal_launcher_combo.addItem("Alacritty", "alacritty")
+    dialog.default_terminal_launcher_combo.addItem("WezTerm", "wezterm")
     dialog.default_terminal_launcher_combo.currentIndexChanged.connect(
         dialog.on_controls_changed
     )
@@ -638,22 +650,139 @@ def build_terminal_tool_rows(
         controls=[powershell5_controls],
     )
 
+    dialog.windows_terminal_executable_edit = QLineEdit(dialog)
+    dialog.windows_terminal_open_args_edit = QLineEdit(dialog)
+    dialog.windows_terminal_command_args_edit = QLineEdit(dialog)
+    dialog.windows_terminal_startup_position_combo = (
+        _new_terminal_startup_position_combo(dialog)
+    )
+    windows_terminal_controls = (
+        control_builders.build_executable_with_open_command_templates_controls(
+            dialog,
+            executable_edit=dialog.windows_terminal_executable_edit,
+            open_args_edit=dialog.windows_terminal_open_args_edit,
+            command_args_edit=dialog.windows_terminal_command_args_edit,
+            startup_position_combo=dialog.windows_terminal_startup_position_combo,
+            default_executable=SettingsManager.DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+            default_open_args=DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
+            default_command_args=DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            discover_default_executable="wt.exe",
+            tool_name="Windows Terminal",
+        )
+    )
+    add_row(
+        dialog,
+        section=terminal_tools_group,
+        key="windows_terminal_launcher",
+        title="Windows Terminal",
+        description=(
+            "Executable, open-template args, command-template args, and startup "
+            "position for Windows Terminal launches."
+        ),
+        terms=(
+            "windows terminal wt executable open args command args startup "
+            "position normal maximized minimized left right"
+        ),
+        controls=[windows_terminal_controls],
+    )
+
+    dialog.alacritty_terminal_executable_edit = QLineEdit(dialog)
+    dialog.alacritty_terminal_open_args_edit = QLineEdit(dialog)
+    dialog.alacritty_terminal_command_args_edit = QLineEdit(dialog)
+    dialog.alacritty_terminal_startup_position_combo = (
+        _new_terminal_startup_position_combo(dialog)
+    )
+    alacritty_controls = (
+        control_builders.build_executable_with_open_command_templates_controls(
+            dialog,
+            executable_edit=dialog.alacritty_terminal_executable_edit,
+            open_args_edit=dialog.alacritty_terminal_open_args_edit,
+            command_args_edit=dialog.alacritty_terminal_command_args_edit,
+            startup_position_combo=dialog.alacritty_terminal_startup_position_combo,
+            default_executable=SettingsManager.DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+            default_open_args=DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
+            default_command_args=DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            discover_default_executable="alacritty.exe",
+            tool_name="Alacritty",
+        )
+    )
+    add_row(
+        dialog,
+        section=terminal_tools_group,
+        key="alacritty_terminal_launcher",
+        title="Alacritty",
+        description=(
+            "Executable, open-template args, command-template args, and startup "
+            "position for Alacritty launches."
+        ),
+        terms=(
+            "alacritty executable open args command args startup position "
+            "normal maximized minimized left right"
+        ),
+        controls=[alacritty_controls],
+    )
+
+    dialog.wezterm_terminal_executable_edit = QLineEdit(dialog)
+    dialog.wezterm_terminal_open_args_edit = QLineEdit(dialog)
+    dialog.wezterm_terminal_command_args_edit = QLineEdit(dialog)
+    dialog.wezterm_terminal_startup_position_combo = (
+        _new_terminal_startup_position_combo(dialog)
+    )
+    wezterm_controls = (
+        control_builders.build_executable_with_open_command_templates_controls(
+            dialog,
+            executable_edit=dialog.wezterm_terminal_executable_edit,
+            open_args_edit=dialog.wezterm_terminal_open_args_edit,
+            command_args_edit=dialog.wezterm_terminal_command_args_edit,
+            startup_position_combo=dialog.wezterm_terminal_startup_position_combo,
+            default_executable=SettingsManager.DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+            default_open_args=DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+            default_command_args=DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            discover_default_executable="wezterm-gui.exe",
+            tool_name="WezTerm",
+        )
+    )
+    add_row(
+        dialog,
+        section=terminal_tools_group,
+        key="wezterm_terminal_launcher",
+        title="WezTerm",
+        description=(
+            "Executable, open-template args, command-template args, and startup "
+            "position for WezTerm launches."
+        ),
+        terms=(
+            "wezterm executable open args command args startup position "
+            "normal maximized minimized left right"
+        ),
+        controls=[wezterm_controls],
+    )
+
     dialog.resolved_comspec_terminal_path_label = QLabel(dialog)
     dialog.resolved_pwsh_terminal_path_label = QLabel(dialog)
     dialog.resolved_powershell5_terminal_path_label = QLabel(dialog)
+    dialog.resolved_windows_terminal_path_label = QLabel(dialog)
+    dialog.resolved_alacritty_terminal_path_label = QLabel(dialog)
+    dialog.resolved_wezterm_terminal_path_label = QLabel(dialog)
     add_row(
         dialog,
         section=terminal_tools_group,
         key="resolved_terminal_paths",
         title="Resolved Terminal Paths",
         description=(
-            "Runtime-resolved launcher paths for Command Prompt and PowerShell."
+            "Runtime-resolved launcher paths for configured terminal emulators."
         ),
-        terms="resolved terminal paths comspec cmd pwsh powershell 5 7",
+        terms=(
+            "resolved terminal paths comspec cmd pwsh powershell 5 7 wt "
+            "windows terminal alacritty wezterm"
+        ),
         controls=[
             dialog.resolved_comspec_terminal_path_label,
             dialog.resolved_pwsh_terminal_path_label,
             dialog.resolved_powershell5_terminal_path_label,
+            dialog.resolved_windows_terminal_path_label,
+            dialog.resolved_alacritty_terminal_path_label,
+            dialog.resolved_wezterm_terminal_path_label,
         ],
     )
 

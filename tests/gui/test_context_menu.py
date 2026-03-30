@@ -220,6 +220,163 @@ def test_context_menu_rebuilds_on_tab_switch(qtbot, tmp_path: Path) -> None:
     qtbot.waitUntil(lambda: window.menu_context_action.isVisible() is True)
 
 
+def test_context_menu_rebuild_is_debounced_on_tab_switch(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="context-tab-switch-debounce",
+        roots_provider=_test_roots_provider(tmp_path),
+    )
+    qtbot.addWidget(window)
+    window.show()
+
+    plain = tmp_path / "plain-debounce"
+    plain.mkdir()
+    py_root = tmp_path / "py-root-debounce"
+    py_root.mkdir()
+    (py_root / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    first_tab = panel.current_tab()
+    assert first_tab is not None
+    first_tab.navigation.set_path(plain)
+    second_tab = panel.add_tab(py_root)
+    assert second_tab is not None
+    panel.tabs.setCurrentWidget(first_tab)
+    qtbot.waitUntil(lambda: window.menu_context_action.isVisible() is False)
+
+    controller = window.context_menu_controller
+    assert controller is not None
+    window._context_menu_refresh_timer.stop()
+    window._context_menu_refresh_dirty = False
+    rebuild_calls = 0
+    original_rebuild = controller.rebuild
+
+    def _counted_rebuild() -> None:
+        nonlocal rebuild_calls
+        rebuild_calls += 1
+        original_rebuild()
+
+    monkeypatch.setattr(controller, "rebuild", _counted_rebuild)
+
+    panel.tabs.setCurrentWidget(second_tab)
+    assert rebuild_calls == 0
+    qtbot.waitUntil(lambda: rebuild_calls == 1)
+    qtbot.waitUntil(lambda: window.menu_context_action.isVisible() is True)
+
+
+def test_context_menu_about_to_show_flushes_pending_refresh(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="context-show-flush",
+        roots_provider=_test_roots_provider(tmp_path),
+    )
+    qtbot.addWidget(window)
+    window.show()
+
+    py_root = tmp_path / "py-root-show"
+    py_root.mkdir()
+    (py_root / "pyproject.toml").write_text(
+        "[project]\nname='show-flush'\n",
+        encoding="utf-8",
+    )
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    panel.current_tab().navigation.set_path(py_root)
+
+    controller = window.context_menu_controller
+    assert controller is not None
+    window._context_menu_refresh_timer.stop()
+    window._context_menu_refresh_dirty = False
+    rebuild_calls = 0
+    original_rebuild = controller.rebuild
+
+    def _counted_rebuild() -> None:
+        nonlocal rebuild_calls
+        rebuild_calls += 1
+        original_rebuild()
+
+    monkeypatch.setattr(controller, "rebuild", _counted_rebuild)
+
+    window._refresh_context_menu()
+    assert rebuild_calls == 0
+    assert window._context_menu_refresh_timer.isActive() is True
+    window._on_context_menu_about_to_show()
+    assert rebuild_calls == 1
+    assert window._context_menu_refresh_timer.isActive() is False
+    assert window._context_menu_refresh_dirty is False
+
+
+def test_context_detection_uses_short_lived_path_cache(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="context-detect-cache",
+        roots_provider=_test_roots_provider(tmp_path),
+    )
+    qtbot.addWidget(window)
+    window.show()
+
+    first_root = tmp_path / "cache-first"
+    first_root.mkdir()
+    (first_root / "pyproject.toml").write_text(
+        "[project]\nname='cache-first'\n", encoding="utf-8"
+    )
+    second_root = tmp_path / "cache-second"
+    second_root.mkdir()
+    (second_root / "pyproject.toml").write_text(
+        "[project]\nname='cache-second'\n", encoding="utf-8"
+    )
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    first_tab = panel.current_tab()
+    assert first_tab is not None
+    first_tab.navigation.set_path(first_root)
+    qtbot.waitUntil(lambda: window.menu_context_action.isVisible() is True)
+    second_tab = panel.add_tab(second_root)
+    assert second_tab is not None
+
+    controller = window.context_menu_controller
+    assert controller is not None
+
+    import many_panelz_explorer._context.menu_controller as menu_controller_module
+
+    detect_calls = 0
+    original_detect = menu_controller_module.ContextDetector.detect
+
+    def _count_detect(self, active_path: Path):
+        nonlocal detect_calls
+        detect_calls += 1
+        return original_detect(self, active_path)
+
+    monkeypatch.setattr(menu_controller_module.ContextDetector, "detect", _count_detect)
+    controller._detection_cache.clear()
+
+    panel.tabs.setCurrentWidget(first_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+    window._flush_context_menu_refresh()
+    panel.tabs.setCurrentWidget(second_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is second_tab)
+    window._flush_context_menu_refresh()
+    panel.tabs.setCurrentWidget(first_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+    window._flush_context_menu_refresh()
+
+    assert detect_calls == 2
+
+
 def test_context_menu_disables_missing_tools_with_hints(
     qtbot, tmp_path: Path, monkeypatch
 ) -> None:

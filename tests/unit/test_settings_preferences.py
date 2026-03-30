@@ -82,6 +82,18 @@ def _tracked_keys() -> list[str]:
         SettingsManager.POWERSHELL5_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
         SettingsManager.POWERSHELL5_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
         SettingsManager.POWERSHELL5_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.WINDOWS_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.WEZTERM_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_STARTUP_POSITION_KEY,
         SettingsManager.FILE_OPEN_OVERRIDES_JSON_KEY,
         SettingsManager.TOTAL_COMMANDER_EXECUTABLE_KEY,
         SettingsManager.TOTAL_COMMANDER_SOURCE_ARGS_TEMPLATE_KEY,
@@ -203,6 +215,24 @@ def test_ui_preferences_round_trip() -> None:
                 "-NoExit -Command {shell_command}"
             ),
             powershell5_terminal_startup_position="left_of_screen",
+            windows_terminal_executable=r"C:\Program Files\WindowsApps\wt.exe",
+            windows_terminal_open_args_template="-d {folder}",
+            windows_terminal_command_args_template=(
+                "new-tab -d {folder} cmd.exe /K {shell_command}"
+            ),
+            windows_terminal_startup_position="maximized",
+            alacritty_terminal_executable=r"C:\tools\Alacritty\alacritty.exe",
+            alacritty_terminal_open_args_template="--working-directory {folder}",
+            alacritty_terminal_command_args_template=(
+                "--working-directory {folder} --hold -e cmd.exe /K {shell_command}"
+            ),
+            alacritty_terminal_startup_position="normal",
+            wezterm_terminal_executable=r"C:\tools\WezTerm\wezterm-gui.exe",
+            wezterm_terminal_open_args_template="start --cwd {folder}",
+            wezterm_terminal_command_args_template=(
+                "start --cwd {folder} cmd.exe /K {shell_command}"
+            ),
+            wezterm_terminal_startup_position="minimized",
             file_open_overrides_json=(
                 '{".txt": {"editor": "txtedit.exe", "viewer": "txtview.exe"}}'
             ),
@@ -462,6 +492,27 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             SettingsManager.POWERSHELL5_TERMINAL_STARTUP_POSITION_KEY,
             "invalid",
         )
+        settings.remove(SettingsManager.WINDOWS_TERMINAL_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE_KEY)
+        settings.remove(SettingsManager.WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY)
+        settings.set_value(
+            SettingsManager.WINDOWS_TERMINAL_STARTUP_POSITION_KEY,
+            "invalid",
+        )
+        settings.remove(SettingsManager.ALACRITTY_TERMINAL_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY)
+        settings.remove(SettingsManager.ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY)
+        settings.set_value(
+            SettingsManager.ALACRITTY_TERMINAL_STARTUP_POSITION_KEY,
+            "invalid",
+        )
+        settings.remove(SettingsManager.WEZTERM_TERMINAL_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE_KEY)
+        settings.remove(SettingsManager.WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY)
+        settings.set_value(
+            SettingsManager.WEZTERM_TERMINAL_STARTUP_POSITION_KEY,
+            "invalid",
+        )
         settings.set_value(SettingsManager.FILE_OPEN_OVERRIDES_JSON_KEY, "not-json")
         settings.remove(SettingsManager.TOTAL_COMMANDER_EXECUTABLE_KEY)
         settings.remove(SettingsManager.TOTAL_COMMANDER_SOURCE_ARGS_TEMPLATE_KEY)
@@ -694,6 +745,54 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         assert (
             loaded.powershell5_terminal_startup_position
             == SettingsManager.DEFAULT_POWERSHELL5_TERMINAL_STARTUP_POSITION
+        )
+        assert (
+            loaded.windows_terminal_executable
+            == SettingsManager.DEFAULT_WINDOWS_TERMINAL_EXECUTABLE
+        )
+        assert (
+            loaded.windows_terminal_open_args_template
+            == SettingsManager.DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.windows_terminal_command_args_template
+            == SettingsManager.DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.windows_terminal_startup_position
+            == SettingsManager.DEFAULT_WINDOWS_TERMINAL_STARTUP_POSITION
+        )
+        assert (
+            loaded.alacritty_terminal_executable
+            == SettingsManager.DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE
+        )
+        assert (
+            loaded.alacritty_terminal_open_args_template
+            == SettingsManager.DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.alacritty_terminal_command_args_template
+            == SettingsManager.DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.alacritty_terminal_startup_position
+            == SettingsManager.DEFAULT_ALACRITTY_TERMINAL_STARTUP_POSITION
+        )
+        assert (
+            loaded.wezterm_terminal_executable
+            == SettingsManager.DEFAULT_WEZTERM_TERMINAL_EXECUTABLE
+        )
+        assert (
+            loaded.wezterm_terminal_open_args_template
+            == SettingsManager.DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.wezterm_terminal_command_args_template
+            == SettingsManager.DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.wezterm_terminal_startup_position
+            == SettingsManager.DEFAULT_WEZTERM_TERMINAL_STARTUP_POSITION
         )
         assert (
             loaded.file_open_overrides_json

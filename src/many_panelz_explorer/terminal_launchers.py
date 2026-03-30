@@ -13,6 +13,9 @@ from pathlib import Path
 
 from ._operations.discovery import resolve_terminal_launcher_path
 from ._operations.types import (
+    DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+    DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_COMSPEC_TERMINAL_COMMAND_ARGS_TEMPLATE,
     DEFAULT_COMSPEC_TERMINAL_EXECUTABLE,
     DEFAULT_COMSPEC_TERMINAL_OPEN_ARGS_TEMPLATE,
@@ -24,9 +27,18 @@ from ._operations.types import (
     DEFAULT_PWSH_TERMINAL_OPEN_ARGS_TEMPLATE,
     DEFAULT_TERMINAL_LAUNCHER,
     DEFAULT_TERMINAL_STARTUP_POSITION,
+    DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+    DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+    DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+    DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
+    TERMINAL_LAUNCHER_ALACRITTY,
     TERMINAL_LAUNCHER_COMSPEC,
     TERMINAL_LAUNCHER_POWERSHELL5,
     TERMINAL_LAUNCHER_PWSH,
+    TERMINAL_LAUNCHER_WEZTERM,
+    TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
     TerminalLauncherId,
     TerminalStartupPosition,
 )
@@ -39,7 +51,13 @@ def terminal_launcher_label(launcher_id: TerminalLauncherId) -> str:
         return "Command Prompt (%ComSpec%)"
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return "PowerShell 7"
-    return "Windows PowerShell 5.1"
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return "Windows PowerShell 5.1"
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return "Windows Terminal"
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return "Alacritty"
+    return "WezTerm"
 
 
 @dataclass(frozen=True)
@@ -75,6 +93,36 @@ class TerminalLauncherSettings:
     powershell5_terminal_startup_position: TerminalStartupPosition = (
         DEFAULT_TERMINAL_STARTUP_POSITION
     )
+    windows_terminal_executable: str = DEFAULT_WINDOWS_TERMINAL_EXECUTABLE
+    windows_terminal_open_args_template: str = (
+        DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    windows_terminal_command_args_template: str = (
+        DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    windows_terminal_startup_position: TerminalStartupPosition = (
+        DEFAULT_TERMINAL_STARTUP_POSITION
+    )
+    alacritty_terminal_executable: str = DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE
+    alacritty_terminal_open_args_template: str = (
+        DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    alacritty_terminal_command_args_template: str = (
+        DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    alacritty_terminal_startup_position: TerminalStartupPosition = (
+        DEFAULT_TERMINAL_STARTUP_POSITION
+    )
+    wezterm_terminal_executable: str = DEFAULT_WEZTERM_TERMINAL_EXECUTABLE
+    wezterm_terminal_open_args_template: str = (
+        DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE
+    )
+    wezterm_terminal_command_args_template: str = (
+        DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE
+    )
+    wezterm_terminal_startup_position: TerminalStartupPosition = (
+        DEFAULT_TERMINAL_STARTUP_POSITION
+    )
 
 
 @dataclass(frozen=True)
@@ -95,6 +143,12 @@ class TerminalLauncherAvailability:
 
 
 _terminal_launcher_settings = TerminalLauncherSettings()
+_CMD_STYLE_LAUNCHERS = {
+    TERMINAL_LAUNCHER_COMSPEC,
+    TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
+    TERMINAL_LAUNCHER_ALACRITTY,
+    TERMINAL_LAUNCHER_WEZTERM,
+}
 
 
 def configure_terminal_launchers(settings: TerminalLauncherSettings) -> None:
@@ -160,6 +214,18 @@ def available_terminal_launchers(
         ),
         terminal_launcher_availability(
             TERMINAL_LAUNCHER_POWERSHELL5,
+            settings=active_settings,
+        ),
+        terminal_launcher_availability(
+            TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
+            settings=active_settings,
+        ),
+        terminal_launcher_availability(
+            TERMINAL_LAUNCHER_ALACRITTY,
+            settings=active_settings,
+        ),
+        terminal_launcher_availability(
+            TERMINAL_LAUNCHER_WEZTERM,
             settings=active_settings,
         ),
     ]
@@ -279,7 +345,7 @@ def build_terminal_shell_command(
 
     folder = Path(target_folder)
     command_text = str(command or "").strip()
-    if launcher_id == TERMINAL_LAUNCHER_COMSPEC:
+    if launcher_id in _CMD_STYLE_LAUNCHERS:
         parts = [f"cd /d {_quote_cmd_path(folder)}"]
         if python_project:
             activate_path = folder / ".venv" / "Scripts" / "activate.bat"
@@ -376,6 +442,12 @@ def _folder_token(launcher_id: TerminalLauncherId, target_folder: Path) -> str:
     folder = Path(target_folder)
     if launcher_id == TERMINAL_LAUNCHER_COMSPEC:
         return _quote_cmd_path(folder)
+    if launcher_id in {
+        TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
+        TERMINAL_LAUNCHER_ALACRITTY,
+        TERMINAL_LAUNCHER_WEZTERM,
+    }:
+        return str(folder)
     return _quote_powershell_path(folder)
 
 
@@ -389,7 +461,13 @@ def _configured_executable(
         return settings.comspec_terminal_executable
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return settings.pwsh_terminal_executable
-    return settings.powershell5_terminal_executable
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return settings.powershell5_terminal_executable
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return settings.windows_terminal_executable
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return settings.alacritty_terminal_executable
+    return settings.wezterm_terminal_executable
 
 
 def _open_args_template(
@@ -402,7 +480,13 @@ def _open_args_template(
         return settings.comspec_terminal_open_args_template
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return settings.pwsh_terminal_open_args_template
-    return settings.powershell5_terminal_open_args_template
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return settings.powershell5_terminal_open_args_template
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return settings.windows_terminal_open_args_template
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return settings.alacritty_terminal_open_args_template
+    return settings.wezterm_terminal_open_args_template
 
 
 def _command_args_template(
@@ -415,7 +499,13 @@ def _command_args_template(
         return settings.comspec_terminal_command_args_template
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return settings.pwsh_terminal_command_args_template
-    return settings.powershell5_terminal_command_args_template
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return settings.powershell5_terminal_command_args_template
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return settings.windows_terminal_command_args_template
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return settings.alacritty_terminal_command_args_template
+    return settings.wezterm_terminal_command_args_template
 
 
 def _default_executable(launcher_id: TerminalLauncherId) -> str:
@@ -425,7 +515,13 @@ def _default_executable(launcher_id: TerminalLauncherId) -> str:
         return DEFAULT_COMSPEC_TERMINAL_EXECUTABLE
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return DEFAULT_PWSH_TERMINAL_EXECUTABLE
-    return DEFAULT_POWERSHELL5_TERMINAL_EXECUTABLE
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return DEFAULT_POWERSHELL5_TERMINAL_EXECUTABLE
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return DEFAULT_WINDOWS_TERMINAL_EXECUTABLE
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE
+    return DEFAULT_WEZTERM_TERMINAL_EXECUTABLE
 
 
 def _startup_position(
@@ -438,7 +534,13 @@ def _startup_position(
         return settings.comspec_terminal_startup_position
     if launcher_id == TERMINAL_LAUNCHER_PWSH:
         return settings.pwsh_terminal_startup_position
-    return settings.powershell5_terminal_startup_position
+    if launcher_id == TERMINAL_LAUNCHER_POWERSHELL5:
+        return settings.powershell5_terminal_startup_position
+    if launcher_id == TERMINAL_LAUNCHER_WINDOWS_TERMINAL:
+        return settings.windows_terminal_startup_position
+    if launcher_id == TERMINAL_LAUNCHER_ALACRITTY:
+        return settings.alacritty_terminal_startup_position
+    return settings.wezterm_terminal_startup_position
 
 
 def _windows_startupinfo(

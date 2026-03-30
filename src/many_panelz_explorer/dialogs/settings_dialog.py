@@ -148,6 +148,18 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
             "powershell5_terminal_open_args_template",
             "powershell5_terminal_command_args_template",
             "powershell5_terminal_startup_position",
+            "windows_terminal_executable",
+            "windows_terminal_open_args_template",
+            "windows_terminal_command_args_template",
+            "windows_terminal_startup_position",
+            "alacritty_terminal_executable",
+            "alacritty_terminal_open_args_template",
+            "alacritty_terminal_command_args_template",
+            "alacritty_terminal_startup_position",
+            "wezterm_terminal_executable",
+            "wezterm_terminal_open_args_template",
+            "wezterm_terminal_command_args_template",
+            "wezterm_terminal_startup_position",
             "context_tool_code_editor_exe_path",
             "context_tool_code_editor_args_template",
             "context_tool_git_gui_exe_path",
@@ -243,6 +255,18 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         powershell5_terminal_executable_edit: QLineEdit
         powershell5_terminal_open_args_edit: QLineEdit
         powershell5_terminal_startup_position_combo: QComboBox
+        windows_terminal_command_args_edit: QLineEdit
+        windows_terminal_executable_edit: QLineEdit
+        windows_terminal_open_args_edit: QLineEdit
+        windows_terminal_startup_position_combo: QComboBox
+        alacritty_terminal_command_args_edit: QLineEdit
+        alacritty_terminal_executable_edit: QLineEdit
+        alacritty_terminal_open_args_edit: QLineEdit
+        alacritty_terminal_startup_position_combo: QComboBox
+        wezterm_terminal_command_args_edit: QLineEdit
+        wezterm_terminal_executable_edit: QLineEdit
+        wezterm_terminal_open_args_edit: QLineEdit
+        wezterm_terminal_startup_position_combo: QComboBox
         powershell_delete_args_edit: QLineEdit
         powershell_delete_test_btn: QPushButton
         properties_byte_custom_template_edit: QLineEdit
@@ -256,6 +280,9 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         resolved_cmd_path_label: QLabel
         resolved_powershell5_terminal_path_label: QLabel
         resolved_pwsh_terminal_path_label: QLabel
+        resolved_windows_terminal_path_label: QLabel
+        resolved_alacritty_terminal_path_label: QLabel
+        resolved_wezterm_terminal_path_label: QLabel
         resolved_robocopy_path_label: QLabel
         rimraf_args_edit: QLineEdit
         rimraf_executable_edit: QLineEdit

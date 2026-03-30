@@ -169,6 +169,42 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     powershell5_terminal_startup_position = delegate_domain_property(
         "ops", "powershell5_terminal_startup_position"
     )
+    windows_terminal_executable = delegate_domain_property(
+        "ops", "windows_terminal_executable"
+    )
+    windows_terminal_open_args_template = delegate_domain_property(
+        "ops", "windows_terminal_open_args_template"
+    )
+    windows_terminal_command_args_template = delegate_domain_property(
+        "ops", "windows_terminal_command_args_template"
+    )
+    windows_terminal_startup_position = delegate_domain_property(
+        "ops", "windows_terminal_startup_position"
+    )
+    alacritty_terminal_executable = delegate_domain_property(
+        "ops", "alacritty_terminal_executable"
+    )
+    alacritty_terminal_open_args_template = delegate_domain_property(
+        "ops", "alacritty_terminal_open_args_template"
+    )
+    alacritty_terminal_command_args_template = delegate_domain_property(
+        "ops", "alacritty_terminal_command_args_template"
+    )
+    alacritty_terminal_startup_position = delegate_domain_property(
+        "ops", "alacritty_terminal_startup_position"
+    )
+    wezterm_terminal_executable = delegate_domain_property(
+        "ops", "wezterm_terminal_executable"
+    )
+    wezterm_terminal_open_args_template = delegate_domain_property(
+        "ops", "wezterm_terminal_open_args_template"
+    )
+    wezterm_terminal_command_args_template = delegate_domain_property(
+        "ops", "wezterm_terminal_command_args_template"
+    )
+    wezterm_terminal_startup_position = delegate_domain_property(
+        "ops", "wezterm_terminal_startup_position"
+    )
     file_open_overrides_json = delegate_domain_property(
         "ops", "file_open_overrides_json"
     )
@@ -322,6 +358,34 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             powershell5_terminal_startup_position=(
                 self.powershell5_terminal_startup_position
             ),
+            windows_terminal_executable=self.windows_terminal_executable,
+            windows_terminal_open_args_template=(
+                self.windows_terminal_open_args_template
+            ),
+            windows_terminal_command_args_template=(
+                self.windows_terminal_command_args_template
+            ),
+            windows_terminal_startup_position=(
+                self.windows_terminal_startup_position
+            ),
+            alacritty_terminal_executable=self.alacritty_terminal_executable,
+            alacritty_terminal_open_args_template=(
+                self.alacritty_terminal_open_args_template
+            ),
+            alacritty_terminal_command_args_template=(
+                self.alacritty_terminal_command_args_template
+            ),
+            alacritty_terminal_startup_position=(
+                self.alacritty_terminal_startup_position
+            ),
+            wezterm_terminal_executable=self.wezterm_terminal_executable,
+            wezterm_terminal_open_args_template=(
+                self.wezterm_terminal_open_args_template
+            ),
+            wezterm_terminal_command_args_template=(
+                self.wezterm_terminal_command_args_template
+            ),
+            wezterm_terminal_startup_position=self.wezterm_terminal_startup_position,
             file_open_overrides_json=self.file_open_overrides_json,
             total_commander_executable=self.total_commander_executable,
             total_commander_source_args_template=self.total_commander_source_args_template,
@@ -461,6 +525,36 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         )
         self.powershell5_terminal_startup_position = (
             preferences.powershell5_terminal_startup_position
+        )
+        self.windows_terminal_executable = preferences.windows_terminal_executable
+        self.windows_terminal_open_args_template = (
+            preferences.windows_terminal_open_args_template
+        )
+        self.windows_terminal_command_args_template = (
+            preferences.windows_terminal_command_args_template
+        )
+        self.windows_terminal_startup_position = (
+            preferences.windows_terminal_startup_position
+        )
+        self.alacritty_terminal_executable = preferences.alacritty_terminal_executable
+        self.alacritty_terminal_open_args_template = (
+            preferences.alacritty_terminal_open_args_template
+        )
+        self.alacritty_terminal_command_args_template = (
+            preferences.alacritty_terminal_command_args_template
+        )
+        self.alacritty_terminal_startup_position = (
+            preferences.alacritty_terminal_startup_position
+        )
+        self.wezterm_terminal_executable = preferences.wezterm_terminal_executable
+        self.wezterm_terminal_open_args_template = (
+            preferences.wezterm_terminal_open_args_template
+        )
+        self.wezterm_terminal_command_args_template = (
+            preferences.wezterm_terminal_command_args_template
+        )
+        self.wezterm_terminal_startup_position = (
+            preferences.wezterm_terminal_startup_position
         )
         self.file_open_overrides_json = preferences.file_open_overrides_json
         self.total_commander_executable = preferences.total_commander_executable

@@ -94,6 +94,38 @@ class _ControllerSettingsStub:
                 powershell5_terminal_startup_position=(
                     preferences.powershell5_terminal_startup_position
                 ),
+                windows_terminal_executable=preferences.windows_terminal_executable,
+                windows_terminal_open_args_template=(
+                    preferences.windows_terminal_open_args_template
+                ),
+                windows_terminal_command_args_template=(
+                    preferences.windows_terminal_command_args_template
+                ),
+                windows_terminal_startup_position=(
+                    preferences.windows_terminal_startup_position
+                ),
+                alacritty_terminal_executable=(
+                    preferences.alacritty_terminal_executable
+                ),
+                alacritty_terminal_open_args_template=(
+                    preferences.alacritty_terminal_open_args_template
+                ),
+                alacritty_terminal_command_args_template=(
+                    preferences.alacritty_terminal_command_args_template
+                ),
+                alacritty_terminal_startup_position=(
+                    preferences.alacritty_terminal_startup_position
+                ),
+                wezterm_terminal_executable=preferences.wezterm_terminal_executable,
+                wezterm_terminal_open_args_template=(
+                    preferences.wezterm_terminal_open_args_template
+                ),
+                wezterm_terminal_command_args_template=(
+                    preferences.wezterm_terminal_command_args_template
+                ),
+                wezterm_terminal_startup_position=(
+                    preferences.wezterm_terminal_startup_position
+                ),
             )
         )
         resolved_copy_move = resolve_copy_move_backend_args(
@@ -243,6 +275,18 @@ def _tracked_keys() -> list[str]:
         SettingsManager.POWERSHELL5_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
         SettingsManager.POWERSHELL5_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
         SettingsManager.POWERSHELL5_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.WINDOWS_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINDOWS_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.ALACRITTY_TERMINAL_STARTUP_POSITION_KEY,
+        SettingsManager.WEZTERM_TERMINAL_EXECUTABLE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+        SettingsManager.WEZTERM_TERMINAL_STARTUP_POSITION_KEY,
         SettingsManager.FILE_OPEN_OVERRIDES_JSON_KEY,
         SettingsManager.TOTAL_COMMANDER_EXECUTABLE_KEY,
         SettingsManager.TOTAL_COMMANDER_SOURCE_ARGS_TEMPLATE_KEY,
@@ -845,6 +889,13 @@ def test_settings_dialog_shows_resolved_terminal_diagnostics(
     assert dialog.resolved_powershell5_terminal_path_label.text().startswith(
         "Windows PowerShell 5.1:"
     )
+    assert dialog.resolved_windows_terminal_path_label.text().startswith(
+        "Windows Terminal:"
+    )
+    assert dialog.resolved_alacritty_terminal_path_label.text().startswith(
+        "Alacritty:"
+    )
+    assert dialog.resolved_wezterm_terminal_path_label.text().startswith("WezTerm:")
 
 
 def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
@@ -855,6 +906,9 @@ def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
 ) -> None:
     cmd_path = tmp_path / "Windows" / "System32" / "cmd.exe"
     pwsh_path = tmp_path / "PowerShell" / "7" / "pwsh.exe"
+    wt_path = tmp_path / "WindowsApps" / "wt.exe"
+    alacritty_path = tmp_path / "Alacritty" / "alacritty.exe"
+    wezterm_path = tmp_path / "WezTerm" / "wezterm-gui.exe"
     powershell5_path = (
         tmp_path
         / "Windows"
@@ -865,12 +919,28 @@ def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
     )
     cmd_path.parent.mkdir(parents=True, exist_ok=True)
     pwsh_path.parent.mkdir(parents=True, exist_ok=True)
+    wt_path.parent.mkdir(parents=True, exist_ok=True)
+    alacritty_path.parent.mkdir(parents=True, exist_ok=True)
+    wezterm_path.parent.mkdir(parents=True, exist_ok=True)
     powershell5_path.parent.mkdir(parents=True, exist_ok=True)
     cmd_path.write_text("", encoding="utf-8")
     pwsh_path.write_text("", encoding="utf-8")
+    wt_path.write_text("", encoding="utf-8")
+    alacritty_path.write_text("", encoding="utf-8")
+    wezterm_path.write_text("", encoding="utf-8")
     powershell5_path.write_text("", encoding="utf-8")
     monkeypatch.setenv("ComSpec", str(cmd_path))
-    monkeypatch.setenv("PATH", str(pwsh_path.parent))
+    monkeypatch.setenv(
+        "PATH",
+        os.pathsep.join(
+            [
+                str(pwsh_path.parent),
+                str(wt_path.parent),
+                str(alacritty_path.parent),
+                str(wezterm_path.parent),
+            ]
+        ),
+    )
     monkeypatch.setenv("SYSTEMROOT", str(tmp_path / "Windows"))
 
     roots_provider = _test_roots_provider(tmp_path)
@@ -889,6 +959,9 @@ def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
     assert dialog.comspec_terminal_executable_edit.text() == str(cmd_path)
     assert dialog.pwsh_terminal_executable_edit.text() == str(pwsh_path)
     assert dialog.powershell5_terminal_executable_edit.text() == str(powershell5_path)
+    assert dialog.windows_terminal_executable_edit.text() == str(wt_path)
+    assert dialog.alacritty_terminal_executable_edit.text() == str(alacritty_path)
+    assert dialog.wezterm_terminal_executable_edit.text() == str(wezterm_path)
 
 
 def test_settings_dialog_embeds_terminal_startup_position_in_launcher_group(
@@ -914,9 +987,15 @@ def test_settings_dialog_embeds_terminal_startup_position_in_launcher_group(
     assert "comspec_terminal_startup_position" not in dialog._rows_by_key
     assert "pwsh_terminal_startup_position" not in dialog._rows_by_key
     assert "powershell5_terminal_startup_position" not in dialog._rows_by_key
+    assert "windows_terminal_startup_position" not in dialog._rows_by_key
+    assert "alacritty_terminal_startup_position" not in dialog._rows_by_key
+    assert "wezterm_terminal_startup_position" not in dialog._rows_by_key
     assert dialog.comspec_terminal_startup_position_combo.isVisible() is True
     assert dialog.pwsh_terminal_startup_position_combo.isVisible() is True
     assert dialog.powershell5_terminal_startup_position_combo.isVisible() is True
+    assert dialog.windows_terminal_startup_position_combo.isVisible() is True
+    assert dialog.alacritty_terminal_startup_position_combo.isVisible() is True
+    assert dialog.wezterm_terminal_startup_position_combo.isVisible() is True
 
 
 def test_settings_dialog_has_left_section_tree_and_search_sync(
@@ -1254,7 +1333,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
 
     dialog.default_editor_executable_edit.setText(r"C:\tools\editor.exe")
     dialog.default_viewer_executable_edit.setText(r"C:\tools\viewer.exe")
-    dialog.set_combo_value(dialog.default_terminal_launcher_combo, "powershell5")
+    dialog.set_combo_value(dialog.default_terminal_launcher_combo, "wezterm")
     dialog.comspec_terminal_executable_edit.setText("%ComSpec%")
     dialog.comspec_terminal_open_args_edit.setText("/K cd /d {folder}")
     dialog.comspec_terminal_command_args_edit.setText("/K {shell_command}")
@@ -1286,6 +1365,39 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
         dialog.powershell5_terminal_startup_position_combo,
         "left_of_screen",
     )
+    dialog.windows_terminal_executable_edit.setText(
+        r"C:\Program Files\WindowsApps\wt.exe"
+    )
+    dialog.windows_terminal_open_args_edit.setText("-d {folder}")
+    dialog.windows_terminal_command_args_edit.setText(
+        "new-tab -d {folder} cmd.exe /K {shell_command}"
+    )
+    dialog.set_combo_value(
+        dialog.windows_terminal_startup_position_combo,
+        "maximized",
+    )
+    dialog.alacritty_terminal_executable_edit.setText(
+        r"C:\tools\Alacritty\alacritty.exe"
+    )
+    dialog.alacritty_terminal_open_args_edit.setText("--working-directory {folder}")
+    dialog.alacritty_terminal_command_args_edit.setText(
+        "--working-directory {folder} --hold -e cmd.exe /K {shell_command}"
+    )
+    dialog.set_combo_value(
+        dialog.alacritty_terminal_startup_position_combo,
+        "normal",
+    )
+    dialog.wezterm_terminal_executable_edit.setText(
+        r"C:\tools\WezTerm\wezterm-gui.exe"
+    )
+    dialog.wezterm_terminal_open_args_edit.setText("start --cwd {folder}")
+    dialog.wezterm_terminal_command_args_edit.setText(
+        "start --cwd {folder} cmd.exe /K {shell_command}"
+    )
+    dialog.set_combo_value(
+        dialog.wezterm_terminal_startup_position_combo,
+        "minimized",
+    )
     dialog.context_scan_cap_spin.setValue(77)
     dialog.context_code_editor_executable_edit.setText(r"C:\tools\code.exe")
     dialog.context_code_editor_args_edit.setText("--folder {folder}")
@@ -1312,7 +1424,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     persisted = isolated_settings.ui_preferences()
     assert persisted.default_editor_executable == r"C:\tools\editor.exe"
     assert persisted.default_viewer_executable == r"C:\tools\viewer.exe"
-    assert persisted.default_terminal_launcher == "powershell5"
+    assert persisted.default_terminal_launcher == "wezterm"
     assert persisted.comspec_terminal_executable == "%ComSpec%"
     assert persisted.comspec_terminal_open_args_template == "/K cd /d {folder}"
     assert persisted.comspec_terminal_command_args_template == "/K {shell_command}"
@@ -1342,6 +1454,36 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
         == "-NoExit -Command {shell_command}"
     )
     assert persisted.powershell5_terminal_startup_position == "left_of_screen"
+    assert (
+        persisted.windows_terminal_executable
+        == r"C:\Program Files\WindowsApps\wt.exe"
+    )
+    assert persisted.windows_terminal_open_args_template == "-d {folder}"
+    assert (
+        persisted.windows_terminal_command_args_template
+        == "new-tab -d {folder} cmd.exe /K {shell_command}"
+    )
+    assert persisted.windows_terminal_startup_position == "maximized"
+    assert (
+        persisted.alacritty_terminal_executable
+        == r"C:\tools\Alacritty\alacritty.exe"
+    )
+    assert (
+        persisted.alacritty_terminal_open_args_template
+        == "--working-directory {folder}"
+    )
+    assert (
+        persisted.alacritty_terminal_command_args_template
+        == "--working-directory {folder} --hold -e cmd.exe /K {shell_command}"
+    )
+    assert persisted.alacritty_terminal_startup_position == "normal"
+    assert persisted.wezterm_terminal_executable == r"C:\tools\WezTerm\wezterm-gui.exe"
+    assert persisted.wezterm_terminal_open_args_template == "start --cwd {folder}"
+    assert (
+        persisted.wezterm_terminal_command_args_template
+        == "start --cwd {folder} cmd.exe /K {shell_command}"
+    )
+    assert persisted.wezterm_terminal_startup_position == "minimized"
     assert persisted.context_immediate_child_scan_cap == 77
     assert persisted.context_tool_code_editor_exe_path == r"C:\tools\code.exe"
     assert persisted.context_tool_code_editor_args_template == "--folder {folder}"

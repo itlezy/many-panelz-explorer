@@ -26,9 +26,12 @@ from .types import (
     QUEUE_VIEW_FLOATING,
     SHORTCUT_BEHAVIOR_DIALOG,
     SHORTCUT_BEHAVIOR_DIRECT,
+    TERMINAL_LAUNCHER_ALACRITTY,
     TERMINAL_LAUNCHER_COMSPEC,
     TERMINAL_LAUNCHER_POWERSHELL5,
     TERMINAL_LAUNCHER_PWSH,
+    TERMINAL_LAUNCHER_WEZTERM,
+    TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
     OperationConflictPolicy,
     OperationDispatchMode,
     OperationKind,
@@ -130,9 +133,12 @@ def normalize_terminal_launcher(
 
     normalized = str(value).strip().lower()
     if normalized in {
+        TERMINAL_LAUNCHER_ALACRITTY,
         TERMINAL_LAUNCHER_COMSPEC,
         TERMINAL_LAUNCHER_PWSH,
         TERMINAL_LAUNCHER_POWERSHELL5,
+        TERMINAL_LAUNCHER_WEZTERM,
+        TERMINAL_LAUNCHER_WINDOWS_TERMINAL,
     }:
         return cast("TerminalLauncherId", normalized)
     return fallback

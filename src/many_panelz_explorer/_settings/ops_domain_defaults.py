@@ -413,6 +413,243 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         )
 
     @property
+    def windows_terminal_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.WINDOWS_TERMINAL_EXECUTABLE_KEY,
+                self.DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+        )
+
+    @windows_terminal_executable.setter
+    def windows_terminal_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINDOWS_TERMINAL_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_WINDOWS_TERMINAL_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def windows_terminal_open_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
+        )
+
+    @windows_terminal_open_args_template.setter
+    def windows_terminal_open_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WINDOWS_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def windows_terminal_command_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+        )
+
+    @windows_terminal_command_args_template.setter
+    def windows_terminal_command_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def windows_terminal_startup_position(self) -> str:
+        return normalize_terminal_startup_position(
+            self._storage.value(
+                self.WINDOWS_TERMINAL_STARTUP_POSITION_KEY,
+                self.DEFAULT_WINDOWS_TERMINAL_STARTUP_POSITION,
+            )
+        )
+
+    @windows_terminal_startup_position.setter
+    def windows_terminal_startup_position(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINDOWS_TERMINAL_STARTUP_POSITION_KEY,
+            normalize_terminal_startup_position(
+                value,
+                fallback=self.DEFAULT_WINDOWS_TERMINAL_STARTUP_POSITION,
+            ),
+        )
+
+    @property
+    def alacritty_terminal_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.ALACRITTY_TERMINAL_EXECUTABLE_KEY,
+                self.DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+        )
+
+    @alacritty_terminal_executable.setter
+    def alacritty_terminal_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.ALACRITTY_TERMINAL_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_ALACRITTY_TERMINAL_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def alacritty_terminal_open_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
+        )
+
+    @alacritty_terminal_open_args_template.setter
+    def alacritty_terminal_open_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def alacritty_terminal_command_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+        )
+
+    @alacritty_terminal_command_args_template.setter
+    def alacritty_terminal_command_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def alacritty_terminal_startup_position(self) -> str:
+        return normalize_terminal_startup_position(
+            self._storage.value(
+                self.ALACRITTY_TERMINAL_STARTUP_POSITION_KEY,
+                self.DEFAULT_ALACRITTY_TERMINAL_STARTUP_POSITION,
+            )
+        )
+
+    @alacritty_terminal_startup_position.setter
+    def alacritty_terminal_startup_position(self, value: str) -> None:
+        self._storage.set_value(
+            self.ALACRITTY_TERMINAL_STARTUP_POSITION_KEY,
+            normalize_terminal_startup_position(
+                value,
+                fallback=self.DEFAULT_ALACRITTY_TERMINAL_STARTUP_POSITION,
+            ),
+        )
+
+    @property
+    def wezterm_terminal_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.WEZTERM_TERMINAL_EXECUTABLE_KEY,
+                self.DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+        )
+
+    @wezterm_terminal_executable.setter
+    def wezterm_terminal_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.WEZTERM_TERMINAL_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_WEZTERM_TERMINAL_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def wezterm_terminal_open_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+        )
+
+    @wezterm_terminal_open_args_template.setter
+    def wezterm_terminal_open_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WEZTERM_TERMINAL_OPEN_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def wezterm_terminal_command_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+        )
+
+    @wezterm_terminal_command_args_template.setter
+    def wezterm_terminal_command_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WEZTERM_TERMINAL_COMMAND_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def wezterm_terminal_startup_position(self) -> str:
+        return normalize_terminal_startup_position(
+            self._storage.value(
+                self.WEZTERM_TERMINAL_STARTUP_POSITION_KEY,
+                self.DEFAULT_WEZTERM_TERMINAL_STARTUP_POSITION,
+            )
+        )
+
+    @wezterm_terminal_startup_position.setter
+    def wezterm_terminal_startup_position(self, value: str) -> None:
+        self._storage.set_value(
+            self.WEZTERM_TERMINAL_STARTUP_POSITION_KEY,
+            normalize_terminal_startup_position(
+                value,
+                fallback=self.DEFAULT_WEZTERM_TERMINAL_STARTUP_POSITION,
+            ),
+        )
+
+    @property
     def file_open_overrides_json(self) -> str:
         return normalize.normalize_overrides_json(
             self._storage.value(

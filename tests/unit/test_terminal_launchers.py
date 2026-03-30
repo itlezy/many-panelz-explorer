@@ -155,6 +155,81 @@ def test_build_windows_terminal_launch_argv_activates_python_project_for_powersh
     ]
 
 
+def test_build_windows_terminal_launch_argv_opens_windows_terminal_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt_path = tmp_path / "wt.exe"
+    wt_path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    argv = build_windows_terminal_launch_argv(
+        target_folder=tmp_path,
+        launcher_id="windows_terminal",
+    )
+
+    assert argv == [
+        str(wt_path),
+        "-d",
+        str(tmp_path),
+    ]
+
+
+def test_build_windows_terminal_launch_argv_runs_alacritty_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alacritty_path = tmp_path / "alacritty.exe"
+    alacritty_path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    argv = build_windows_terminal_launch_argv(
+        target_folder=tmp_path,
+        launcher_id="alacritty",
+        command="pytest -q",
+    )
+
+    assert argv == [
+        str(alacritty_path),
+        "--working-directory",
+        str(tmp_path),
+        "--hold",
+        "-e",
+        "cmd.exe",
+        "/K",
+        f'cd /d "{tmp_path}" && pytest -q',
+    ]
+
+
+def test_build_windows_terminal_launch_argv_activates_python_project_for_wezterm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wezterm_path = tmp_path / "wezterm-gui.exe"
+    activate_path = tmp_path / ".venv" / "Scripts" / "activate.bat"
+    wezterm_path.write_text("", encoding="utf-8")
+    activate_path.parent.mkdir(parents=True, exist_ok=True)
+    activate_path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    argv = build_windows_terminal_launch_argv(
+        target_folder=tmp_path,
+        launcher_id="wezterm",
+        command="python -m many_panelz_explorer",
+        python_project=True,
+    )
+
+    assert argv == [
+        str(wezterm_path),
+        "start",
+        "--cwd",
+        str(tmp_path),
+        "cmd.exe",
+        "/K",
+        (
+            f'cd /d "{tmp_path}" && '
+            f'call "{activate_path}" && python -m many_panelz_explorer'
+        ),
+    ]
+
+
 def test_open_terminal_here_uses_configured_default_launcher(
     monkeypatch: pytest.MonkeyPatch,
     restore_terminal_settings: None,
