@@ -275,6 +275,10 @@ def test_ui_preferences_round_trip() -> None:
             ),
             everything_executable=r"C:\tools\Everything.exe",
             use_everything_sdk_for_folder_sizes=False,
+            file_list_mouse_selection_mode="tc_full",
+            auto_calculate_dir_sizes_on_space=True,
+            auto_calculate_dir_sizes_before_copy_move=True,
+            auto_calculate_dir_sizes_before_archive=True,
             seven_zip_executable=r"C:\tools\7z.exe",
             seven_zip_pack_args_template=(
                 "a -y {archive} {sources} {recurse_mode} {compression_level} "
@@ -606,6 +610,12 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         )
         settings.remove(SettingsManager.EVERYTHING_EXECUTABLE_KEY)
         settings.remove(SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY)
+        settings.set_value(SettingsManager.FILE_LIST_MOUSE_SELECTION_MODE_KEY, "weird")
+        settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY)
+        settings.remove(
+            SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY
+        )
+        settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY)
@@ -933,6 +943,22 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         assert (
             loaded.use_everything_sdk_for_folder_sizes
             is SettingsManager.DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES
+        )
+        assert (
+            loaded.file_list_mouse_selection_mode
+            == SettingsManager.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE
+        )
+        assert (
+            loaded.auto_calculate_dir_sizes_on_space
+            is SettingsManager.DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE
+        )
+        assert (
+            loaded.auto_calculate_dir_sizes_before_copy_move
+            is SettingsManager.DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE
+        )
+        assert (
+            loaded.auto_calculate_dir_sizes_before_archive
+            is SettingsManager.DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE
         )
         assert loaded.seven_zip_executable == DEFAULT_SEVEN_ZIP_EXECUTABLE
         assert (

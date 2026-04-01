@@ -21,6 +21,10 @@ from .._operations.backend_options import (
     generate_unstoppable_switch_args,
 )
 from .._operations.types import OperationKind, OperationRequest
+from ..selection_size_summary import (
+    build_selection_size_line,
+    build_selection_size_snapshot,
+)
 from ._operation_dialog_option_widgets import (
     build_external_options_group,
     build_robocopy_options_group,
@@ -37,6 +41,7 @@ if TYPE_CHECKING:
         TeraCopyBackendOptions,
     )
     from .._settings.models import UiPreferences
+    from ..fast_dir_model import FastDirModel
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,7 @@ class OperationDialog(QDialog):
         sources: list[Path],
         target_dir: Path | None,
         preferences: UiPreferences,
+        source_model: FastDirModel | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -66,6 +72,7 @@ class OperationDialog(QDialog):
         self._preferences = preferences
         self._sources = list(sources)
         self._target_dir = target_dir
+        self._source_model = source_model
         self._result = OperationDialogResult(
             backend_id=(
                 preferences.default_delete_backend
@@ -85,10 +92,10 @@ class OperationDialog(QDialog):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
-        summary = QLabel(self._summary_text(), self)
-        summary.setWordWrap(True)
-        summary.setTextFormat(Qt.TextFormat.PlainText)
-        root.addWidget(summary)
+        self.summary_label = QLabel(self._summary_text(), self)
+        self.summary_label.setWordWrap(True)
+        self.summary_label.setTextFormat(Qt.TextFormat.PlainText)
+        root.addWidget(self.summary_label)
 
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
@@ -143,6 +150,10 @@ class OperationDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
+        if self._source_model is not None:
+            self._source_model.folder_size_state_changed.connect(
+                self._refresh_summary_text
+            )
 
     def _bind_backend_option_widgets(self) -> None:
         """Create backend-specific option widgets and expose them on the dialog."""
@@ -206,12 +217,36 @@ class OperationDialog(QDialog):
         lines: list[str] = []
         lines.append(f"Operation: {self._kind}")
         lines.append(f"Items: {len(self._sources)}")
+        lines.append(self._selection_size_line())
         lines.extend(str(source) for source in self._sources[:5])
         if len(self._sources) > 5:
             lines.append(f"... +{len(self._sources) - 5} more")
         if self._target_dir is not None:
             lines.append(f"Target: {self._target_dir}")
         return "\n".join(lines)
+
+    def _selection_size_line(self) -> str:
+        """Render the current known source-selection size summary."""
+
+        snapshot = build_selection_size_snapshot(
+            sources=self._sources,
+            model=self._source_model,
+        )
+        if self._source_model is not None:
+            size_formatter = self._source_model.format_size_value
+        else:
+            size_formatter = self._default_size_formatter
+        return build_selection_size_line(snapshot, size_formatter=size_formatter)
+
+    def _refresh_summary_text(self, *_args: object) -> None:
+        """Refresh the summary label after background size updates."""
+
+        self.summary_label.setText(self._summary_text())
+
+    def _default_size_formatter(self, value: int) -> str:
+        """Format bytes for summary-only dialogs without a live model."""
+
+        return f"{int(value):,}"
 
     def _backend_options(self) -> list[tuple[str, str]]:
         """Return the available backends for the current operation kind."""

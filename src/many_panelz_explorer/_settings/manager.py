@@ -252,6 +252,18 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     use_everything_sdk_for_folder_sizes = delegate_domain_property(
         "ops", "use_everything_sdk_for_folder_sizes"
     )
+    file_list_mouse_selection_mode = delegate_domain_property(
+        "ops", "file_list_mouse_selection_mode"
+    )
+    auto_calculate_dir_sizes_on_space = delegate_domain_property(
+        "ops", "auto_calculate_dir_sizes_on_space"
+    )
+    auto_calculate_dir_sizes_before_copy_move = delegate_domain_property(
+        "ops", "auto_calculate_dir_sizes_before_copy_move"
+    )
+    auto_calculate_dir_sizes_before_archive = delegate_domain_property(
+        "ops", "auto_calculate_dir_sizes_before_archive"
+    )
     seven_zip_executable = delegate_domain_property("ops", "seven_zip_executable")
     seven_zip_pack_args_template = delegate_domain_property(
         "ops", "seven_zip_pack_args_template"
@@ -447,6 +459,16 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             use_everything_sdk_for_folder_sizes=(
                 self.use_everything_sdk_for_folder_sizes
             ),
+            file_list_mouse_selection_mode=self.file_list_mouse_selection_mode,
+            auto_calculate_dir_sizes_on_space=(
+                self.auto_calculate_dir_sizes_on_space
+            ),
+            auto_calculate_dir_sizes_before_copy_move=(
+                self.auto_calculate_dir_sizes_before_copy_move
+            ),
+            auto_calculate_dir_sizes_before_archive=(
+                self.auto_calculate_dir_sizes_before_archive
+            ),
             seven_zip_executable=self.seven_zip_executable,
             seven_zip_pack_args_template=self.seven_zip_pack_args_template,
             seven_zip_extract_args_template=self.seven_zip_extract_args_template,
@@ -636,6 +658,18 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.everything_executable = preferences.everything_executable
         self.use_everything_sdk_for_folder_sizes = (
             preferences.use_everything_sdk_for_folder_sizes
+        )
+        self.file_list_mouse_selection_mode = (
+            preferences.file_list_mouse_selection_mode
+        )
+        self.auto_calculate_dir_sizes_on_space = (
+            preferences.auto_calculate_dir_sizes_on_space
+        )
+        self.auto_calculate_dir_sizes_before_copy_move = (
+            preferences.auto_calculate_dir_sizes_before_copy_move
+        )
+        self.auto_calculate_dir_sizes_before_archive = (
+            preferences.auto_calculate_dir_sizes_before_archive
         )
         self.seven_zip_executable = preferences.seven_zip_executable
         self.seven_zip_pack_args_template = preferences.seven_zip_pack_args_template

@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox, QTabWidget
 
@@ -179,6 +179,14 @@ def _size_cell_text(tab: ExplorerTab, path: Path) -> str:
     assert index.isValid()
     value = tab.model.data(index.siblingAtColumn(2), int(Qt.ItemDataRole.DisplayRole))
     return str(value or "")
+
+
+def _row_center(tab: ExplorerTab, path: Path) -> QPoint:
+    """Return the viewport click position for one file-list row."""
+
+    index = tab.model.index(str(path))
+    assert index.isValid()
+    return tab.view.visualRect(index).center()
 
 
 class _ControllerCloneStub(_ControllerStub):
@@ -1255,6 +1263,166 @@ def test_tc_selection_shortcuts_toggle_current_row_and_advance(
     QTest.keyClick(tab.view, Qt.Key_Insert)
     assert _selected_real_paths(tab) == []
     assert tab.view.currentIndex() == parent_index
+
+
+def test_tc_mouse_selection_mode_updates_left_and_right_click_selection(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    settings.file_list_mouse_selection_mode = "tc_full"
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="tc-mouse-selection",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-selection-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.txt"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+    gamma_file.write_text("gamma", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+    tab.view.setFocus()
+
+    QTest.mouseClick(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, alpha_file),
+    )
+    assert _selected_real_paths(tab) == [alpha_file]
+
+    QTest.mouseClick(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, beta_file),
+    )
+    assert _selected_real_paths(tab) == [beta_file]
+
+    _select_paths(tab, [alpha_file, beta_file])
+    QTest.mouseClick(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, alpha_file),
+    )
+    assert _selected_real_paths(tab) == [alpha_file, beta_file]
+
+
+def test_space_auto_calculates_selected_directory_size_when_enabled(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    settings.auto_calculate_dir_sizes_on_space = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="space-auto-folder-size",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "space-size-root"
+    root.mkdir()
+    target_dir = root / "folder-a"
+    target_dir.mkdir()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(target_dir)).isValid())
+    target_index = tab.model.index(str(target_dir))
+    tab.view.selectionModel().setCurrentIndex(
+        target_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    tab.view.setFocus()
+
+    queued: list[tuple[list[Path], bool]] = []
+    monkeypatch.setattr(
+        tab._actions,
+        "queue_folder_size_calculation",
+        lambda paths, *, announce: queued.append((list(paths), announce)) or 1,
+    )
+
+    QTest.keyClick(tab.view, Qt.Key_Space)
+
+    assert queued == [([target_dir], False)]
+
+
+def test_copy_move_and_archive_flows_queue_directory_sizes_when_enabled(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    settings.auto_calculate_dir_sizes_before_copy_move = True
+    settings.auto_calculate_dir_sizes_before_archive = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="operation-auto-folder-sizes",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+    window.new_vertical_panel_action.trigger()
+
+    root = tmp_path / "operation-size-root"
+    root.mkdir()
+    folder = root / "folder-a"
+    folder.mkdir()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(folder)).isValid())
+    _select_paths(tab, [folder])
+    tab.view.setFocus()
+
+    queued: list[list[Path]] = []
+    monkeypatch.setattr(
+        tab,
+        "queue_folder_size_calculation",
+        lambda paths, *, announce=False: queued.append(list(paths)) or 1,
+    )
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "build_operation_request",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "build_archive_request",
+        lambda **_kwargs: None,
+    )
+
+    window.operations_coordinator.transfer_selected_to_target(move=False)
+    tab.create_zip_from_selection()
+
+    assert queued == [[folder], [folder]]
 
 
 def test_file_list_shortcuts_cover_selection_context_and_clipboard(

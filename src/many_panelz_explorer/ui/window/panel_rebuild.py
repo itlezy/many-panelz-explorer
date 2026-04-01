@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter, QWidget
 
+from ...explorer_tab import ExplorerTab
 from ...panel_widget import PanelWidget
 from .layout import WindowLayoutCoordinator
 
@@ -174,6 +175,9 @@ class WindowPanelRebuildCoordinator:
             roots_provider=self.window.roots_provider,
             parent=self.window,
         )
+        panel.file_list_mouse_selection_mode = (
+            self.window.preferences_coordinator.file_list_mouse_selection_mode
+        )
         self._connect_panel_signals(
             panel_id,
             panel,
@@ -276,6 +280,15 @@ class WindowPanelRebuildCoordinator:
             file_list_font=file_list_font,
             navigation_font=navigation_font,
         )
+        panel.file_list_mouse_selection_mode = (
+            self.window.preferences_coordinator.file_list_mouse_selection_mode
+        )
+        for tab_index in range(panel.tabs.count()):
+            tab = panel.tabs.widget(tab_index)
+            if isinstance(tab, ExplorerTab):
+                tab.set_mouse_selection_mode(
+                    self.window.preferences_coordinator.file_list_mouse_selection_mode
+                )
         panel.widget_map_coordinator.set_enabled(
             self.window.preferences_coordinator.show_widget_map_enabled
         )

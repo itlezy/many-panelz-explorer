@@ -551,6 +551,90 @@ def build_shortcut_external_tool_rows(
         controls=[dialog.use_everything_sdk_for_folder_sizes_checkbox],
     )
 
+    dialog.file_list_mouse_selection_mode_combo = QComboBox(dialog)
+    dialog.file_list_mouse_selection_mode_combo.addItem("Qt Default", "qt_default")
+    dialog.file_list_mouse_selection_mode_combo.addItem(
+        "Total Commander Style",
+        "tc_full",
+    )
+    dialog.file_list_mouse_selection_mode_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="file_list_mouse_selection_mode",
+        title="File List Mouse Selection Mode",
+        description=(
+            "Choose whether the file list keeps standard Qt clicks or uses "
+            "Total Commander style left/right row selection."
+        ),
+        terms=(
+            "file list mouse selection total commander tc right click left click "
+            "selection mode"
+        ),
+        controls=[dialog.file_list_mouse_selection_mode_combo],
+    )
+
+    dialog.auto_calculate_dir_sizes_on_space_checkbox = QCheckBox(dialog)
+    dialog.auto_calculate_dir_sizes_on_space_checkbox.setText(
+        "Auto-calculate selected folder sizes on Space"
+    )
+    dialog.auto_calculate_dir_sizes_on_space_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="auto_calculate_dir_sizes_on_space",
+        title="Auto Folder Sizes on Space",
+        description=(
+            "When Space selects a directory, queue folder-size calculation "
+            "without waiting for completion."
+        ),
+        terms="space auto folder size calculate selection directory",
+        controls=[dialog.auto_calculate_dir_sizes_on_space_checkbox],
+    )
+
+    dialog.auto_calculate_dir_sizes_before_copy_move_checkbox = QCheckBox(dialog)
+    dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.setText(
+        "Auto-calculate selected folder sizes before copy and move"
+    )
+    dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="auto_calculate_dir_sizes_before_copy_move",
+        title="Auto Folder Sizes Before Copy/Move",
+        description=(
+            "Queue selected directory sizes before copy and move dialogs or "
+            "operations open."
+        ),
+        terms="copy move auto folder size calculate f5 f6",
+        controls=[dialog.auto_calculate_dir_sizes_before_copy_move_checkbox],
+    )
+
+    dialog.auto_calculate_dir_sizes_before_archive_checkbox = QCheckBox(dialog)
+    dialog.auto_calculate_dir_sizes_before_archive_checkbox.setText(
+        "Auto-calculate selected folder sizes before archive actions"
+    )
+    dialog.auto_calculate_dir_sizes_before_archive_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="auto_calculate_dir_sizes_before_archive",
+        title="Auto Folder Sizes Before Archive",
+        description=(
+            "Queue selected directory sizes before pack or unpack dialogs open."
+        ),
+        terms="archive auto folder size calculate alt+f5 alt+f9",
+        controls=[dialog.auto_calculate_dir_sizes_before_archive_checkbox],
+    )
+
     dialog.seven_zip_executable_edit = QLineEdit(dialog)
     seven_zip_executable_controls = control_builders.build_backend_executable_controls(
         dialog,

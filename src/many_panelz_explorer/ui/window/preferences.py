@@ -158,6 +158,12 @@ class WindowPreferencesCoordinator:
         return self._default_operation_conflict_policy
 
     @property
+    def file_list_mouse_selection_mode(self) -> str:
+        """Return the configured file-list mouse-selection mode."""
+
+        return self._file_list_mouse_selection_mode
+
+    @property
     def status_bar_storage_label_template(self) -> str:
         """Return the active storage status label template."""
         return self._status_bar_storage_label_template
@@ -200,9 +206,12 @@ class WindowPreferencesCoordinator:
         with QSignalBlocker(self.window.show_hidden_action):
             self.window.show_hidden_action.setChecked(self._show_hidden)
 
+        from ...explorer_tab import ExplorerTab
+
         file_list_font, navigation_font = self.effective_panel_fonts()
         for panel in self.window.panel_widgets.values():
             panel.set_show_hidden(self._show_hidden)
+            panel.file_list_mouse_selection_mode = self._file_list_mouse_selection_mode
             panel.presentation_coordinator.apply_toolbar_visibility(
                 show_refresh_button=self._show_refresh_button,
                 show_root_buttons=self._show_root_buttons,
@@ -238,6 +247,12 @@ class WindowPreferencesCoordinator:
                 target_color_hex=self._target_panel_tint_color_hex,
                 target_intensity_percent=self._target_panel_tint_intensity_percent,
             )
+            for tab_index in range(panel.tabs.count()):
+                tab_widget = panel.tabs.widget(tab_index)
+                if isinstance(tab_widget, ExplorerTab):
+                    tab_widget.set_mouse_selection_mode(
+                        self._file_list_mouse_selection_mode
+                    )
 
         self.window.ui_composer.apply_operation_queue_visibility()
         self.window.status_coordinator.set_storage_bytes_formatter(
@@ -373,6 +388,9 @@ class WindowPreferencesCoordinator:
         )
         self._operation_shortcut_behavior = preferences.operation_shortcut_behavior
         self._operation_queue_view_mode = preferences.operation_queue_view_mode
+        self._file_list_mouse_selection_mode = (
+            preferences.file_list_mouse_selection_mode
+        )
 
     def _build_byte_format_preferences(
         self,

@@ -323,6 +323,19 @@ def load_operations_preferences(
     dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(
         preferences.use_everything_sdk_for_folder_sizes
     )
+    dialog.set_combo_value(
+        dialog.file_list_mouse_selection_mode_combo,
+        preferences.file_list_mouse_selection_mode,
+    )
+    dialog.auto_calculate_dir_sizes_on_space_checkbox.setChecked(
+        preferences.auto_calculate_dir_sizes_on_space
+    )
+    dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.setChecked(
+        preferences.auto_calculate_dir_sizes_before_copy_move
+    )
+    dialog.auto_calculate_dir_sizes_before_archive_checkbox.setChecked(
+        preferences.auto_calculate_dir_sizes_before_archive
+    )
     dialog.seven_zip_executable_edit.setText(preferences.seven_zip_executable)
     dialog.seven_zip_pack_args_edit.setText(preferences.seven_zip_pack_args_template)
     dialog.seven_zip_extract_args_edit.setText(
@@ -670,6 +683,18 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         everything_executable=dialog.everything_executable_edit.text().strip(),
         use_everything_sdk_for_folder_sizes=(
             dialog.use_everything_sdk_for_folder_sizes_checkbox.isChecked()
+        ),
+        file_list_mouse_selection_mode=str(
+            dialog.file_list_mouse_selection_mode_combo.currentData()
+        ),
+        auto_calculate_dir_sizes_on_space=(
+            dialog.auto_calculate_dir_sizes_on_space_checkbox.isChecked()
+        ),
+        auto_calculate_dir_sizes_before_copy_move=(
+            dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.isChecked()
+        ),
+        auto_calculate_dir_sizes_before_archive=(
+            dialog.auto_calculate_dir_sizes_before_archive_checkbox.isChecked()
         ),
         seven_zip_executable=dialog.seven_zip_executable_edit.text().strip(),
         seven_zip_pack_args_template=dialog.seven_zip_pack_args_edit.text().strip(),

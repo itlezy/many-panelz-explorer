@@ -31,9 +31,14 @@ from .._operations.types import (
     DISPATCH_MODE_QUEUE,
     OperationRequest,
 )
+from ..selection_size_summary import (
+    build_selection_size_line,
+    build_selection_size_snapshot,
+)
 
 if TYPE_CHECKING:
     from .._settings.models import UiPreferences
+    from ..fast_dir_model import FastDirModel
 
 
 type ArchiveOperationKind = Literal["pack", "unpack"]
@@ -59,12 +64,14 @@ class ArchiveOperationDialog(QDialog):
         kind: ArchiveOperationKind,
         sources: list[Path],
         preferences: UiPreferences,
+        source_model: FastDirModel | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._kind: ArchiveOperationKind = kind
         self._sources = [Path(source) for source in sources]
         self._preferences = preferences
+        self._source_model = source_model
 
         self.setModal(True)
         self.resize(700, 520)
@@ -74,10 +81,10 @@ class ArchiveOperationDialog(QDialog):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
-        summary = QLabel(self._summary_text(), self)
-        summary.setWordWrap(True)
-        summary.setTextFormat(Qt.TextFormat.PlainText)
-        root.addWidget(summary)
+        self.summary_label = QLabel(self._summary_text(), self)
+        self.summary_label.setWordWrap(True)
+        self.summary_label.setTextFormat(Qt.TextFormat.PlainText)
+        root.addWidget(self.summary_label)
 
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
@@ -162,14 +169,42 @@ class ArchiveOperationDialog(QDialog):
             self.target_edit.setText(str(self._suggest_unpack_target_dir()))
         self._sync_backend_state()
         self._sync_password_state()
+        if self._source_model is not None:
+            self._source_model.folder_size_state_changed.connect(
+                self._refresh_summary_text
+            )
 
     def _summary_text(self) -> str:
         lines = [f"Operation: {self._kind.title()}"]
         lines.append(f"Items: {len(self._sources)}")
+        lines.append(self._selection_size_line())
         lines.extend(str(source) for source in self._sources[:5])
         if len(self._sources) > 5:
             lines.append(f"... +{len(self._sources) - 5} more")
         return "\n".join(lines)
+
+    def _selection_size_line(self) -> str:
+        """Render the current known source-selection size summary."""
+
+        snapshot = build_selection_size_snapshot(
+            sources=self._sources,
+            model=self._source_model,
+        )
+        if self._source_model is not None:
+            size_formatter = self._source_model.format_size_value
+        else:
+            size_formatter = self._default_size_formatter
+        return build_selection_size_line(snapshot, size_formatter=size_formatter)
+
+    def _refresh_summary_text(self, *_args: object) -> None:
+        """Refresh the summary label after background size updates."""
+
+        self.summary_label.setText(self._summary_text())
+
+    def _default_size_formatter(self, value: int) -> str:
+        """Format bytes for summary-only dialogs without a live model."""
+
+        return f"{int(value):,}"
 
     def _build_winrar_pack_group(self) -> QWidget:
         group = QWidget(self.options_host)

@@ -11,7 +11,6 @@ from PySide6.QtGui import QKeyEvent, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QMainWindow,
-    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -19,6 +18,10 @@ from PySide6.QtWidgets import (
 from ._explorer_tab_actions import ExplorerTabActions
 from ._explorer_tab_columns import ExplorerTabColumns
 from ._explorer_tab_navigation import ExplorerTabNavigation
+from .explorer_file_list_view import (
+    FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT,
+    ExplorerFileListView,
+)
 from .fast_dir_model import FastDirModel
 
 if TYPE_CHECKING:
@@ -34,6 +37,7 @@ class ExplorerTab(QWidget):
         self,
         initial_path: Path,
         show_hidden: bool = True,
+        mouse_selection_mode: str = FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT,
         file_list_size_formatter: Callable[[int], str] | None = None,
         properties_size_formatter: Callable[[int], str] | None = None,
         parent: QWidget | None = None,
@@ -54,7 +58,7 @@ class ExplorerTab(QWidget):
         self.model.set_size_formatter(self._file_list_size_formatter)
         self.model.setReadOnly(False)
 
-        self.view = QTreeView()
+        self.view = ExplorerFileListView()
         self.view.setModel(self.model)
         self.view.setRootIsDecorated(False)
         self.view.setAlternatingRowColors(True)
@@ -66,6 +70,7 @@ class ExplorerTab(QWidget):
         self.view.setDropIndicatorShown(False)
         self.view.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.view.setSortingEnabled(True)
+        self.view.set_mouse_selection_mode(mouse_selection_mode)
         self.view.installEventFilter(self)
         root.addWidget(self.view)
 
@@ -131,6 +136,21 @@ class ExplorerTab(QWidget):
         self._properties_size_formatter = (
             formatter or self._default_properties_size_formatter
         )
+
+    def set_mouse_selection_mode(self, mode: str) -> None:
+        """Apply one configured mouse-selection mode to the file list."""
+
+        self.view.set_mouse_selection_mode(mode)
+
+    def queue_folder_size_calculation(
+        self,
+        paths: list[Path],
+        *,
+        announce: bool = False,
+    ) -> int:
+        """Queue folder-size calculation for paths visible in this tab."""
+
+        return self._actions.queue_folder_size_calculation(paths, announce=announce)
 
     def selected_paths(self) -> list[Path]:
         rows = self.view.selectionModel().selectedRows()

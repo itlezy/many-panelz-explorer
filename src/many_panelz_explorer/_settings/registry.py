@@ -201,6 +201,14 @@ class SettingsRegistry:
     USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY = (
         "ops/open/everything/use_sdk_for_folder_sizes"
     )
+    FILE_LIST_MOUSE_SELECTION_MODE_KEY = "ops/file_list/mouse_selection_mode"
+    AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY = "ops/file_list/auto_sizes_on_space"
+    AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY = (
+        "ops/file_list/auto_sizes_before_copy_move"
+    )
+    AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY = (
+        "ops/file_list/auto_sizes_before_archive"
+    )
     SEVEN_ZIP_EXECUTABLE_KEY = "ops/open/7zip/executable"
     SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY = "ops/open/7zip/pack_args_template"
     SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY = "ops/open/7zip/extract_args_template"
@@ -357,6 +365,10 @@ class SettingsRegistry:
     DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND = BACKEND_ARCHIVE_WINRAR
     DEFAULT_EVERYTHING_EXECUTABLE = DEFAULT_EVERYTHING_EXECUTABLE
     DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES = True
+    DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE = "qt_default"
+    DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE = False
+    DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE = False
+    DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE = False
     DEFAULT_SEVEN_ZIP_EXECUTABLE = DEFAULT_SEVEN_ZIP_EXECUTABLE
     DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE = DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
     DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE = (
@@ -428,4 +440,8 @@ class SettingsRegistry:
         "minimized",
         "right_of_screen",
         "left_of_screen",
+    }
+    ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES: ClassVar[set[str]] = {
+        "qt_default",
+        "tc_full",
     }

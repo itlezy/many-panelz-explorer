@@ -177,6 +177,10 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
             "double_commander_source_args_template",
             "double_commander_source_target_args_template",
             "everything_executable",
+            "file_list_mouse_selection_mode",
+            "auto_calculate_dir_sizes_on_space",
+            "auto_calculate_dir_sizes_before_copy_move",
+            "auto_calculate_dir_sizes_before_archive",
             "seven_zip_executable",
             "seven_zip_pack_args_template",
             "seven_zip_extract_args_template",
@@ -257,6 +261,10 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         file_open_overrides_table: QTableWidget
         everything_executable_edit: QLineEdit
         use_everything_sdk_for_folder_sizes_checkbox: QCheckBox
+        file_list_mouse_selection_mode_combo: QComboBox
+        auto_calculate_dir_sizes_on_space_checkbox: QCheckBox
+        auto_calculate_dir_sizes_before_copy_move_checkbox: QCheckBox
+        auto_calculate_dir_sizes_before_archive_checkbox: QCheckBox
         generic_copymove_executable_edit: QLineEdit
         generic_copymove_test_btn: QPushButton
         generic_delete_args_edit: QLineEdit

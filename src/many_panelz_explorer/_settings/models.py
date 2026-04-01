@@ -189,6 +189,10 @@ class UiPreferences:
     )
     everything_executable: str = DEFAULT_EVERYTHING_EXECUTABLE
     use_everything_sdk_for_folder_sizes: bool = True
+    file_list_mouse_selection_mode: str = "qt_default"
+    auto_calculate_dir_sizes_on_space: bool = False
+    auto_calculate_dir_sizes_before_copy_move: bool = False
+    auto_calculate_dir_sizes_before_archive: bool = False
     seven_zip_executable: str = DEFAULT_SEVEN_ZIP_EXECUTABLE
     seven_zip_pack_args_template: str = DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
     seven_zip_extract_args_template: str = DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE

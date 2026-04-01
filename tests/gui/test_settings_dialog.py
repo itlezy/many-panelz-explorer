@@ -1509,6 +1509,10 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     )
     dialog.everything_executable_edit.setText(r"C:\tools\Everything.exe")
     dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(False)
+    dialog.set_combo_value(dialog.file_list_mouse_selection_mode_combo, "tc_full")
+    dialog.auto_calculate_dir_sizes_on_space_checkbox.setChecked(True)
+    dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.setChecked(True)
+    dialog.auto_calculate_dir_sizes_before_archive_checkbox.setChecked(True)
     dialog.seven_zip_executable_edit.setText(r"C:\tools\7z.exe")
     dialog.seven_zip_pack_args_edit.setText(
         "a -y {archive} {sources} {recurse_mode} {compression_level} "
@@ -1620,6 +1624,10 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     )
     assert persisted.everything_executable == r"C:\tools\Everything.exe"
     assert persisted.use_everything_sdk_for_folder_sizes is False
+    assert persisted.file_list_mouse_selection_mode == "tc_full"
+    assert persisted.auto_calculate_dir_sizes_on_space is True
+    assert persisted.auto_calculate_dir_sizes_before_copy_move is True
+    assert persisted.auto_calculate_dir_sizes_before_archive is True
     assert persisted.seven_zip_executable == r"C:\tools\7z.exe"
     assert (
         persisted.seven_zip_pack_args_template

@@ -188,7 +188,9 @@ class ExplorerTabActions(QObject):
         current_index = self._current_real_index()
         if not current_index.isValid():
             return
-        self._toggle_row_selection(current_index)
+        is_selected = self._toggle_row_selection(current_index)
+        if is_selected:
+            self._maybe_auto_calculate_size_for_index(current_index)
         self._tab.view.scrollTo(
             current_index,
             QAbstractItemView.ScrollHint.PositionAtCenter,
@@ -237,7 +239,7 @@ class ExplorerTabActions(QObject):
                 2600,
             )
             return
-        self._start_folder_size_calculation(targets)
+        self.queue_folder_size_calculation(targets, announce=True)
 
     def calculate_visible_folder_sizes(self) -> None:
         """Calculate folder sizes for every visible folder in the current file list."""
@@ -249,7 +251,7 @@ class ExplorerTabActions(QObject):
                 2600,
             )
             return
-        self._start_folder_size_calculation(targets)
+        self.queue_folder_size_calculation(targets, announce=True)
 
     def open_terminal_here(self) -> None:
         """Open the configured terminal at the current tab path."""
@@ -634,12 +636,14 @@ class ExplorerTabActions(QObject):
             return QModelIndex()
         return current_index
 
-    def _toggle_row_selection(self, index: QModelIndex) -> None:
-        self._tab.view.selectionModel().select(
+    def _toggle_row_selection(self, index: QModelIndex) -> bool:
+        selection_model = self._tab.view.selectionModel()
+        selection_model.select(
             index,
             QItemSelectionModel.SelectionFlag.Toggle
             | QItemSelectionModel.SelectionFlag.Rows,
         )
+        return selection_model.isSelected(index)
 
     def _next_selectable_row_index(self, current_index: QModelIndex) -> QModelIndex:
         root_index = self._tab.view.rootIndex()
@@ -724,23 +728,30 @@ class ExplorerTabActions(QObject):
         self._run_action(action)
         self._tab.navigation.refresh()
 
-    def _start_folder_size_calculation(self, paths: list[Path]) -> None:
-        """Start one folder-size batch with the configured preferred backend."""
+    def queue_folder_size_calculation(
+        self,
+        paths: list[Path],
+        *,
+        announce: bool,
+    ) -> int:
+        """Queue one folder-size batch with the configured preferred backend."""
 
         settings = self._window_settings()
         if settings is None:
-            return
+            return 0
         calculator = folder_sizes.build_folder_size_calculator(
             use_everything_sdk=settings.use_everything_sdk_for_folder_sizes,
             everything_executable=settings.everything_executable,
         )
         queued = self._tab.model.request_folder_sizes(paths, calculator=calculator)
+        if not announce:
+            return int(queued)
         if queued <= 0:
             self._show_status_message(
                 "Folder sizes are already calculated or in progress.",
                 2400,
             )
-            return
+            return int(queued)
         if calculator.uses_everything_sdk:
             self._show_status_message(
                 (
@@ -749,11 +760,26 @@ class ExplorerTabActions(QObject):
                 ),
                 2600,
             )
-            return
+            return int(queued)
         self._show_status_message(
             f"Calculating {queued} folder size(s) with native recursive scanning.",
             2600,
         )
+        return int(queued)
+
+    def _maybe_auto_calculate_size_for_index(self, index: QModelIndex) -> None:
+        """Queue directory size calculation when the Space trigger is enabled."""
+
+        settings = self._window_settings()
+        if settings is None or not settings.auto_calculate_dir_sizes_on_space:
+            return
+        file_path = self._tab.model.filePath(index)
+        if not file_path:
+            return
+        path = Path(file_path)
+        if not path.is_dir():
+            return
+        self.queue_folder_size_calculation([path], announce=False)
 
     def _run_external_tool_action(
         self,

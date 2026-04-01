@@ -866,6 +866,76 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         )
 
     @property
+    def file_list_mouse_selection_mode(self) -> str:
+        return normalize.normalize_choice(
+            self._storage.value(
+                self.FILE_LIST_MOUSE_SELECTION_MODE_KEY,
+                self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
+            ),
+            fallback=self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
+            allowed=self.ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES,
+        )
+
+    @file_list_mouse_selection_mode.setter
+    def file_list_mouse_selection_mode(self, value: str) -> None:
+        self._storage.set_value(
+            self.FILE_LIST_MOUSE_SELECTION_MODE_KEY,
+            normalize.normalize_choice(
+                value,
+                fallback=self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
+                allowed=self.ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES,
+            ),
+        )
+
+    @property
+    def auto_calculate_dir_sizes_on_space(self) -> bool:
+        return bool(
+            self._storage.value(
+                self.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY,
+                self.DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE,
+            )
+        )
+
+    @auto_calculate_dir_sizes_on_space.setter
+    def auto_calculate_dir_sizes_on_space(self, value: bool) -> None:
+        self._storage.set_value(
+            self.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY,
+            bool(value),
+        )
+
+    @property
+    def auto_calculate_dir_sizes_before_copy_move(self) -> bool:
+        return bool(
+            self._storage.value(
+                self.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY,
+                self.DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE,
+            )
+        )
+
+    @auto_calculate_dir_sizes_before_copy_move.setter
+    def auto_calculate_dir_sizes_before_copy_move(self, value: bool) -> None:
+        self._storage.set_value(
+            self.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY,
+            bool(value),
+        )
+
+    @property
+    def auto_calculate_dir_sizes_before_archive(self) -> bool:
+        return bool(
+            self._storage.value(
+                self.AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY,
+                self.DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE,
+            )
+        )
+
+    @auto_calculate_dir_sizes_before_archive.setter
+    def auto_calculate_dir_sizes_before_archive(self, value: bool) -> None:
+        self._storage.set_value(
+            self.AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY,
+            bool(value),
+        )
+
+    @property
     def seven_zip_executable(self) -> str:
         return normalize.normalize_windows_path_text(
             self._storage.value(

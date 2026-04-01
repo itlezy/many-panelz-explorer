@@ -17,6 +17,7 @@ from ..._operations.types import (
 from .panels import resolve_window_target_panel_id
 
 if TYPE_CHECKING:
+    from ...explorer_tab import ExplorerTab
     from ...window import ExplorerWindow
 
 
@@ -71,7 +72,17 @@ class WindowOperationsCoordinator:
             )
             return
 
-        request = self.build_archive_request(kind="pack", sources=sources)
+        source_tab = self._active_source_tab()
+        self._maybe_queue_directory_sizes(
+            source_tab=source_tab,
+            sources=sources,
+            enabled=self.window.settings.auto_calculate_dir_sizes_before_archive,
+        )
+        request = self.build_archive_request(
+            kind="pack",
+            sources=sources,
+            source_tab=source_tab,
+        )
         if request is None:
             return
         job = self.window.controller.operation_queue_manager.submit(request)
@@ -86,7 +97,17 @@ class WindowOperationsCoordinator:
     def unpack_archive(self, *, archive: Path) -> None:
         """Open the archive unpack dialog for the provided archive path."""
 
-        request = self.build_archive_request(kind="unpack", sources=[Path(archive)])
+        source_tab = self._active_source_tab()
+        self._maybe_queue_directory_sizes(
+            source_tab=source_tab,
+            sources=[Path(archive)],
+            enabled=self.window.settings.auto_calculate_dir_sizes_before_archive,
+        )
+        request = self.build_archive_request(
+            kind="unpack",
+            sources=[Path(archive)],
+            source_tab=source_tab,
+        )
         if request is None:
             return
         job = self.window.controller.operation_queue_manager.submit(request)
@@ -161,11 +182,17 @@ class WindowOperationsCoordinator:
         destination = target_panel.current_path()
 
         kind = "move" if move else "copy"
+        self._maybe_queue_directory_sizes(
+            source_tab=source_tab,
+            sources=selected,
+            enabled=self.window.settings.auto_calculate_dir_sizes_before_copy_move,
+        )
         request = self.build_operation_request(
             kind=kind,
             sources=[Path(path) for path in selected],
             target_dir=destination,
             configure=configure,
+            source_tab=source_tab,
         )
         if request is None:
             return
@@ -186,6 +213,7 @@ class WindowOperationsCoordinator:
         sources: list[Path],
         target_dir: Path | None,
         configure: bool,
+        source_tab: ExplorerTab | None = None,
     ) -> OperationRequest | None:
         ui_preferences = self.window.settings.ui_preferences()
         use_dialog = bool(configure) or (
@@ -200,6 +228,7 @@ class WindowOperationsCoordinator:
                 sources=sources,
                 target_dir=target_dir,
                 preferences=ui_preferences,
+                source_model=(source_tab.model if source_tab is not None else None),
                 parent=self.window,
             )
             if dialog.exec() != dialog.DialogCode.Accepted:
@@ -235,6 +264,7 @@ class WindowOperationsCoordinator:
         *,
         kind: ArchiveOperationKind,
         sources: list[Path],
+        source_tab: ExplorerTab | None = None,
     ) -> OperationRequest | None:
         """Open the archive dialog and build a request from it."""
 
@@ -244,6 +274,7 @@ class WindowOperationsCoordinator:
             kind=kind,
             sources=sources,
             preferences=self.window.settings.ui_preferences(),
+            source_model=(source_tab.model if source_tab is not None else None),
             parent=self.window,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
@@ -328,3 +359,27 @@ class WindowOperationsCoordinator:
             shutil.rmtree(raw)
             return
         Path(raw).unlink()
+
+    def _active_source_tab(self) -> ExplorerTab | None:
+        """Return the active source tab for copy, move, and archive actions."""
+
+        panel = self.window.panels_coordinator.active_panel()
+        if panel is None:
+            return None
+        return panel.current_tab()
+
+    def _maybe_queue_directory_sizes(
+        self,
+        *,
+        source_tab: ExplorerTab | None,
+        sources: list[Path],
+        enabled: bool,
+    ) -> None:
+        """Queue size calculations for selected directories when enabled."""
+
+        if not enabled or source_tab is None:
+            return
+        directories = [Path(path) for path in sources if Path(path).is_dir()]
+        if not directories:
+            return
+        source_tab.queue_folder_size_calculation(directories, announce=False)

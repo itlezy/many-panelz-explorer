@@ -8,6 +8,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import QObject, Signal
+
 from many_panelz_explorer._settings.models import UiPreferences
 from many_panelz_explorer.dialogs.archive_operation_dialog import (
     ArchiveOperationDialog,
@@ -225,3 +227,54 @@ def test_pack_dialog_build_request_uses_winrar_common_options(
     assert request.backend_options["volume_mode"] == "-v700m"
     assert request.backend_options["sfx_mode"] == "-sfx"
     assert request.backend_options["test_mode"] == "-t"
+
+
+def test_archive_dialog_updates_selection_size_summary_from_folder_sizes(
+    qtbot,
+    tmp_path: Path,
+) -> None:
+    class _FakeSummaryModel(QObject):
+        folder_size_state_changed = Signal(str, str, int)
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.status = "calculating"
+            self.bytes_value = 0
+
+        def folder_size_status(self, _path: Path) -> str:
+            return str(self.status)
+
+        def folder_size_bytes(self, _path: Path) -> int | None:
+            if str(self.status) != "ready":
+                return None
+            return int(self.bytes_value)
+
+        def format_size_value(self, value: int) -> str:
+            return f"{int(value):,}"
+
+    source_dir = tmp_path / "folder-a"
+    source_dir.mkdir()
+    source_file = tmp_path / "alpha.bin"
+    source_file.write_bytes(b"alpha")
+    model = _FakeSummaryModel()
+
+    dialog = ArchiveOperationDialog(
+        kind="pack",
+        sources=[source_file, source_dir],
+        preferences=UiPreferences(),
+        source_model=model,
+    )
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    assert (
+        "Selection size: 5 known (calculating 1 folder(s))"
+        in dialog.summary_label.text()
+    )
+
+    model.status = "ready"
+    model.bytes_value = 12
+    model.folder_size_state_changed.emit(str(source_dir), "ready", 12)
+    qtbot.waitUntil(
+        lambda: "Selection size: 17" in dialog.summary_label.text()
+    )

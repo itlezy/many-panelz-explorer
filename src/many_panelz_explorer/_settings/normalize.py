@@ -123,6 +123,15 @@ def normalize_text(raw: Any, *, fallback: str) -> str:
     return str(fallback)
 
 
+def normalize_choice(raw: Any, *, fallback: str, allowed: set[str]) -> str:
+    """Normalize one stored string into an allowed lower-case choice."""
+
+    text = str(raw or "").strip().lower()
+    if text in allowed:
+        return text
+    return str(fallback)
+
+
 def normalize_windows_path_text(raw: Any, *, fallback: str) -> str:
     """Normalize user-supplied path text into canonical Windows form."""
 

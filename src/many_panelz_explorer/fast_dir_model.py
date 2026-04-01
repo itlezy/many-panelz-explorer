@@ -100,6 +100,7 @@ class FastDirModel(QAbstractTableModel):
     """Present filesystem entries in a table model with async refresh."""
 
     directory_loaded = Signal(str)
+    folder_size_state_changed = Signal(str, str, int)
 
     _HEADERS = ("Name", "Ext", "Size", "Date")
     _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="mpe-dir-scan")
@@ -375,6 +376,11 @@ class FastDirModel(QAbstractTableModel):
                 path=folder_path,
                 status="calculating",
             )
+            self.folder_size_state_changed.emit(
+                str(folder_path),
+                "calculating",
+                0,
+            )
             self._emit_size_changed_for_path(folder_path)
             queued += 1
             future = self._executor.submit(calculator.calculate, folder_path)
@@ -390,6 +396,30 @@ class FastDirModel(QAbstractTableModel):
         """Return all currently visible directory rows in display order."""
 
         return [entry.path for entry in self._visible_entries if entry.is_dir]
+
+    def folder_size_status(
+        self,
+        path: Path,
+    ) -> Literal["idle", "calculating", "ready", "failed"]:
+        """Return the current folder-size state for one visible directory path."""
+
+        state = self._folder_size_states.get(self._path_key(Path(path)))
+        if state is None:
+            return "idle"
+        return state.status
+
+    def folder_size_bytes(self, path: Path) -> int | None:
+        """Return cached directory bytes when the size has completed."""
+
+        state = self._folder_size_states.get(self._path_key(Path(path)))
+        if state is None or state.status != "ready":
+            return None
+        return int(state.bytes_value)
+
+    def format_size_value(self, value: int) -> str:
+        """Format one byte value using the model's active size formatter."""
+
+        return self._format_size(int(value))
 
     def _on_listing_ready(
         self,
@@ -434,10 +464,20 @@ class FastDirModel(QAbstractTableModel):
                 status="ready",
                 bytes_value=int(cast("int", bytes_value)),
             )
+            self.folder_size_state_changed.emit(
+                str(folder_path),
+                "ready",
+                int(cast("int", bytes_value)),
+            )
         else:
             self._folder_size_states[folder_key] = _FolderSizeState(
                 path=folder_path,
                 status="failed",
+            )
+            self.folder_size_state_changed.emit(
+                str(folder_path),
+                "failed",
+                0,
             )
         if self._sort_column == 2:
             self._rebuild_visible(reset=True)
