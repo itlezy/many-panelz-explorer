@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -66,7 +67,7 @@ class ArchiveOperationDialog(QDialog):
         self._preferences = preferences
 
         self.setModal(True)
-        self.resize(620, 360)
+        self.resize(700, 520)
         self.setWindowTitle("Pack Files" if self._kind == "pack" else "Unpack Files")
 
         root = QVBoxLayout(self)
@@ -122,22 +123,30 @@ class ArchiveOperationDialog(QDialog):
 
         root.addLayout(form)
 
-        self.options_host = QWidget(self)
+        self.options_scroll = QScrollArea(self)
+        self.options_scroll.setWidgetResizable(True)
+        self.options_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.options_host = QWidget(self.options_scroll)
         self.options_layout = QVBoxLayout(self.options_host)
         self.options_layout.setContentsMargins(0, 0, 0, 0)
         self.options_layout.setSpacing(8)
 
+        self.common_pack_group = self._build_common_pack_group()
+        self.common_unpack_group = self._build_common_unpack_group()
         self.winrar_pack_group = self._build_winrar_pack_group()
         self.seven_zip_pack_group = self._build_seven_zip_pack_group()
         self.winrar_unpack_group = self._build_winrar_unpack_group()
         self.seven_zip_unpack_group = self._build_seven_zip_unpack_group()
 
+        self.options_layout.addWidget(self.common_pack_group)
+        self.options_layout.addWidget(self.common_unpack_group)
         self.options_layout.addWidget(self.winrar_pack_group)
         self.options_layout.addWidget(self.seven_zip_pack_group)
         self.options_layout.addWidget(self.winrar_unpack_group)
         self.options_layout.addWidget(self.seven_zip_unpack_group)
         self.options_layout.addStretch(1)
-        root.addWidget(self.options_host)
+        self.options_scroll.setWidget(self.options_host)
+        root.addWidget(self.options_scroll, 1)
 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
@@ -152,6 +161,7 @@ class ArchiveOperationDialog(QDialog):
         else:
             self.target_edit.setText(str(self._suggest_unpack_target_dir()))
         self._sync_backend_state()
+        self._sync_password_state()
 
     def _summary_text(self) -> str:
         lines = [f"Operation: {self._kind.title()}"]
@@ -198,6 +208,36 @@ class ArchiveOperationDialog(QDialog):
         layout.addWidget(self.winrar_pack_lock_checkbox, 4, 0, 1, 2)
         layout.addWidget(QLabel("Extra args", group), 5, 0)
         layout.addWidget(self.winrar_pack_extra_args_edit, 5, 1)
+        layout.setColumnStretch(1, 1)
+        return group
+
+    def _build_common_pack_group(self) -> QWidget:
+        group = QWidget(self.options_host)
+        layout = QGridLayout(group)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(8)
+        layout.setVerticalSpacing(6)
+
+        self.pack_password_edit = QLineEdit(group)
+        self.pack_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.pack_password_edit.setPlaceholderText("Optional archive password")
+        self.pack_password_edit.textChanged.connect(self._sync_password_state)
+        self.pack_encrypt_names_checkbox = QCheckBox(
+            "Encrypt file names when supported",
+            group,
+        )
+        self.pack_split_size_edit = QLineEdit(group)
+        self.pack_split_size_edit.setPlaceholderText("Optional split size, e.g. 100m")
+        self.pack_sfx_checkbox = QCheckBox("Create self-extracting archive", group)
+        self.pack_test_checkbox = QCheckBox("Test archive after creation", group)
+
+        layout.addWidget(QLabel("Password", group), 0, 0)
+        layout.addWidget(self.pack_password_edit, 0, 1)
+        layout.addWidget(self.pack_encrypt_names_checkbox, 1, 0, 1, 2)
+        layout.addWidget(QLabel("Split volume", group), 2, 0)
+        layout.addWidget(self.pack_split_size_edit, 2, 1)
+        layout.addWidget(self.pack_sfx_checkbox, 3, 0, 1, 2)
+        layout.addWidget(self.pack_test_checkbox, 4, 0, 1, 2)
         layout.setColumnStretch(1, 1)
         return group
 
@@ -250,6 +290,22 @@ class ArchiveOperationDialog(QDialog):
         layout.addWidget(self.seven_zip_pack_header_checkbox, 4, 0, 1, 2)
         layout.addWidget(QLabel("Extra args", group), 5, 0)
         layout.addWidget(self.seven_zip_pack_extra_args_edit, 5, 1)
+        layout.setColumnStretch(1, 1)
+        return group
+
+    def _build_common_unpack_group(self) -> QWidget:
+        group = QWidget(self.options_host)
+        layout = QGridLayout(group)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(8)
+        layout.setVerticalSpacing(6)
+
+        self.unpack_password_edit = QLineEdit(group)
+        self.unpack_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.unpack_password_edit.setPlaceholderText("Optional archive password")
+
+        layout.addWidget(QLabel("Password", group), 0, 0)
+        layout.addWidget(self.unpack_password_edit, 0, 1)
         layout.setColumnStretch(1, 1)
         return group
 
@@ -376,10 +432,47 @@ class ArchiveOperationDialog(QDialog):
             target = target.with_suffix(suffix)
         return target
 
+    def _pack_password_text(self) -> str:
+        return self.pack_password_edit.text().strip()
+
+    def _unpack_password_text(self) -> str:
+        return self.unpack_password_edit.text().strip()
+
+    def _sync_password_state(self) -> None:
+        has_password = bool(self._pack_password_text())
+        self.pack_encrypt_names_checkbox.setEnabled(has_password)
+        if not has_password:
+            self.pack_encrypt_names_checkbox.setChecked(False)
+
+    def _pack_password_mode_for_backend(self, backend: str) -> str:
+        password = self._pack_password_text()
+        if not password:
+            return ""
+        if (
+            backend == BACKEND_ARCHIVE_WINRAR
+            and self.pack_encrypt_names_checkbox.isChecked()
+        ):
+            return f"-hp{password}"
+        return f"-p{password}"
+
+    def _unpack_password_mode(self) -> str:
+        password = self._unpack_password_text()
+        if not password:
+            return ""
+        return f"-p{password}"
+
+    def _pack_volume_mode(self) -> str:
+        volume_size = self.pack_split_size_edit.text().strip()
+        if not volume_size:
+            return ""
+        return f"-v{volume_size}"
+
     def _sync_backend_state(self) -> None:
         backend = self._selected_backend()
         show_winrar = backend == BACKEND_ARCHIVE_WINRAR
         show_seven_zip = backend == BACKEND_ARCHIVE_7ZIP
+        self.common_pack_group.setVisible(self._kind == "pack")
+        self.common_unpack_group.setVisible(self._kind == "unpack")
         self.winrar_pack_group.setVisible(self._kind == "pack" and show_winrar)
         self.seven_zip_pack_group.setVisible(self._kind == "pack" and show_seven_zip)
         self.winrar_unpack_group.setVisible(self._kind == "unpack" and show_winrar)
@@ -408,6 +501,10 @@ class ArchiveOperationDialog(QDialog):
                 "lock_mode": (
                     "-k" if self.winrar_pack_lock_checkbox.isChecked() else ""
                 ),
+                "password_mode": self._pack_password_mode_for_backend(backend),
+                "volume_mode": self._pack_volume_mode(),
+                "sfx_mode": "-sfx" if self.pack_sfx_checkbox.isChecked() else "",
+                "test_mode": "-t" if self.pack_test_checkbox.isChecked() else "",
                 "extra_args": self.winrar_pack_extra_args_edit.text().strip(),
             }
         if self._kind == "pack" and backend == BACKEND_ARCHIVE_7ZIP:
@@ -429,6 +526,16 @@ class ArchiveOperationDialog(QDialog):
                     if self.seven_zip_pack_header_checkbox.isChecked()
                     else ""
                 ),
+                "password_mode": self._pack_password_mode_for_backend(backend),
+                "header_encrypt_mode": (
+                    "-mhe=on"
+                    if self.pack_encrypt_names_checkbox.isChecked()
+                    and bool(self._pack_password_text())
+                    else ""
+                ),
+                "volume_mode": self._pack_volume_mode(),
+                "sfx_mode": "-sfx" if self.pack_sfx_checkbox.isChecked() else "",
+                "test_mode": "-t" if self.pack_test_checkbox.isChecked() else "",
                 "extra_args": self.seven_zip_pack_extra_args_edit.text().strip(),
             }
         if self._kind == "unpack" and backend == BACKEND_ARCHIVE_WINRAR:
@@ -440,6 +547,7 @@ class ArchiveOperationDialog(QDialog):
                 "keep_broken_mode": (
                     "-kb" if self.winrar_unpack_keep_broken_checkbox.isChecked() else ""
                 ),
+                "password_mode": self._unpack_password_mode(),
                 "extra_args": self.winrar_unpack_extra_args_edit.text().strip(),
             }
         return {
@@ -447,6 +555,7 @@ class ArchiveOperationDialog(QDialog):
             "overwrite_mode": str(
                 self.seven_zip_unpack_overwrite_combo.currentData() or ""
             ),
+            "password_mode": self._unpack_password_mode(),
             "extra_args": self.seven_zip_unpack_extra_args_edit.text().strip(),
         }
 

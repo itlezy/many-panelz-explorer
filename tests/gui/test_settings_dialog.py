@@ -1487,18 +1487,21 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     dialog.seven_zip_executable_edit.setText(r"C:\tools\7z.exe")
     dialog.seven_zip_pack_args_edit.setText(
         "a -y {archive} {sources} {recurse_mode} {compression_level} "
-        "{method_mode} {solid_mode} {header_mode}"
+        "{method_mode} {solid_mode} {header_mode} {password_mode} "
+        "{header_encrypt_mode} {volume_mode} {sfx_mode} {test_mode}"
     )
     dialog.seven_zip_extract_args_edit.setText(
-        "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+        "{extract_mode} -y {archive} -o{target} {overwrite_mode} {password_mode}"
     )
     dialog.winrar_executable_edit.setText(r"C:\tools\WinRAR.exe")
     dialog.winrar_pack_args_edit.setText(
         "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
-        "{lock_mode} {archive} {sources}"
+        "{lock_mode} {password_mode} {volume_mode} {sfx_mode} {test_mode} "
+        "{archive} {sources}"
     )
     dialog.winrar_extract_args_edit.setText(
-        "{extract_mode} -y {archive} {target} {overwrite_mode} {keep_broken_mode}"
+        "{extract_mode} -y {archive} {target} {overwrite_mode} "
+        "{keep_broken_mode} {password_mode}"
     )
     dialog.show_storage_overview_status_row_checkbox.setChecked(False)
     dialog.add_override_row_btn.click()
@@ -1595,22 +1598,25 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     assert (
         persisted.seven_zip_pack_args_template
         == "a -y {archive} {sources} {recurse_mode} {compression_level} "
-        "{method_mode} {solid_mode} {header_mode}"
+        "{method_mode} {solid_mode} {header_mode} {password_mode} "
+        "{header_encrypt_mode} {volume_mode} {sfx_mode} {test_mode}"
     )
     assert (
         persisted.seven_zip_extract_args_template
-        == "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+        == "{extract_mode} -y {archive} -o{target} {overwrite_mode} "
+        "{password_mode}"
     )
     assert persisted.winrar_executable == r"C:\tools\WinRAR.exe"
     assert (
         persisted.winrar_pack_args_template
         == "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
-        "{lock_mode} {archive} {sources}"
+        "{lock_mode} {password_mode} {volume_mode} {sfx_mode} {test_mode} "
+        "{archive} {sources}"
     )
     assert (
         persisted.winrar_extract_args_template
         == "{extract_mode} -y {archive} {target} {overwrite_mode} "
-        "{keep_broken_mode}"
+        "{keep_broken_mode} {password_mode}"
     )
     assert persisted.show_storage_overview_status_row is False
     assert '".log"' in persisted.file_open_overrides_json

@@ -276,19 +276,22 @@ def test_ui_preferences_round_trip() -> None:
             seven_zip_executable=r"C:\tools\7z.exe",
             seven_zip_pack_args_template=(
                 "a -y {archive} {sources} {recurse_mode} {compression_level} "
-                "{method_mode} {solid_mode} {header_mode}"
+                "{method_mode} {solid_mode} {header_mode} {password_mode} "
+                "{header_encrypt_mode} {volume_mode} {sfx_mode} {test_mode}"
             ),
             seven_zip_extract_args_template=(
-                "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+                "{extract_mode} -y {archive} -o{target} {overwrite_mode} "
+                "{password_mode}"
             ),
             winrar_executable=r"C:\tools\WinRAR.exe",
             winrar_pack_args_template=(
                 "a {recurse_mode} {compression_level} {solid_mode} "
-                "{recovery_mode} {lock_mode} {archive} {sources}"
+                "{recovery_mode} {lock_mode} {password_mode} {volume_mode} "
+                "{sfx_mode} {test_mode} {archive} {sources}"
             ),
             winrar_extract_args_template=(
                 "{extract_mode} -y {archive} {target} {overwrite_mode} "
-                "{keep_broken_mode}"
+                "{keep_broken_mode} {password_mode}"
             ),
             use_extended_paths_robocopy=True,
             use_extended_paths_teracopy=True,

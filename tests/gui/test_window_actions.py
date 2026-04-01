@@ -1342,18 +1342,21 @@ def test_tc_everything_archive_properties_and_target_mkdir_shortcuts(
     settings.seven_zip_executable = "7z.exe"
     settings.seven_zip_pack_args_template = (
         "a -y {archive} {sources} {recurse_mode} {compression_level} "
-        "{method_mode} {solid_mode} {header_mode}"
+        "{method_mode} {solid_mode} {header_mode} {password_mode} "
+        "{header_encrypt_mode} {volume_mode} {sfx_mode} {test_mode}"
     )
     settings.seven_zip_extract_args_template = (
-        "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+        "{extract_mode} -y {archive} -o{target} {overwrite_mode} {password_mode}"
     )
     settings.winrar_executable = "WinRAR.exe"
     settings.winrar_pack_args_template = (
         "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
-        "{lock_mode} {archive} {sources}"
+        "{lock_mode} {password_mode} {volume_mode} {sfx_mode} {test_mode} "
+        "{archive} {sources}"
     )
     settings.winrar_extract_args_template = (
-        "{extract_mode} -y {archive} {target} {overwrite_mode} {keep_broken_mode}"
+        "{extract_mode} -y {archive} {target} {overwrite_mode} "
+        "{keep_broken_mode} {password_mode}"
     )
     roots_provider = _test_roots_provider(tmp_path)
     window = ExplorerWindow(

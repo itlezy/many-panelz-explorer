@@ -79,6 +79,11 @@ def test_pack_dialog_build_request_uses_selected_backend_options(
     _set_combo_data(dialog.seven_zip_pack_method_combo, "-m0=LZMA")
     dialog.seven_zip_pack_solid_checkbox.setChecked(False)
     dialog.seven_zip_pack_header_checkbox.setChecked(False)
+    dialog.pack_password_edit.setText("secret")
+    dialog.pack_encrypt_names_checkbox.setChecked(True)
+    dialog.pack_split_size_edit.setText("100m")
+    dialog.pack_sfx_checkbox.setChecked(True)
+    dialog.pack_test_checkbox.setChecked(True)
     dialog.seven_zip_pack_extra_args_edit.setText("-mmt=on")
     dialog.target_edit.setText(str(tmp_path / "bundle"))
 
@@ -96,6 +101,11 @@ def test_pack_dialog_build_request_uses_selected_backend_options(
         "method_mode": "-m0=LZMA",
         "solid_mode": "",
         "header_mode": "",
+        "password_mode": "-psecret",
+        "header_encrypt_mode": "-mhe=on",
+        "volume_mode": "-v100m",
+        "sfx_mode": "-sfx",
+        "test_mode": "-t",
         "extra_args": "-mmt=on",
     }
 
@@ -134,6 +144,7 @@ def test_unpack_dialog_build_request_uses_selected_backend_options(
     assert request.backend_options == {
         "extract_mode": "e",
         "overwrite_mode": "-aou",
+        "password_mode": "",
         "extra_args": "-bb1",
     }
 
@@ -161,6 +172,7 @@ def test_unpack_dialog_build_request_uses_winrar_options(
     _set_combo_data(dialog.winrar_unpack_mode_combo, "e")
     _set_combo_data(dialog.winrar_unpack_overwrite_combo, "-o+")
     dialog.winrar_unpack_keep_broken_checkbox.setChecked(True)
+    dialog.unpack_password_edit.setText("rarpass")
     dialog.winrar_unpack_extra_args_edit.setText("-ibck")
     dialog.target_edit.setText(str(tmp_path / "unpacked-rar"))
 
@@ -174,5 +186,42 @@ def test_unpack_dialog_build_request_uses_winrar_options(
         "extract_mode": "e",
         "overwrite_mode": "-o+",
         "keep_broken_mode": "-kb",
+        "password_mode": "-prarpass",
         "extra_args": "-ibck",
     }
+
+
+def test_pack_dialog_build_request_uses_winrar_common_options(
+    qtbot,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("payload", encoding="utf-8")
+    preferences = UiPreferences(default_archive_packer_backend="archive_winrar")
+
+    dialog = ArchiveOperationDialog(
+        kind="pack",
+        sources=[source],
+        preferences=preferences,
+    )
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    assert str(dialog.backend_combo.currentData()) == "archive_winrar"
+    dialog.pack_password_edit.setText("topsecret")
+    dialog.pack_encrypt_names_checkbox.setChecked(True)
+    dialog.pack_split_size_edit.setText("700m")
+    dialog.pack_sfx_checkbox.setChecked(True)
+    dialog.pack_test_checkbox.setChecked(True)
+    _set_combo_data(dialog.winrar_pack_level_combo, "-m5")
+    dialog.winrar_pack_lock_checkbox.setChecked(True)
+
+    request = dialog.build_request(created_by="test:archive-pack-winrar")
+
+    assert request.backend_id == "archive_winrar"
+    assert request.backend_options["compression_level"] == "-m5"
+    assert request.backend_options["lock_mode"] == "-k"
+    assert request.backend_options["password_mode"] == "-hptopsecret"
+    assert request.backend_options["volume_mode"] == "-v700m"
+    assert request.backend_options["sfx_mode"] == "-sfx"
+    assert request.backend_options["test_mode"] == "-t"
