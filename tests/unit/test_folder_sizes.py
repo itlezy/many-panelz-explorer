@@ -74,3 +74,69 @@ def test_build_folder_size_calculator_prefers_everything_sdk_when_available(
     assert calculator.label == "Everything SDK"
     assert isinstance(calculator, _FakeHybridCalculator)
     assert calculator.dll_path == dll_path
+
+
+def test_everything_sdk_diagnostics_text_reports_enabled_detected_status(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    dll_path = tmp_path / "Everything64.dll"
+    dll_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        folder_sizes,
+        "find_everything_sdk_dll",
+        lambda *, everything_executable: dll_path,
+    )
+
+    status = folder_sizes.everything_sdk_diagnostics_text(
+        enabled=True,
+        everything_executable=r"C:\tools\Everything.exe",
+    )
+
+    assert status == f"Enabled: {dll_path}"
+
+
+def test_everything_sdk_diagnostics_text_reports_disabled_undetected_status(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        folder_sizes,
+        "find_everything_sdk_dll",
+        lambda *, everything_executable: None,
+    )
+
+    status = folder_sizes.everything_sdk_diagnostics_text(
+        enabled=False,
+        everything_executable=r"C:\tools\Everything.exe",
+    )
+
+    assert status == "Disabled in settings: Everything64.dll not detected"
+
+
+def test_invalid_negative_everything_folder_size_is_rejected() -> None:
+    try:
+        folder_sizes._validate_everything_folder_size(-1)
+    except RuntimeError as exc:
+        assert "invalid negative folder size" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected RuntimeError for negative SDK folder size.")
+
+
+def test_hybrid_everything_calculator_falls_back_to_native_on_sdk_error(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    (folder / "one.bin").write_bytes(b"12345")
+
+    class _BrokenSdk:
+        def calculate(self, path: Path) -> int:
+            raise RuntimeError(f"Broken SDK for {path}")
+
+    hybrid = object.__new__(folder_sizes._HybridEverythingFolderSizeCalculator)
+    hybrid._sdk = _BrokenSdk()
+
+    result = hybrid.calculate(folder)
+
+    assert result == 5

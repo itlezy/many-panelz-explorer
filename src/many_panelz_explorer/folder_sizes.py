@@ -6,6 +6,7 @@ import ctypes
 import os
 import threading
 from pathlib import Path
+from typing import Final
 
 from threep_commons.fs_paths import path_key
 
@@ -14,6 +15,7 @@ EVERYTHING_REQUEST_PATH = 0x00000002
 EVERYTHING_REQUEST_SIZE = 0x00000010
 EVERYTHING_MAX_RESULTS = 32
 EVERYTHING_DLL_NAME = "Everything64.dll"
+MAX_VALID_FOLDER_SIZE_BYTES: Final[int] = (1 << 63) - 1
 
 
 class FolderSizeCalculator:
@@ -98,7 +100,7 @@ class _EverythingSdkFolderSizeCalculator(FolderSizeCalculator):
                     raise RuntimeError(
                         self._error_text("Everything did not return a folder size.")
                     )
-                return _normalize_size_value(int(size_value.value))
+                return _validate_everything_folder_size(int(size_value.value))
             raise RuntimeError("Folder is not indexed by Everything.")
 
     def _configure_dll(self) -> None:
@@ -243,6 +245,31 @@ def find_everything_sdk_dll(*, everything_executable: str) -> Path | None:
     return None
 
 
+def everything_sdk_diagnostics_text(
+    *,
+    enabled: bool,
+    everything_executable: str,
+) -> str:
+    """Return the diagnostics text for the local Everything SDK status.
+
+    Args:
+        enabled: Whether SDK-backed folder sizing is enabled in settings.
+        everything_executable: Configured Everything executable path.
+
+    Returns:
+        One short diagnostics string describing the SDK status.
+    """
+
+    dll_path = find_everything_sdk_dll(everything_executable=everything_executable)
+    if enabled and dll_path is not None:
+        return f"Enabled: {dll_path}"
+    if enabled:
+        return "Enabled: Everything64.dll not detected"
+    if dll_path is not None:
+        return f"Disabled in settings: {dll_path}"
+    return "Disabled in settings: Everything64.dll not detected"
+
+
 def native_recursive_folder_size(path: Path) -> int:
     """Return the recursive byte size for one folder without following symlinks.
 
@@ -275,9 +302,21 @@ def native_recursive_folder_size(path: Path) -> int:
     return total_size
 
 
-def _normalize_size_value(value: int) -> int:
-    """Normalize signed 64-bit Everything size values to Python ints."""
+def _validate_everything_folder_size(value: int) -> int:
+    """Validate one folder-size value returned by the Everything SDK.
 
-    if value >= 0:
-        return int(value)
-    return int((1 << 64) + value)
+    Args:
+        value: Signed 64-bit size value returned by the SDK.
+
+    Returns:
+        The validated size as a Python int.
+
+    Raises:
+        RuntimeError: If the SDK returned a missing or absurd size value.
+    """
+
+    if value < 0:
+        raise RuntimeError("Everything returned an invalid negative folder size.")
+    if value > MAX_VALID_FOLDER_SIZE_BYTES:
+        raise RuntimeError("Everything returned an out-of-range folder size.")
+    return int(value)

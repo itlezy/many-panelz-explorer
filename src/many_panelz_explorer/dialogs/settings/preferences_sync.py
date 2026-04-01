@@ -12,6 +12,7 @@ from ..._operations.discovery import (
     resolve_terminal_launcher_paths,
 )
 from ..._settings.models import UiPreferences
+from ...folder_sizes import everything_sdk_diagnostics_text
 from . import backend_state, open_overrides_state
 
 if TYPE_CHECKING:
@@ -460,11 +461,16 @@ def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
         ],
     )
     resolved_cmd, resolved_robocopy = resolve_system_command_paths()
+    everything_sdk_status = everything_sdk_diagnostics_text(
+        enabled=dialog.use_everything_sdk_for_folder_sizes_checkbox.isChecked(),
+        everything_executable=dialog.everything_executable_edit.text().strip(),
+    )
     _populate_diagnostics_table(
         dialog.resolved_system_paths_table,
         rows=[
             ("ComSpec", resolved_cmd),
             ("Robocopy", resolved_robocopy),
+            ("Everything SDK", everything_sdk_status),
         ],
     )
 

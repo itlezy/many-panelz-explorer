@@ -977,15 +977,18 @@ def build_operation_diagnostics_rows(
 
     dialog.resolved_system_paths_table = _build_diagnostics_table(
         dialog,
-        row_count=2,
+        row_count=3,
     )
     add_row(
         dialog,
         section=diagnostics_group,
         key="resolved_system_paths",
         title="Resolved System Commands",
-        description="Runtime resolved command paths for shell and robocopy.",
-        terms="comspec cmd robocopy windir resolved path",
+        description=(
+            "Runtime resolved command paths for shell, robocopy, and the "
+            "Everything SDK folder-size helper."
+        ),
+        terms="comspec cmd robocopy everything sdk resolved path diagnostics",
         controls=[dialog.resolved_system_paths_table],
     )
 

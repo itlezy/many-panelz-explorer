@@ -945,8 +945,21 @@ def test_settings_dialog_shows_resolved_terminal_diagnostics(
 
 
 def test_settings_dialog_shows_resolved_system_command_diagnostics(
-    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+    qtbot,
+    tmp_path: Path,
+    isolated_settings: SettingsManager,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    sdk_path = tmp_path / "Everything64.dll"
+    sdk_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        "many_panelz_explorer.dialogs.settings.preferences_sync.everything_sdk_diagnostics_text",
+        lambda *, enabled, everything_executable: (
+            f"Enabled: {sdk_path}"
+            if enabled
+            else f"Disabled in settings: {sdk_path}"
+        ),
+    )
     roots_provider = _test_roots_provider(tmp_path)
     controller = _ControllerSettingsStub(isolated_settings)
     window = _new_window(
@@ -968,9 +981,10 @@ def test_settings_dialog_shows_resolved_system_command_diagnostics(
     assert _table_text_rows(dialog.resolved_system_paths_table) == [
         ("ComSpec", _table_path_value(dialog.resolved_system_paths_table, 0)),
         ("Robocopy", _table_path_value(dialog.resolved_system_paths_table, 1)),
+        ("Everything SDK", _table_path_value(dialog.resolved_system_paths_table, 2)),
     ]
-    assert dialog.resolved_system_paths_table.item(1, 1).toolTip() == _table_path_value(
-        dialog.resolved_system_paths_table, 1
+    assert dialog.resolved_system_paths_table.item(2, 1).toolTip() == _table_path_value(
+        dialog.resolved_system_paths_table, 2
     )
 
 
