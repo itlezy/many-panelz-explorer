@@ -158,10 +158,10 @@ class WindowPreferencesCoordinator:
         return self._default_operation_conflict_policy
 
     @property
-    def file_list_mouse_selection_mode(self) -> str:
-        """Return the configured file-list mouse-selection mode."""
+    def enable_right_click_row_selection(self) -> bool:
+        """Return whether delayed right-click row selection is enabled."""
 
-        return self._file_list_mouse_selection_mode
+        return bool(self._enable_right_click_row_selection)
 
     @property
     def status_bar_storage_label_template(self) -> str:
@@ -211,7 +211,9 @@ class WindowPreferencesCoordinator:
         file_list_font, navigation_font = self.effective_panel_fonts()
         for panel in self.window.panel_widgets.values():
             panel.set_show_hidden(self._show_hidden)
-            panel.file_list_mouse_selection_mode = self._file_list_mouse_selection_mode
+            panel.enable_right_click_row_selection = (
+                self._enable_right_click_row_selection
+            )
             panel.presentation_coordinator.apply_toolbar_visibility(
                 show_refresh_button=self._show_refresh_button,
                 show_root_buttons=self._show_root_buttons,
@@ -250,8 +252,8 @@ class WindowPreferencesCoordinator:
             for tab_index in range(panel.tabs.count()):
                 tab_widget = panel.tabs.widget(tab_index)
                 if isinstance(tab_widget, ExplorerTab):
-                    tab_widget.set_mouse_selection_mode(
-                        self._file_list_mouse_selection_mode
+                    tab_widget.set_enable_right_click_row_selection(
+                        self._enable_right_click_row_selection
                     )
 
         self.window.ui_composer.apply_operation_queue_visibility()
@@ -388,8 +390,8 @@ class WindowPreferencesCoordinator:
         )
         self._operation_shortcut_behavior = preferences.operation_shortcut_behavior
         self._operation_queue_view_mode = preferences.operation_queue_view_mode
-        self._file_list_mouse_selection_mode = (
-            preferences.file_list_mouse_selection_mode
+        self._enable_right_click_row_selection = bool(
+            preferences.enable_right_click_row_selection
         )
 
     def _build_byte_format_preferences(

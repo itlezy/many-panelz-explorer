@@ -18,10 +18,7 @@ from PySide6.QtWidgets import (
 from ._explorer_tab_actions import ExplorerTabActions
 from ._explorer_tab_columns import ExplorerTabColumns
 from ._explorer_tab_navigation import ExplorerTabNavigation
-from .explorer_file_list_view import (
-    FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT,
-    ExplorerFileListView,
-)
+from .explorer_file_list_view import ExplorerFileListView
 from .fast_dir_model import FastDirModel
 
 if TYPE_CHECKING:
@@ -37,7 +34,7 @@ class ExplorerTab(QWidget):
         self,
         initial_path: Path,
         show_hidden: bool = True,
-        mouse_selection_mode: str = FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT,
+        enable_right_click_row_selection: bool = True,
         file_list_size_formatter: Callable[[int], str] | None = None,
         properties_size_formatter: Callable[[int], str] | None = None,
         parent: QWidget | None = None,
@@ -70,7 +67,7 @@ class ExplorerTab(QWidget):
         self.view.setDropIndicatorShown(False)
         self.view.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.view.setSortingEnabled(True)
-        self.view.set_mouse_selection_mode(mouse_selection_mode)
+        self.view.set_enable_right_click_row_selection(enable_right_click_row_selection)
         self.view.installEventFilter(self)
         root.addWidget(self.view)
 
@@ -90,6 +87,7 @@ class ExplorerTab(QWidget):
         self._actions = ExplorerTabActions(self, parent=self)
 
         self.view.customContextMenuRequested.connect(self._actions.open_context_menu)
+        self.view.delayed_context_menu_requested.connect(self._actions.open_context_menu)
         self.view.doubleClicked.connect(self._on_item_activated)
         self.view.activated.connect(self._on_item_activated)
 
@@ -137,10 +135,10 @@ class ExplorerTab(QWidget):
             formatter or self._default_properties_size_formatter
         )
 
-    def set_mouse_selection_mode(self, mode: str) -> None:
-        """Apply one configured mouse-selection mode to the file list."""
+    def set_enable_right_click_row_selection(self, enabled: bool) -> None:
+        """Apply the configured delayed right-click row-selection behavior."""
 
-        self.view.set_mouse_selection_mode(mode)
+        self.view.set_enable_right_click_row_selection(enabled)
 
     def queue_folder_size_calculation(
         self,

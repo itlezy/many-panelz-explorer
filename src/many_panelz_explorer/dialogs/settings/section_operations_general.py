@@ -551,29 +551,27 @@ def build_shortcut_external_tool_rows(
         controls=[dialog.use_everything_sdk_for_folder_sizes_checkbox],
     )
 
-    dialog.file_list_mouse_selection_mode_combo = QComboBox(dialog)
-    dialog.file_list_mouse_selection_mode_combo.addItem("Qt Default", "qt_default")
-    dialog.file_list_mouse_selection_mode_combo.addItem(
-        "Total Commander Style",
-        "tc_full",
+    dialog.enable_right_click_row_selection_checkbox = QCheckBox(dialog)
+    dialog.enable_right_click_row_selection_checkbox.setText(
+        "Select row on right click and open menu after 1s hold"
     )
-    dialog.file_list_mouse_selection_mode_combo.currentIndexChanged.connect(
+    dialog.enable_right_click_row_selection_checkbox.toggled.connect(
         dialog.on_controls_changed
     )
     add_row(
         dialog,
         section=open_tools_group,
-        key="file_list_mouse_selection_mode",
-        title="File List Mouse Selection Mode",
+        key="enable_right_click_row_selection",
+        title="Right-Click Row Selection",
         description=(
-            "Choose whether the file list keeps standard Qt clicks or uses "
-            "Total Commander style left/right row selection."
+            "When enabled, right click selects the row first and opens the "
+            "context menu only after about 1 second of holding the button."
         ),
         terms=(
-            "file list mouse selection total commander tc right click left click "
-            "selection mode"
+            "file list right click row selection context menu hold delay "
+            "total commander tc"
         ),
-        controls=[dialog.file_list_mouse_selection_mode_combo],
+        controls=[dialog.enable_right_click_row_selection_checkbox],
     )
 
     dialog.auto_calculate_dir_sizes_on_space_checkbox = QCheckBox(dialog)

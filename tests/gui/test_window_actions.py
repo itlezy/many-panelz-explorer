@@ -1265,16 +1265,16 @@ def test_tc_selection_shortcuts_toggle_current_row_and_advance(
     assert tab.view.currentIndex() == parent_index
 
 
-def test_tc_mouse_selection_mode_updates_left_and_right_click_selection(
+def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
     qtbot, tmp_path: Path
 ) -> None:
     settings = SettingsManager()
-    settings.file_list_mouse_selection_mode = "tc_full"
+    settings.enable_right_click_row_selection = True
     roots_provider = _test_roots_provider(tmp_path)
     window = ExplorerWindow(
         controller=_ControllerStub(),
         settings=settings,
-        window_id="tc-mouse-selection",
+        window_id="mouse-selection",
         roots_provider=roots_provider,
     )
     window.default_maximize_on_first_show = False
@@ -1306,22 +1306,99 @@ def test_tc_mouse_selection_mode_updates_left_and_right_click_selection(
     )
     assert _selected_real_paths(tab) == [alpha_file]
 
-    QTest.mouseClick(
+    delayed_calls: list[tuple[int, int]] = []
+    tab.view.delayed_context_menu_requested.disconnect(tab._actions.open_context_menu)
+    tab.view.delayed_context_menu_requested.connect(
+        lambda pos: delayed_calls.append((pos.x(), pos.y()))
+    )
+
+    QTest.mousePress(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
         _row_center(tab, beta_file),
     )
     assert _selected_real_paths(tab) == [beta_file]
-
-    _select_paths(tab, [alpha_file, beta_file])
-    QTest.mouseClick(
+    qtbot.wait(150)
+    assert delayed_calls == []
+    QTest.mouseRelease(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
-        _row_center(tab, alpha_file),
+        _row_center(tab, beta_file),
+    )
+    assert delayed_calls == []
+
+    _select_paths(tab, [alpha_file, beta_file])
+    hold_point = _row_center(tab, alpha_file)
+    QTest.mousePress(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        hold_point,
     )
     assert _selected_real_paths(tab) == [alpha_file, beta_file]
+    qtbot.wait(1100)
+    assert delayed_calls == [(hold_point.x(), hold_point.y())]
+    QTest.mouseRelease(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        hold_point,
+    )
+
+
+def test_right_click_uses_qt_default_when_delayed_row_selection_is_disabled(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    settings.enable_right_click_row_selection = False
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="mouse-selection-disabled",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-selection-disabled-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(beta_file)).isValid())
+    tab.view.setFocus()
+    _select_paths(tab, [alpha_file])
+
+    delayed_calls: list[tuple[int, int]] = []
+    tab.view.delayed_context_menu_requested.connect(
+        lambda pos: delayed_calls.append((pos.x(), pos.y()))
+    )
+    QTest.mousePress(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, beta_file),
+    )
+    qtbot.wait(1100)
+    QTest.mouseRelease(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, beta_file),
+    )
+
+    assert delayed_calls == []
 
 
 def test_space_auto_calculates_selected_directory_size_when_enabled(

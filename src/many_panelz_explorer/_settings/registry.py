@@ -201,7 +201,9 @@ class SettingsRegistry:
     USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY = (
         "ops/open/everything/use_sdk_for_folder_sizes"
     )
-    FILE_LIST_MOUSE_SELECTION_MODE_KEY = "ops/file_list/mouse_selection_mode"
+    ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY = (
+        "ops/file_list/enable_right_click_row_selection"
+    )
     AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY = "ops/file_list/auto_sizes_on_space"
     AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY = (
         "ops/file_list/auto_sizes_before_copy_move"
@@ -365,7 +367,7 @@ class SettingsRegistry:
     DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND = BACKEND_ARCHIVE_WINRAR
     DEFAULT_EVERYTHING_EXECUTABLE = DEFAULT_EVERYTHING_EXECUTABLE
     DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES = True
-    DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE = "qt_default"
+    DEFAULT_ENABLE_RIGHT_CLICK_ROW_SELECTION = True
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE = False
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE = False
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE = False
@@ -440,8 +442,4 @@ class SettingsRegistry:
         "minimized",
         "right_of_screen",
         "left_of_screen",
-    }
-    ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES: ClassVar[set[str]] = {
-        "qt_default",
-        "tc_full",
     }

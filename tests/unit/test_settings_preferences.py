@@ -275,7 +275,7 @@ def test_ui_preferences_round_trip() -> None:
             ),
             everything_executable=r"C:\tools\Everything.exe",
             use_everything_sdk_for_folder_sizes=False,
-            file_list_mouse_selection_mode="tc_full",
+            enable_right_click_row_selection=False,
             auto_calculate_dir_sizes_on_space=True,
             auto_calculate_dir_sizes_before_copy_move=True,
             auto_calculate_dir_sizes_before_archive=True,
@@ -610,7 +610,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         )
         settings.remove(SettingsManager.EVERYTHING_EXECUTABLE_KEY)
         settings.remove(SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY)
-        settings.set_value(SettingsManager.FILE_LIST_MOUSE_SELECTION_MODE_KEY, "weird")
+        settings.remove(SettingsManager.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY)
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY)
         settings.remove(
             SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY
@@ -945,8 +945,8 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             is SettingsManager.DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES
         )
         assert (
-            loaded.file_list_mouse_selection_mode
-            == SettingsManager.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE
+            loaded.enable_right_click_row_selection
+            is SettingsManager.DEFAULT_ENABLE_RIGHT_CLICK_ROW_SELECTION
         )
         assert (
             loaded.auto_calculate_dir_sizes_on_space

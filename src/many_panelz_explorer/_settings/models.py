@@ -189,7 +189,7 @@ class UiPreferences:
     )
     everything_executable: str = DEFAULT_EVERYTHING_EXECUTABLE
     use_everything_sdk_for_folder_sizes: bool = True
-    file_list_mouse_selection_mode: str = "qt_default"
+    enable_right_click_row_selection: bool = True
     auto_calculate_dir_sizes_on_space: bool = False
     auto_calculate_dir_sizes_before_copy_move: bool = False
     auto_calculate_dir_sizes_before_archive: bool = False

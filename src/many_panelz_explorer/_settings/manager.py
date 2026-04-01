@@ -252,8 +252,8 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     use_everything_sdk_for_folder_sizes = delegate_domain_property(
         "ops", "use_everything_sdk_for_folder_sizes"
     )
-    file_list_mouse_selection_mode = delegate_domain_property(
-        "ops", "file_list_mouse_selection_mode"
+    enable_right_click_row_selection = delegate_domain_property(
+        "ops", "enable_right_click_row_selection"
     )
     auto_calculate_dir_sizes_on_space = delegate_domain_property(
         "ops", "auto_calculate_dir_sizes_on_space"
@@ -459,7 +459,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             use_everything_sdk_for_folder_sizes=(
                 self.use_everything_sdk_for_folder_sizes
             ),
-            file_list_mouse_selection_mode=self.file_list_mouse_selection_mode,
+            enable_right_click_row_selection=self.enable_right_click_row_selection,
             auto_calculate_dir_sizes_on_space=(
                 self.auto_calculate_dir_sizes_on_space
             ),
@@ -659,8 +659,8 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.use_everything_sdk_for_folder_sizes = (
             preferences.use_everything_sdk_for_folder_sizes
         )
-        self.file_list_mouse_selection_mode = (
-            preferences.file_list_mouse_selection_mode
+        self.enable_right_click_row_selection = (
+            preferences.enable_right_click_row_selection
         )
         self.auto_calculate_dir_sizes_on_space = (
             preferences.auto_calculate_dir_sizes_on_space

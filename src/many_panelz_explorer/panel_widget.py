@@ -30,7 +30,6 @@ from threep_commons.fs_paths import display_path_text
 from threep_commons.qt.widget_identity import assign_widget_identity
 
 from . import widget_naming
-from .explorer_file_list_view import FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT
 from .explorer_tab import ExplorerTab
 from .mounts import list_roots_for_navigation
 from .panel_groups import (
@@ -218,9 +217,7 @@ class PanelWidget(QWidget):
         self.properties_size_formatter = (
             properties_size_formatter or self.default_properties_size_formatter
         )
-        self.file_list_mouse_selection_mode = (
-            FILE_LIST_MOUSE_SELECTION_MODE_QT_DEFAULT
-        )
+        self.enable_right_click_row_selection = True
         self.navigation_coordinator = PanelNavigationCoordinator(
             self,
             is_hidden_or_system_entry=_is_hidden_or_system_entry,
@@ -894,7 +891,7 @@ class PanelWidget(QWidget):
         tab = ExplorerTab(
             path,
             show_hidden=self._show_hidden,
-            mouse_selection_mode=self.file_list_mouse_selection_mode,
+            enable_right_click_row_selection=self.enable_right_click_row_selection,
             file_list_size_formatter=self.file_list_size_formatter,
             properties_size_formatter=self.properties_size_formatter,
             parent=self,

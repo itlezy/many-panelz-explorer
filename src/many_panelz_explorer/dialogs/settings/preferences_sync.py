@@ -323,9 +323,8 @@ def load_operations_preferences(
     dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(
         preferences.use_everything_sdk_for_folder_sizes
     )
-    dialog.set_combo_value(
-        dialog.file_list_mouse_selection_mode_combo,
-        preferences.file_list_mouse_selection_mode,
+    dialog.enable_right_click_row_selection_checkbox.setChecked(
+        preferences.enable_right_click_row_selection
     )
     dialog.auto_calculate_dir_sizes_on_space_checkbox.setChecked(
         preferences.auto_calculate_dir_sizes_on_space
@@ -684,8 +683,8 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         use_everything_sdk_for_folder_sizes=(
             dialog.use_everything_sdk_for_folder_sizes_checkbox.isChecked()
         ),
-        file_list_mouse_selection_mode=str(
-            dialog.file_list_mouse_selection_mode_combo.currentData()
+        enable_right_click_row_selection=(
+            dialog.enable_right_click_row_selection_checkbox.isChecked()
         ),
         auto_calculate_dir_sizes_on_space=(
             dialog.auto_calculate_dir_sizes_on_space_checkbox.isChecked()

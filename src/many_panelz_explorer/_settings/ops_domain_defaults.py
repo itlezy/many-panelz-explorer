@@ -866,25 +866,19 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         )
 
     @property
-    def file_list_mouse_selection_mode(self) -> str:
-        return normalize.normalize_choice(
+    def enable_right_click_row_selection(self) -> bool:
+        return bool(
             self._storage.value(
-                self.FILE_LIST_MOUSE_SELECTION_MODE_KEY,
-                self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
-            ),
-            fallback=self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
-            allowed=self.ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES,
+                self.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY,
+                self.DEFAULT_ENABLE_RIGHT_CLICK_ROW_SELECTION,
+            )
         )
 
-    @file_list_mouse_selection_mode.setter
-    def file_list_mouse_selection_mode(self, value: str) -> None:
+    @enable_right_click_row_selection.setter
+    def enable_right_click_row_selection(self, value: bool) -> None:
         self._storage.set_value(
-            self.FILE_LIST_MOUSE_SELECTION_MODE_KEY,
-            normalize.normalize_choice(
-                value,
-                fallback=self.DEFAULT_FILE_LIST_MOUSE_SELECTION_MODE,
-                allowed=self.ALLOWED_FILE_LIST_MOUSE_SELECTION_MODES,
-            ),
+            self.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY,
+            bool(value),
         )
 
     @property
