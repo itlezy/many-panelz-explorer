@@ -128,6 +128,12 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         "ops", "default_copy_move_backend"
     )
     default_delete_backend = delegate_domain_property("ops", "default_delete_backend")
+    default_archive_packer_backend = delegate_domain_property(
+        "ops", "default_archive_packer_backend"
+    )
+    default_archive_unpacker_backend = delegate_domain_property(
+        "ops", "default_archive_unpacker_backend"
+    )
     default_operation_dispatch_mode = delegate_domain_property(
         "ops", "default_operation_dispatch_mode"
     )
@@ -242,6 +248,21 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     double_commander_source_target_args_template = delegate_domain_property(
         "ops", "double_commander_source_target_args_template"
     )
+    everything_executable = delegate_domain_property("ops", "everything_executable")
+    seven_zip_executable = delegate_domain_property("ops", "seven_zip_executable")
+    seven_zip_pack_args_template = delegate_domain_property(
+        "ops", "seven_zip_pack_args_template"
+    )
+    seven_zip_extract_args_template = delegate_domain_property(
+        "ops", "seven_zip_extract_args_template"
+    )
+    winrar_executable = delegate_domain_property("ops", "winrar_executable")
+    winrar_pack_args_template = delegate_domain_property(
+        "ops", "winrar_pack_args_template"
+    )
+    winrar_extract_args_template = delegate_domain_property(
+        "ops", "winrar_extract_args_template"
+    )
     use_extended_paths_robocopy = delegate_domain_property(
         "ops", "use_extended_paths_robocopy"
     )
@@ -349,6 +370,8 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             target_panel_tint_intensity_percent=self.target_panel_tint_intensity_percent,
             default_copy_move_backend=self.default_copy_move_backend,
             default_delete_backend=self.default_delete_backend,
+            default_archive_packer_backend=self.default_archive_packer_backend,
+            default_archive_unpacker_backend=self.default_archive_unpacker_backend,
             default_operation_dispatch_mode=self.default_operation_dispatch_mode,
             default_operation_conflict_policy=self.default_operation_conflict_policy,
             operation_shortcut_behavior=self.operation_shortcut_behavior,
@@ -417,6 +440,13 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             double_commander_source_target_args_template=(
                 self.double_commander_source_target_args_template
             ),
+            everything_executable=self.everything_executable,
+            seven_zip_executable=self.seven_zip_executable,
+            seven_zip_pack_args_template=self.seven_zip_pack_args_template,
+            seven_zip_extract_args_template=self.seven_zip_extract_args_template,
+            winrar_executable=self.winrar_executable,
+            winrar_pack_args_template=self.winrar_pack_args_template,
+            winrar_extract_args_template=self.winrar_extract_args_template,
             use_extended_paths_robocopy=self.use_extended_paths_robocopy,
             use_extended_paths_teracopy=self.use_extended_paths_teracopy,
             use_extended_paths_unstoppable=self.use_extended_paths_unstoppable,
@@ -507,6 +537,10 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         )
         self.default_copy_move_backend = preferences.default_copy_move_backend
         self.default_delete_backend = preferences.default_delete_backend
+        self.default_archive_packer_backend = preferences.default_archive_packer_backend
+        self.default_archive_unpacker_backend = (
+            preferences.default_archive_unpacker_backend
+        )
         self.default_operation_dispatch_mode = (
             preferences.default_operation_dispatch_mode
         )
@@ -593,6 +627,15 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.double_commander_source_target_args_template = (
             preferences.double_commander_source_target_args_template
         )
+        self.everything_executable = preferences.everything_executable
+        self.seven_zip_executable = preferences.seven_zip_executable
+        self.seven_zip_pack_args_template = preferences.seven_zip_pack_args_template
+        self.seven_zip_extract_args_template = (
+            preferences.seven_zip_extract_args_template
+        )
+        self.winrar_executable = preferences.winrar_executable
+        self.winrar_pack_args_template = preferences.winrar_pack_args_template
+        self.winrar_extract_args_template = preferences.winrar_extract_args_template
         self.use_extended_paths_robocopy = preferences.use_extended_paths_robocopy
         self.use_extended_paths_teracopy = preferences.use_extended_paths_teracopy
         self.use_extended_paths_unstoppable = preferences.use_extended_paths_unstoppable

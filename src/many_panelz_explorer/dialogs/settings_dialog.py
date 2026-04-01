@@ -133,6 +133,8 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         "operations": (
             "default_copy_move_backend",
             "default_delete_backend",
+            "default_archive_packer_backend",
+            "default_archive_unpacker_backend",
             "default_operation_dispatch_mode",
             "default_operation_conflict_policy",
             "operation_shortcut_behavior",
@@ -174,6 +176,13 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
             "double_commander_executable",
             "double_commander_source_args_template",
             "double_commander_source_target_args_template",
+            "everything_executable",
+            "seven_zip_executable",
+            "seven_zip_pack_args_template",
+            "seven_zip_extract_args_template",
+            "winrar_executable",
+            "winrar_pack_args_template",
+            "winrar_extract_args_template",
             "file_open_overrides_json",
             "teracopy_executable",
             "use_extended_paths_teracopy",
@@ -226,6 +235,8 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         comspec_terminal_startup_position_combo: QComboBox
         default_conflict_policy_combo: QComboBox
         default_copy_move_backend_combo: QComboBox
+        default_archive_packer_backend_combo: QComboBox
+        default_archive_unpacker_backend_combo: QComboBox
         default_tab_position_combo: QComboBox
         default_delete_backend_combo: QComboBox
         default_dispatch_mode_combo: QComboBox
@@ -244,6 +255,7 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         file_list_font_size_spin: FontSizeSpinBox
         file_list_use_app_font_checkbox: QCheckBox
         file_open_overrides_table: QTableWidget
+        everything_executable_edit: QLineEdit
         generic_copymove_executable_edit: QLineEdit
         generic_copymove_test_btn: QPushButton
         generic_delete_args_edit: QLineEdit
@@ -322,6 +334,9 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         total_commander_executable_edit: QLineEdit
         total_commander_source_args_edit: QLineEdit
         total_commander_source_target_args_edit: QLineEdit
+        seven_zip_executable_edit: QLineEdit
+        seven_zip_pack_args_edit: QLineEdit
+        seven_zip_extract_args_edit: QLineEdit
         teracopy_executable_edit: QLineEdit
         teracopy_preview_label: QLabel
         teracopy_reset_backend_btn: QPushButton
@@ -354,6 +369,9 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         double_commander_executable_edit: QLineEdit
         double_commander_source_args_edit: QLineEdit
         double_commander_source_target_args_edit: QLineEdit
+        winrar_executable_edit: QLineEdit
+        winrar_pack_args_edit: QLineEdit
+        winrar_extract_args_edit: QLineEdit
         use_extended_paths_cmd_delete_checkbox: QCheckBox
         use_extended_paths_external_copymove_checkbox: QCheckBox
         use_extended_paths_external_delete_checkbox: QCheckBox

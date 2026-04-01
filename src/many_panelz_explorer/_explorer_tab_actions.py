@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QPoint
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QPoint, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from . import file_ops
+from . import external_tools, file_ops
 from .dialogs.properties_dialog import PropertiesDialog
 from .terminal_launchers import available_terminal_launchers
 
@@ -25,8 +25,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ._operations.types import TerminalLauncherId
+    from ._settings.manager import SettingsManager
     from .explorer_tab import ExplorerTab
+    from .panel_widget import PanelWidget
     from .ui.window import WindowBookmarksCoordinator
+    from .ui.window.operations import WindowOperationsCoordinator
 
 
 class ExplorerTabActions(QObject):
@@ -220,7 +223,7 @@ class ExplorerTabActions(QObject):
         self._new_folder()
 
     def create_zip_from_selection(self) -> None:
-        """Launch the ZIP creation flow for the current selection."""
+        """Launch the archive pack dialog for the current selection."""
 
         self._zip_create()
 
@@ -228,6 +231,164 @@ class ExplorerTabActions(QObject):
         """Open the configured terminal at the current tab path."""
 
         self._open_terminal()
+
+    def launch_everything_search(self) -> None:
+        """Launch Everything scoped to the active tab path."""
+
+        settings = self._window_settings()
+        if settings is None:
+            return
+        self._run_external_tool_action(
+            lambda: external_tools.launch_everything_search(
+                executable=settings.everything_executable,
+                path=self._tab.navigation.path,
+            ),
+            timeout_ms=2600,
+        )
+
+    def extract_supported_archive(self) -> None:
+        """Open the archive unpack dialog for one selected `.7z` or `.rar` file."""
+
+        archive = self._single_selected_or_current_path()
+        if archive is None or not archive.is_file():
+            return
+        suffix = archive.suffix.casefold()
+        if suffix not in {".7z", ".rar"}:
+            self._show_status_message(
+                "Alt+F9 supports only .7z and .rar archives.",
+                2400,
+            )
+            return
+        operations = self._window_operations_coordinator()
+        if operations is None:
+            return
+        operations.unpack_archive(archive=archive)
+
+    def show_properties_selected_or_current(self) -> None:
+        """Open properties for the selected item or current row."""
+
+        path = self._single_selected_or_current_path()
+        if path is None:
+            return
+        dialog = PropertiesDialog(
+            path,
+            self._tab,
+            size_formatter=self._tab.properties_size_formatter,
+        )
+        dialog.exec()
+
+    def rename_selected_or_current(self) -> None:
+        """Rename the selected item or current row in place."""
+
+        source = self._single_selected_or_current_path()
+        if source is None:
+            return
+        name, ok = QInputDialog.getText(
+            self._tab,
+            "Rename",
+            "New name:",
+            text=source.name,
+        )
+        if not ok or not name.strip():
+            return
+
+        def _rename() -> None:
+            renamed = file_ops.rename_path(source, name.strip())
+            self._tab.navigation.set_path(
+                self._tab.navigation.path,
+                push_history=False,
+                selection_hint=renamed,
+            )
+
+        self._run_and_refresh(_rename)
+
+    def copy_selected_or_current_to_current_directory(self) -> None:
+        """Copy the selection into the current directory with rename-on-conflict."""
+
+        selected = self._selected_or_current_paths()
+        if not selected:
+            return
+
+        def _copy() -> None:
+            copied = file_ops.copy_items(selected, self._tab.navigation.path)
+            selection_hint = copied[0] if len(copied) == 1 else None
+            self._tab.navigation.set_path(
+                self._tab.navigation.path,
+                push_history=False,
+                selection_hint=selection_hint,
+            )
+
+        self._run_and_refresh(_copy)
+
+    def create_directory_in_target(self) -> None:
+        """Create one directory inside the resolved target pane."""
+
+        target_panel = self._target_panel()
+        if target_panel is None:
+            self._show_status_message(
+                "No target pane is available. Create another pane first.",
+                2400,
+            )
+            return
+        suggested_name = "New Folder"
+        selected = self._single_selected_or_current_path()
+        if selected is not None:
+            suggested_name = selected.name or suggested_name
+        name, ok = QInputDialog.getText(
+            self._tab,
+            "New folder in target pane",
+            "Folder name:",
+            text=suggested_name,
+        )
+        if not ok or not name.strip():
+            return
+
+        def _create() -> None:
+            created = file_ops.create_folder(target_panel.current_path(), name.strip())
+            current_target_tab = target_panel.current_tab()
+            if current_target_tab is not None:
+                current_target_tab.navigation.set_path(
+                    target_panel.current_path(),
+                    push_history=False,
+                    selection_hint=created,
+                )
+
+        self._run_action(_create)
+        target_panel.navigation_coordinator.refresh_current_path()
+
+    def open_selected_or_current_in_target_pane(self) -> None:
+        """Open the selected directory in the target pane or mirror the current path."""
+
+        target_panel = self._target_panel()
+        if target_panel is None:
+            self._show_status_message(
+                "No target pane is available. Create another pane first.",
+                2400,
+            )
+            return
+        candidate = self._single_selected_or_current_path()
+        target_path = (
+            candidate
+            if candidate is not None and candidate.is_dir()
+            else self._tab.navigation.path
+        )
+        current_target_tab = target_panel.current_tab()
+        if current_target_tab is None:
+            return
+        current_target_tab.navigation.set_path(target_path)
+
+    def sort_by_column(self, column: int) -> None:
+        """Sort the current file list by one model column in ascending order."""
+
+        self._tab.view.sortByColumn(int(column), Qt.SortOrder.AscendingOrder)
+
+    def go_root(self) -> None:
+        """Jump the active panel to its root path."""
+
+        panel = self._active_panel()
+        if panel is None:
+            return
+        panel.navigation_coordinator.go_root()
 
     def _menu_specs(self) -> list[tuple[str | None, Callable[[], None]]]:
         return [
@@ -242,8 +403,8 @@ class ExplorerTabActions(QObject):
             ("Delete", self._delete_selected),
             (None, self._open_selected),
             ("Properties", self._show_properties),
-            ("Create ZIP...", self._zip_create),
-            ("Extract ZIP...", self._zip_extract),
+            ("Pack Files...", self._zip_create),
+            ("Unpack Files...", self._zip_extract),
         ]
 
     def _add_terminal_menu_items(self, menu: QMenu) -> None:
@@ -292,19 +453,7 @@ class ExplorerTabActions(QObject):
             self._run_action(lambda p=path: file_ops.open_with_default(p))
 
     def _rename_selected(self) -> None:
-        selected = self._tab.selected_paths()
-        if len(selected) != 1:
-            return
-        source = selected[0]
-        name, ok = QInputDialog.getText(
-            self._tab,
-            "Rename",
-            "New name:",
-            text=source.name,
-        )
-        if not ok or not name.strip():
-            return
-        self._run_and_refresh(lambda: file_ops.rename_path(source, name.strip()))
+        self.rename_selected_or_current()
 
     def _new_folder(self) -> None:
         name, ok = QInputDialog.getText(
@@ -362,48 +511,19 @@ class ExplorerTabActions(QObject):
         self._run_and_refresh(lambda: file_ops.delete_to_recycle_bin(selected))
 
     def _show_properties(self) -> None:
-        selected = self._tab.selected_paths()
-        if len(selected) != 1:
-            return
-        dialog = PropertiesDialog(
-            selected[0],
-            self._tab,
-            size_formatter=self._tab.properties_size_formatter,
-        )
-        dialog.exec()
+        self.show_properties_selected_or_current()
 
     def _zip_create(self) -> None:
-        selected = self._tab.selected_paths()
+        selected = self._selected_or_current_paths()
         if not selected:
             return
-        default_name = (
-            f"{selected[0].name}.zip" if len(selected) == 1 else "archive.zip"
-        )
-        target, _ = QFileDialog.getSaveFileName(
-            self._tab,
-            "Create ZIP",
-            str(self._tab.navigation.path / default_name),
-            "ZIP Files (*.zip)",
-        )
-        if not target:
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return
-        self._run_action(lambda: file_ops.zip_create(selected, Path(target)))
+        operations.pack_sources(sources=selected)
 
     def _zip_extract(self) -> None:
-        selected = self._tab.selected_paths()
-        if len(selected) != 1:
-            return
-        archive = selected[0]
-        if archive.suffix.lower() != ".zip":
-            return
-        target = QFileDialog.getExistingDirectory(
-            self._tab,
-            "Extract ZIP",
-            str(self._tab.navigation.path),
-        )
-        if not target:
-            return
-        self._run_and_refresh(lambda: file_ops.zip_extract(archive, Path(target)))
+        self.extract_supported_archive()
 
     def _open_terminal(self) -> None:
         self._run_action(lambda: file_ops.open_terminal_here(self._tab.navigation.path))
@@ -454,6 +574,12 @@ class ExplorerTabActions(QObject):
             return []
         return [Path(file_path)]
 
+    def _single_selected_or_current_path(self) -> Path | None:
+        paths = self._selected_or_current_paths()
+        if len(paths) != 1:
+            return None
+        return paths[0]
+
     def _current_real_index(self) -> QModelIndex:
         current_index = self._tab.view.currentIndex()
         if current_index.isValid():
@@ -501,9 +627,73 @@ class ExplorerTabActions(QObject):
             return None
         return coordinator
 
+    def _window_settings(self) -> SettingsManager | None:
+        """Return the owning window settings when available."""
+
+        from .window import ExplorerWindow
+
+        window = self._tab.window()
+        if not isinstance(window, ExplorerWindow):
+            return None
+        return window.settings
+
+    def _window_operations_coordinator(self) -> WindowOperationsCoordinator | None:
+        """Return the owning window operations coordinator when available."""
+
+        from .window import ExplorerWindow
+
+        window = self._tab.window()
+        if not isinstance(window, ExplorerWindow):
+            return None
+        return window.operations_coordinator
+
+    def _active_panel(self) -> PanelWidget | None:
+        """Return the active panel when this tab belongs to it."""
+
+        from .window import ExplorerWindow
+
+        window = self._tab.window()
+        if not isinstance(window, ExplorerWindow):
+            return None
+        panel = window.panels_coordinator.active_panel()
+        if panel is None or panel.current_tab() is not self._tab:
+            return None
+        return panel
+
+    def _target_panel(self) -> PanelWidget | None:
+        """Return the resolved target panel for this tab."""
+
+        active_panel = self._active_panel()
+        if active_panel is None:
+            return None
+        from .window import ExplorerWindow
+
+        window = self._tab.window()
+        if not isinstance(window, ExplorerWindow):
+            return None
+        target_panel = window.panels_coordinator.target_panel()
+        if target_panel is active_panel:
+            return None
+        return target_panel
+
     def _run_and_refresh(self, action: Callable[[], object]) -> None:
         self._run_action(action)
         self._tab.navigation.refresh()
+
+    def _run_external_tool_action(
+        self,
+        action: Callable[[], object],
+        *,
+        timeout_ms: int,
+    ) -> None:
+        """Run one optional external-tool action with non-blocking errors."""
+
+        try:
+            action()
+        except RuntimeError as exc:
+            self._show_status_message(str(exc), timeout_ms)
+        except Exception as exc:  # pragma: no cover - UI error path
+            QMessageBox.critical(self._tab, "Operation failed", str(exc))
 
     def _run_action(self, action: Callable[[], object]) -> None:
         try:

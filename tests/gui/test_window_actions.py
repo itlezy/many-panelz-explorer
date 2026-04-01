@@ -161,6 +161,17 @@ def _selected_real_paths(tab: ExplorerTab) -> list[Path]:
     ]
 
 
+def _visible_row_names(tab: ExplorerTab) -> list[str]:
+    names: list[str] = []
+    root_index = tab.view.rootIndex()
+    for row in range(tab.model.rowCount(root_index)):
+        index = tab.model.index(row, 0, root_index)
+        if not index.isValid() or tab.model.is_parent_index(index):
+            continue
+        names.append(Path(tab.model.filePath(index)).name)
+    return names
+
+
 class _ControllerCloneStub(_ControllerStub):
     def __init__(
         self,
@@ -1046,21 +1057,16 @@ def test_file_list_shortcuts_cover_selection_context_and_clipboard(
         "open_context_menu",
         lambda pos: context_calls.append((pos.x(), pos.y())),
     )
-    zip_calls: list[tuple[list[Path], Path]] = []
+    pack_calls: list[list[Path]] = []
     monkeypatch.setattr(
         QInputDialog,
         "getText",
         lambda *_a, **_k: ("Created Folder", True),
     )
     monkeypatch.setattr(
-        "many_panelz_explorer._explorer_tab_actions.QFileDialog.getSaveFileName",
-        lambda *_a, **_k: (str(root / "archive.zip"), "ZIP Files (*.zip)"),
-    )
-    monkeypatch.setattr(
-        "many_panelz_explorer._explorer_tab_actions.file_ops.zip_create",
-        lambda sources, archive_path: zip_calls.append(
-            ([Path(item) for item in sources], Path(archive_path))
-        ),
+        window.operations_coordinator,
+        "pack_sources",
+        lambda *, sources: pack_calls.append([Path(item) for item in sources]),
     )
 
     QTest.keyClick(tab.view, Qt.Key_A, Qt.ControlModifier)
@@ -1098,7 +1104,7 @@ def test_file_list_shortcuts_cover_selection_context_and_clipboard(
     qtbot.waitUntil(lambda: tab.model.index(str(first_file)).isValid())
     _select_paths(tab, [first_file])
     QTest.keyClick(tab.view, Qt.Key_F5, Qt.AltModifier)
-    assert zip_calls == [([first_file], root / "archive.zip")]
+    assert pack_calls == [[first_file]]
 
 
 def test_alt_f1_and_shift_esc_use_active_panel_and_window_helpers(
@@ -1186,6 +1192,262 @@ def test_f9_opens_terminal_for_active_tab(
 
     assert first_calls == []
     assert active_calls == ["active"]
+
+
+def test_tc_root_and_target_pane_shortcuts(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-root-target",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+    window.new_vertical_panel_action.trigger()
+
+    ordered = _ordered_panels(window)
+    source_panel = ordered[0]
+    target_panel = ordered[1]
+    window.panels_coordinator.set_active_panel(source_panel.panel_id)
+
+    source_root = tmp_path / "source-root"
+    source_root.mkdir()
+    nested = source_root / "nested" / "child"
+    nested.mkdir(parents=True)
+    folder_target = source_root / "folder-target"
+    folder_target.mkdir()
+    file_target = source_root / "file-target.txt"
+    file_target.write_text("alpha", encoding="utf-8")
+    target_root = tmp_path / "target-root"
+    target_root.mkdir()
+
+    source_tab = source_panel.current_tab()
+    target_tab = target_panel.current_tab()
+    assert source_tab is not None
+    assert target_tab is not None
+    source_tab.navigation.set_path(nested)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_tab.navigation.path == nested)
+    source_tab.view.setFocus()
+
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key_Backslash,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    qtbot.waitUntil(lambda: source_tab.navigation.path == Path(nested.anchor))
+
+    source_tab.navigation.set_path(nested)
+    qtbot.waitUntil(lambda: source_tab.navigation.path == nested)
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key_Less,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    qtbot.waitUntil(lambda: source_tab.navigation.path == Path(nested.anchor))
+
+    source_tab.navigation.set_path(source_root)
+    qtbot.waitUntil(lambda: source_tab.model.index(str(folder_target)).isValid())
+    _select_paths(source_tab, [folder_target])
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key_Right,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    assert target_panel.current_path() == folder_target
+
+    source_tab.navigation.set_path(source_root)
+    qtbot.waitUntil(lambda: source_tab.model.index(str(file_target)).isValid())
+    _select_paths(source_tab, [file_target])
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key_Left,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    assert target_panel.current_path() == source_root
+
+
+def test_tc_sort_and_same_directory_shortcuts(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-sort-same-dir",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "sort-root"
+    root.mkdir()
+    alpha = root / "alpha.txt"
+    zeta = root / "zeta.log"
+    beta = root / "beta.txt"
+    alpha.write_text("a", encoding="utf-8")
+    zeta.write_text("bbbb", encoding="utf-8")
+    beta.write_text("cc", encoding="utf-8")
+    os.utime(alpha, (1_000, 1_000))
+    os.utime(zeta, (2_000, 2_000))
+    os.utime(beta, (3_000, 3_000))
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(zeta)).isValid())
+    tab.view.setFocus()
+
+    QTest.keyClick(tab.view, Qt.Key_F3, Qt.KeyboardModifier.ControlModifier)
+    assert _visible_row_names(tab)[:3] == ["alpha.txt", "beta.txt", "zeta.log"]
+
+    QTest.keyClick(tab.view, Qt.Key_F4, Qt.KeyboardModifier.ControlModifier)
+    assert _visible_row_names(tab)[:3] == ["zeta.log", "alpha.txt", "beta.txt"]
+
+    QTest.keyClick(tab.view, Qt.Key_F5, Qt.KeyboardModifier.ControlModifier)
+    assert _visible_row_names(tab)[:3] == ["alpha.txt", "zeta.log", "beta.txt"]
+
+    QTest.keyClick(tab.view, Qt.Key_F6, Qt.KeyboardModifier.ControlModifier)
+    assert _visible_row_names(tab)[:3] == ["alpha.txt", "beta.txt", "zeta.log"]
+
+    _select_paths(tab, [alpha])
+    QTest.keyClick(tab.view, Qt.Key_F5, Qt.KeyboardModifier.ShiftModifier)
+    qtbot.waitUntil(lambda: (root / "alpha (1).txt").exists())
+
+    qtbot.waitUntil(lambda: tab.model.index(str(beta)).isValid())
+    _select_paths(tab, [beta])
+    monkeypatch.setattr(
+        QInputDialog,
+        "getText",
+        lambda *_a, **_k: ("renamed.txt", True),
+    )
+    QTest.keyClick(tab.view, Qt.Key_F6, Qt.KeyboardModifier.ShiftModifier)
+    qtbot.waitUntil(lambda: (root / "renamed.txt").exists())
+
+
+def test_tc_everything_archive_properties_and_target_mkdir_shortcuts(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    settings.everything_executable = "Everything.exe"
+    settings.seven_zip_executable = "7z.exe"
+    settings.seven_zip_pack_args_template = (
+        "a -y {archive} {sources} {recurse_mode} {compression_level} "
+        "{method_mode} {solid_mode} {header_mode}"
+    )
+    settings.seven_zip_extract_args_template = (
+        "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+    )
+    settings.winrar_executable = "WinRAR.exe"
+    settings.winrar_pack_args_template = (
+        "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
+        "{lock_mode} {archive} {sources}"
+    )
+    settings.winrar_extract_args_template = (
+        "{extract_mode} -y {archive} {target} {overwrite_mode} {keep_broken_mode}"
+    )
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-external-tools",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+    window.new_vertical_panel_action.trigger()
+
+    ordered = _ordered_panels(window)
+    source_panel = ordered[0]
+    target_panel = ordered[1]
+    window.panels_coordinator.set_active_panel(source_panel.panel_id)
+
+    source_root = tmp_path / "shortcut-source"
+    source_root.mkdir()
+    target_root = tmp_path / "shortcut-target"
+    target_root.mkdir()
+    search_dir = source_root / "SearchDir"
+    search_dir.mkdir()
+    archive_7z = source_root / "sample.7z"
+    archive_rar = source_root / "sample.rar"
+    properties_file = source_root / "props.txt"
+    archive_7z.write_text("7z", encoding="utf-8")
+    archive_rar.write_text("rar", encoding="utf-8")
+    properties_file.write_text("props", encoding="utf-8")
+
+    source_tab = source_panel.current_tab()
+    target_tab = target_panel.current_tab()
+    assert source_tab is not None
+    assert target_tab is not None
+    source_tab.navigation.set_path(source_root)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_tab.model.index(str(properties_file)).isValid())
+    source_tab.view.setFocus()
+
+    everything_calls: list[tuple[str, Path]] = []
+    unpack_calls: list[Path] = []
+
+    def _record_everything(*, executable: str, path: Path) -> None:
+        everything_calls.append((str(executable), Path(path)))
+
+    monkeypatch.setattr(
+        "many_panelz_explorer._explorer_tab_actions.external_tools.launch_everything_search",
+        _record_everything,
+    )
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "unpack_archive",
+        lambda *, archive: unpack_calls.append(Path(archive)),
+    )
+    captured_properties: dict[str, Path] = {}
+
+    class _FakePropertiesDialog:
+        def __init__(self, path, parent=None, *, size_formatter=None):
+            _ = parent, size_formatter
+            captured_properties["path"] = Path(path)
+
+        def exec(self) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        "many_panelz_explorer._explorer_tab_actions.PropertiesDialog",
+        _FakePropertiesDialog,
+    )
+    captured_target_folder_name: dict[str, str] = {}
+
+    def _capture_folder_name(*_args, **kwargs):
+        captured_target_folder_name["default"] = str(kwargs.get("text", ""))
+        return ("MadeInTarget", True)
+
+    monkeypatch.setattr(QInputDialog, "getText", _capture_folder_name)
+
+    QTest.keyClick(source_tab.view, Qt.Key_F7, Qt.KeyboardModifier.AltModifier)
+    assert everything_calls == [("Everything.exe", source_root)]
+
+    _select_paths(source_tab, [archive_7z])
+    QTest.keyClick(source_tab.view, Qt.Key_F9, Qt.KeyboardModifier.AltModifier)
+    _select_paths(source_tab, [archive_rar])
+    QTest.keyClick(source_tab.view, Qt.Key_F9, Qt.KeyboardModifier.AltModifier)
+    assert unpack_calls == [archive_7z, archive_rar]
+
+    _select_paths(source_tab, [properties_file])
+    QTest.keyClick(source_tab.view, Qt.Key_Return, Qt.KeyboardModifier.AltModifier)
+    assert captured_properties["path"] == properties_file
+
+    _select_paths(source_tab, [search_dir])
+    QTest.keyClick(source_tab.view, Qt.Key_F7, Qt.KeyboardModifier.ShiftModifier)
+    assert captured_target_folder_name["default"] == "SearchDir"
+    assert (target_root / "MadeInTarget").exists() is True
 
 
 def test_bookmarks_menu_populates_and_opens_in_active_tab(

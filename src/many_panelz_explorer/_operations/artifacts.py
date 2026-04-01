@@ -59,6 +59,11 @@ def write_metadata(job: OperationJob, artifacts: OperationArtifacts) -> None:
         "conflict_policy": job.request.conflict_policy,
         "sources": [str(source) for source in job.request.sources],
         "target_dir": str(job.request.target_dir) if job.request.target_dir else None,
+        "target_path": (
+            str(job.request.target_path)
+            if job.request.target_path is not None
+            else None
+        ),
         "created_at": job.created_at.isoformat(),
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
@@ -179,6 +184,8 @@ def expand_template(
     kind: str,
     sources: tuple[Path, ...],
     target_dir: Path | None,
+    target_path: Path | None,
+    backend_options: dict[str, str],
     use_extended_paths: bool,
 ) -> str:
     """Expand operation placeholders into an executor argument template."""
@@ -196,10 +203,27 @@ def expand_template(
         if target_dir
         else ""
     )
-    return (
+    archive_source = (
+        target_path if target_path is not None else (sources[0] if sources else None)
+    )
+    archive_literal = (
+        quoted(
+            to_windows_arg_path(
+                archive_source,
+                use_extended_paths=use_extended_paths,
+            )
+        )
+        if archive_source is not None
+        else ""
+    )
+    expanded = (
         str(template or "")
         .replace("{operation}", kind)
         .replace("{sources}", source_literals)
         .replace("{source}", first_source)
         .replace("{target}", target_literal)
+        .replace("{archive}", archive_literal)
     )
+    for key, value in backend_options.items():
+        expanded = expanded.replace(f"{{{key}}}", str(value or "").strip())
+    return expanded

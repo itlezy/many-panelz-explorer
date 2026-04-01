@@ -19,6 +19,15 @@ from many_panelz_explorer.external_file_managers import (
     DEFAULT_TOTAL_COMMANDER_SOURCE_ARGS_TEMPLATE,
     DEFAULT_TOTAL_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE,
 )
+from many_panelz_explorer.external_tools import (
+    DEFAULT_EVERYTHING_EXECUTABLE,
+    DEFAULT_SEVEN_ZIP_EXECUTABLE,
+    DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE,
+    DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE,
+    DEFAULT_WINRAR_EXECUTABLE,
+    DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
+    DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
+)
 
 
 def _tracked_keys() -> list[str]:
@@ -105,6 +114,15 @@ def _tracked_keys() -> list[str]:
         SettingsManager.DOUBLE_COMMANDER_EXECUTABLE_KEY,
         SettingsManager.DOUBLE_COMMANDER_SOURCE_ARGS_TEMPLATE_KEY,
         SettingsManager.DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE_KEY,
+        SettingsManager.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY,
+        SettingsManager.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
+        SettingsManager.EVERYTHING_EXECUTABLE_KEY,
+        SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY,
+        SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
+        SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINRAR_EXECUTABLE_KEY,
+        SettingsManager.WINRAR_PACK_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY,
         SettingsManager.USE_EXTENDED_PATHS_ROBOCOPY_KEY,
         SettingsManager.USE_EXTENDED_PATHS_TERACOPY_KEY,
         SettingsManager.USE_EXTENDED_PATHS_UNSTOPPABLE_KEY,
@@ -196,6 +214,8 @@ def test_ui_preferences_round_trip() -> None:
             target_panel_tint_intensity_percent=33,
             default_copy_move_backend="robocopy",
             default_delete_backend="powershell_delete",
+            default_archive_packer_backend="archive_7zip",
+            default_archive_unpacker_backend="archive_winrar",
             default_operation_dispatch_mode="run_now_wait",
             default_operation_conflict_policy="overwrite",
             operation_shortcut_behavior="always_dialog",
@@ -251,6 +271,24 @@ def test_ui_preferences_round_trip() -> None:
             double_commander_source_args_template="--client -L {source}",
             double_commander_source_target_args_template=(
                 "--client -L {source} -R {target}"
+            ),
+            everything_executable=r"C:\tools\Everything.exe",
+            seven_zip_executable=r"C:\tools\7z.exe",
+            seven_zip_pack_args_template=(
+                "a -y {archive} {sources} {recurse_mode} {compression_level} "
+                "{method_mode} {solid_mode} {header_mode}"
+            ),
+            seven_zip_extract_args_template=(
+                "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+            ),
+            winrar_executable=r"C:\tools\WinRAR.exe",
+            winrar_pack_args_template=(
+                "a {recurse_mode} {compression_level} {solid_mode} "
+                "{recovery_mode} {lock_mode} {archive} {sources}"
+            ),
+            winrar_extract_args_template=(
+                "{extract_mode} -y {archive} {target} {overwrite_mode} "
+                "{keep_broken_mode}"
             ),
             use_extended_paths_robocopy=True,
             use_extended_paths_teracopy=True,
@@ -347,6 +385,26 @@ def test_windows_executable_paths_normalize_to_backslashes() -> None:
             "C:/tools/doublecmd.exe",
         )
         settings.set_value(
+            SettingsManager.EVERYTHING_EXECUTABLE_KEY,
+            "C:/tools/Everything.exe",
+        )
+        settings.set_value(
+            SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY,
+            "C:/tools/7z.exe",
+        )
+        settings.set_value(
+            SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
+            "a -y {archive} {sources}",
+        )
+        settings.set_value(
+            SettingsManager.WINRAR_EXECUTABLE_KEY,
+            "C:/tools/WinRAR.exe",
+        )
+        settings.set_value(
+            SettingsManager.WINRAR_PACK_ARGS_TEMPLATE_KEY,
+            "a {archive} {sources}",
+        )
+        settings.set_value(
             SettingsManager.FILE_OPEN_OVERRIDES_JSON_KEY,
             json.dumps(
                 {
@@ -370,6 +428,11 @@ def test_windows_executable_paths_normalize_to_backslashes() -> None:
         )
         assert settings.total_commander_executable == r"C:\tools\totalcmd64.exe"
         assert settings.double_commander_executable == r"C:\tools\doublecmd.exe"
+        assert settings.everything_executable == r"C:\tools\Everything.exe"
+        assert settings.seven_zip_executable == r"C:\tools\7z.exe"
+        assert settings.seven_zip_pack_args_template == "a -y {archive} {sources}"
+        assert settings.winrar_executable == r"C:\tools\WinRAR.exe"
+        assert settings.winrar_pack_args_template == "a {archive} {sources}"
         overrides = json.loads(settings.file_open_overrides_json)
         assert overrides[".log"]["editor"] == r"C:\tools\logedit.exe"
         assert overrides[".log"]["viewer"] == r"C:\tools\logview.exe"
@@ -534,6 +597,11 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         settings.remove(
             SettingsManager.DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE_KEY
         )
+        settings.remove(SettingsManager.EVERYTHING_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY)
+        settings.remove(SettingsManager.WINRAR_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY)
         settings.set_value(SettingsManager.USE_EXTENDED_PATHS_ROBOCOPY_KEY, "")
         settings.set_value(SettingsManager.USE_EXTENDED_PATHS_TERACOPY_KEY, "")
         settings.set_value(SettingsManager.USE_EXTENDED_PATHS_UNSTOPPABLE_KEY, "")
@@ -698,6 +766,14 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         )
         assert loaded.default_delete_backend == SettingsManager.DEFAULT_DELETE_BACKEND
         assert (
+            loaded.default_archive_packer_backend
+            == SettingsManager.DEFAULT_DEFAULT_ARCHIVE_PACKER_BACKEND
+        )
+        assert (
+            loaded.default_archive_unpacker_backend
+            == SettingsManager.DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND
+        )
+        assert (
             loaded.default_operation_dispatch_mode
             == SettingsManager.DEFAULT_OPERATION_DISPATCH_MODE
         )
@@ -842,6 +918,22 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         assert (
             loaded.double_commander_source_target_args_template
             == DEFAULT_DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE
+        )
+        assert loaded.everything_executable == DEFAULT_EVERYTHING_EXECUTABLE
+        assert loaded.seven_zip_executable == DEFAULT_SEVEN_ZIP_EXECUTABLE
+        assert (
+            loaded.seven_zip_pack_args_template
+            == DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
+        )
+        assert (
+            loaded.seven_zip_extract_args_template
+            == DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE
+        )
+        assert loaded.winrar_executable == DEFAULT_WINRAR_EXECUTABLE
+        assert loaded.winrar_pack_args_template == DEFAULT_WINRAR_PACK_ARGS_TEMPLATE
+        assert (
+            loaded.winrar_extract_args_template
+            == DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
         )
         assert loaded.use_extended_paths_robocopy is False
         assert loaded.use_extended_paths_teracopy is False
@@ -1178,7 +1270,16 @@ def test_saved_view_round_trip_normalizes_payload_shape() -> None:
             "tabs": {
                 3: {
                     "panel_id": 3,
-                    "tabs": [{"path": "123"}],
+                    "groups": [
+                        {
+                            "group_id": "main",
+                            "title": "Main",
+                            "current_index": 0,
+                            "tabs": [{"path": "123"}],
+                            "column_widths": [],
+                        }
+                    ],
+                    "active_group_id": "main",
                     "tab_position_mode": "default",
                 }
             },

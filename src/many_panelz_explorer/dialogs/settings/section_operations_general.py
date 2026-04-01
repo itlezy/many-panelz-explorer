@@ -38,6 +38,11 @@ from ...external_file_managers import (
     DOUBLE_COMMANDER_DISCOVERY_CANDIDATES,
     TOTAL_COMMANDER_DISCOVERY_CANDIDATES,
 )
+from ...external_tools import (
+    EVERYTHING_DISCOVERY_CANDIDATES,
+    SEVEN_ZIP_DISCOVERY_CANDIDATES,
+    WINRAR_DISCOVERY_CANDIDATES,
+)
 from . import control_builders, open_overrides_controls
 from .section_structure import add_row
 
@@ -173,6 +178,38 @@ def build_operation_backend_default_rows(
         controls=[dialog.default_delete_backend_combo],
     )
 
+    dialog.default_archive_packer_backend_combo = QComboBox(dialog)
+    dialog.default_archive_packer_backend_combo.addItem("WinRAR", "archive_winrar")
+    dialog.default_archive_packer_backend_combo.addItem("7-Zip", "archive_7zip")
+    dialog.default_archive_packer_backend_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=defaults_queue_group,
+        key="default_archive_packer_backend",
+        title="Default Archive Packer",
+        description="Preferred backend preselected by the pack files dialog.",
+        terms="archive packer default winrar 7zip alt+f5",
+        controls=[dialog.default_archive_packer_backend_combo],
+    )
+
+    dialog.default_archive_unpacker_backend_combo = QComboBox(dialog)
+    dialog.default_archive_unpacker_backend_combo.addItem("WinRAR", "archive_winrar")
+    dialog.default_archive_unpacker_backend_combo.addItem("7-Zip", "archive_7zip")
+    dialog.default_archive_unpacker_backend_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=defaults_queue_group,
+        key="default_archive_unpacker_backend",
+        title="Default Archive Unpacker",
+        description="Preferred backend preselected by the unpack files dialog.",
+        terms="archive unpacker default winrar 7zip alt+f9",
+        controls=[dialog.default_archive_unpacker_backend_combo],
+    )
+
 
 def build_operation_dispatch_rows(
     dialog: SettingsDialog,
@@ -283,6 +320,10 @@ def build_operation_open_tools_rows(
         open_tools_group=open_tools_group,
     )
     build_external_manager_tool_rows(
+        dialog,
+        open_tools_group=open_tools_group,
+    )
+    build_shortcut_external_tool_rows(
         dialog,
         open_tools_group=open_tools_group,
     )
@@ -459,6 +500,130 @@ def build_external_manager_tool_rows(
         ),
         terms=("double commander dc source target args template focus selected file"),
         controls=[double_commander_controls],
+    )
+
+
+def build_shortcut_external_tool_rows(
+    dialog: SettingsDialog,
+    *,
+    open_tools_group: SubsectionEntry,
+) -> None:
+    """Build rows for shortcut-only external tools."""
+
+    dialog.everything_executable_edit = QLineEdit(dialog)
+    everything_controls = control_builders.build_backend_executable_controls(
+        dialog,
+        executable_edit=dialog.everything_executable_edit,
+        default_executable=SettingsManager.DEFAULT_EVERYTHING_EXECUTABLE,
+        discover_default_executable=EVERYTHING_DISCOVERY_CANDIDATES[0],
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="everything_tool",
+        title="Everything Launcher",
+        description="Executable used by Alt+F7 to search from the active path.",
+        terms="everything launcher alt+f7 search active path executable",
+        controls=[everything_controls],
+    )
+
+    dialog.seven_zip_executable_edit = QLineEdit(dialog)
+    seven_zip_executable_controls = control_builders.build_backend_executable_controls(
+        dialog,
+        executable_edit=dialog.seven_zip_executable_edit,
+        default_executable=SettingsManager.DEFAULT_SEVEN_ZIP_EXECUTABLE,
+        discover_default_executable=SEVEN_ZIP_DISCOVERY_CANDIDATES[0],
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="seven_zip_tool",
+        title="7-Zip Archive Tool",
+        description="Executable used by the archive pack and unpack dialogs.",
+        terms="7zip 7-zip archive pack unpack alt+f5 alt+f9 executable",
+        controls=[seven_zip_executable_controls],
+    )
+
+    dialog.seven_zip_pack_args_edit = QLineEdit(dialog)
+    dialog.seven_zip_pack_args_edit.setPlaceholderText(
+        SettingsManager.DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
+    )
+    dialog.seven_zip_pack_args_edit.textChanged.connect(dialog.on_controls_changed)
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="seven_zip_pack_args",
+        title="7-Zip Pack Args",
+        description=(
+            "Args template for queued `.7z` packing. Supports archive placeholders."
+        ),
+        terms="7zip pack args archive sources compression solid template",
+        controls=[dialog.seven_zip_pack_args_edit],
+    )
+
+    dialog.seven_zip_extract_args_edit = QLineEdit(dialog)
+    dialog.seven_zip_extract_args_edit.setPlaceholderText(
+        SettingsManager.DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE
+    )
+    dialog.seven_zip_extract_args_edit.textChanged.connect(dialog.on_controls_changed)
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="seven_zip_extract_args",
+        title="7-Zip Unpack Args",
+        description="Args template for queued archive extraction with 7-Zip.",
+        terms=(
+            "7zip unpack extract args archive target extract_mode "
+            "overwrite_mode template"
+        ),
+        controls=[dialog.seven_zip_extract_args_edit],
+    )
+
+    dialog.winrar_executable_edit = QLineEdit(dialog)
+    winrar_executable_controls = control_builders.build_backend_executable_controls(
+        dialog,
+        executable_edit=dialog.winrar_executable_edit,
+        default_executable=SettingsManager.DEFAULT_WINRAR_EXECUTABLE,
+        discover_default_executable=WINRAR_DISCOVERY_CANDIDATES[0],
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="winrar_tool",
+        title="WinRAR Archive Tool",
+        description="Executable used by the archive pack and unpack dialogs.",
+        terms="winrar rar archive pack unpack alt+f5 alt+f9 executable",
+        controls=[winrar_executable_controls],
+    )
+
+    dialog.winrar_pack_args_edit = QLineEdit(dialog)
+    dialog.winrar_pack_args_edit.setPlaceholderText(
+        SettingsManager.DEFAULT_WINRAR_PACK_ARGS_TEMPLATE
+    )
+    dialog.winrar_pack_args_edit.textChanged.connect(dialog.on_controls_changed)
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="winrar_pack_args",
+        title="WinRAR Pack Args",
+        description="Args template for queued `.rar` packing jobs.",
+        terms="winrar rar pack args archive sources recurse solid recovery template",
+        controls=[dialog.winrar_pack_args_edit],
+    )
+
+    dialog.winrar_extract_args_edit = QLineEdit(dialog)
+    dialog.winrar_extract_args_edit.setPlaceholderText(
+        SettingsManager.DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
+    )
+    dialog.winrar_extract_args_edit.textChanged.connect(dialog.on_controls_changed)
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="winrar_extract_args",
+        title="WinRAR Unpack Args",
+        description="Args template for queued archive extraction with WinRAR.",
+        terms="winrar rar unpack extract args archive target overwrite_mode template",
+        controls=[dialog.winrar_extract_args_edit],
     )
 
 

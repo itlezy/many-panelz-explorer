@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-OperationKind = Literal["copy", "move", "delete"]
+OperationKind = Literal["copy", "move", "delete", "pack", "unpack"]
 OperationStatus = Literal[
     "queued",
     "running",
@@ -52,7 +52,8 @@ DeleteBackendId = Literal[
     "rimraf",
     "external_delete",
 ]
-OperationBackendId = CopyMoveBackendId | DeleteBackendId
+ArchiveBackendId = Literal["archive_winrar", "archive_7zip"]
+OperationBackendId = CopyMoveBackendId | DeleteBackendId | ArchiveBackendId
 
 DISPATCH_MODE_QUEUE: OperationDispatchMode = "queue"
 DISPATCH_MODE_LAUNCH_NO_WAIT: OperationDispatchMode = "launch_now_no_wait"
@@ -78,6 +79,8 @@ BACKEND_CMD_DELETE: DeleteBackendId = "cmd_delete"
 BACKEND_POWERSHELL_DELETE: DeleteBackendId = "powershell_delete"
 BACKEND_RIMRAF: DeleteBackendId = "rimraf"
 BACKEND_EXTERNAL_DELETE: DeleteBackendId = "external_delete"
+BACKEND_ARCHIVE_WINRAR: ArchiveBackendId = "archive_winrar"
+BACKEND_ARCHIVE_7ZIP: ArchiveBackendId = "archive_7zip"
 
 DEFAULT_TERA_COPY_EXE = "TeraCopy.exe"
 DEFAULT_TERA_COPY_ARGS = "{operation} {sources} {target}"
@@ -87,6 +90,20 @@ DEFAULT_GENERIC_COPYMOVE_EXE = ""
 DEFAULT_GENERIC_COPYMOVE_ARGS = "{operation} {sources} {target}"
 DEFAULT_GENERIC_DELETE_EXE = ""
 DEFAULT_GENERIC_DELETE_ARGS = "{operation} {sources}"
+DEFAULT_SEVEN_ZIP_PACK_ARGS = (
+    "a -y {archive} {sources} {recurse_mode} {compression_level} "
+    "{method_mode} {solid_mode} {header_mode}"
+)
+DEFAULT_SEVEN_ZIP_UNPACK_ARGS = (
+    "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
+)
+DEFAULT_WINRAR_PACK_ARGS = (
+    "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
+    "{lock_mode} {archive} {sources}"
+)
+DEFAULT_WINRAR_UNPACK_ARGS = (
+    "{extract_mode} -y {archive} {target} {overwrite_mode} {keep_broken_mode}"
+)
 DEFAULT_ROBOCOPY_COPY_ARGS = "/E /R:0 /W:0"
 DEFAULT_ROBOCOPY_MOVE_ARGS = "/E /MOVE /R:0 /W:0"
 DEFAULT_CMD_DELETE_ARGS = "/Q"
@@ -143,6 +160,8 @@ class OperationExecutionPreferences:
 
     default_copy_move_backend: str = BACKEND_PYTHON
     default_delete_backend: str = BACKEND_RECYCLE_BIN
+    default_archive_packer_backend: str = BACKEND_ARCHIVE_WINRAR
+    default_archive_unpacker_backend: str = BACKEND_ARCHIVE_WINRAR
     default_dispatch_mode: str = DISPATCH_MODE_QUEUE
     default_conflict_policy: str = "rename"
     shortcut_behavior: str = SHORTCUT_BEHAVIOR_DIRECT
@@ -166,6 +185,12 @@ class OperationExecutionPreferences:
     generic_copymove_args_template: str = DEFAULT_GENERIC_COPYMOVE_ARGS
     generic_delete_executable: str = DEFAULT_GENERIC_DELETE_EXE
     generic_delete_args_template: str = DEFAULT_GENERIC_DELETE_ARGS
+    seven_zip_executable: str = "7z.exe"
+    seven_zip_pack_args_template: str = DEFAULT_SEVEN_ZIP_PACK_ARGS
+    seven_zip_unpack_args_template: str = DEFAULT_SEVEN_ZIP_UNPACK_ARGS
+    winrar_executable: str = "WinRAR.exe"
+    winrar_pack_args_template: str = DEFAULT_WINRAR_PACK_ARGS
+    winrar_unpack_args_template: str = DEFAULT_WINRAR_UNPACK_ARGS
     robocopy_copy_args: str = DEFAULT_ROBOCOPY_COPY_ARGS
     robocopy_move_args: str = DEFAULT_ROBOCOPY_MOVE_ARGS
     cmd_delete_args: str = DEFAULT_CMD_DELETE_ARGS
@@ -186,6 +211,7 @@ class OperationRequest:
     backend_id: str
     dispatch_mode: str
     conflict_policy: str
+    target_path: Path | None = None
     backend_options: dict[str, str] = field(default_factory=dict)
     created_by: str = "unknown"
 
@@ -230,6 +256,20 @@ class OperationJob:
         source_count = len(self.request.sources)
         if self.request.kind == "delete":
             return f"Delete {source_count} item(s)"
+        if self.request.kind == "pack":
+            target = (
+                str(self.request.target_path)
+                if self.request.target_path is not None
+                else "(none)"
+            )
+            return f"Pack {source_count} item(s) to {target}"
+        if self.request.kind == "unpack":
+            target = (
+                str(self.request.target_dir)
+                if self.request.target_dir is not None
+                else "(none)"
+            )
+            return f"Unpack {source_count} archive(s) to {target}"
         target = (
             str(self.request.target_dir)
             if self.request.target_dir is not None

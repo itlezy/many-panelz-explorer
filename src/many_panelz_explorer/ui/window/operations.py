@@ -1,4 +1,4 @@
-"""Window-level coordination for copy, move, and delete actions."""
+"""Window-level coordination for file and archive actions."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 
 type ConflictChoice = Literal["overwrite", "skip", "rename", "cancel"]
+type ArchiveOperationKind = Literal["pack", "unpack"]
 
 
 class WindowOperationsCoordinator:
@@ -58,6 +59,43 @@ class WindowOperationsCoordinator:
             3500,
         )
         if job.status in {"succeeded", "failed", "cancelled"}:
+            panel.navigation_coordinator.refresh_current_path()
+
+    def pack_sources(self, *, sources: list[Path]) -> None:
+        """Open the archive pack dialog for the provided source items."""
+
+        if not sources:
+            self.window.statusBar().showMessage(
+                "No items selected in source pane.",
+                3000,
+            )
+            return
+
+        request = self.build_archive_request(kind="pack", sources=sources)
+        if request is None:
+            return
+        job = self.window.controller.operation_queue_manager.submit(request)
+        self.window.statusBar().showMessage(
+            f"Pack job {job.job_id[:8]}: {job.status}.",
+            3500,
+        )
+        panel = self.window.panels_coordinator.active_panel()
+        if panel is not None and job.status in {"succeeded", "failed", "cancelled"}:
+            panel.navigation_coordinator.refresh_current_path()
+
+    def unpack_archive(self, *, archive: Path) -> None:
+        """Open the archive unpack dialog for the provided archive path."""
+
+        request = self.build_archive_request(kind="unpack", sources=[Path(archive)])
+        if request is None:
+            return
+        job = self.window.controller.operation_queue_manager.submit(request)
+        self.window.statusBar().showMessage(
+            f"Unpack job {job.job_id[:8]}: {job.status}.",
+            3500,
+        )
+        panel = self.window.panels_coordinator.active_panel()
+        if panel is not None and job.status in {"succeeded", "failed", "cancelled"}:
             panel.navigation_coordinator.refresh_current_path()
 
     def transfer_selected_to_target(
@@ -152,10 +190,34 @@ class WindowOperationsCoordinator:
             sources=tuple(sources),
             target_dir=target_dir,
             backend_id=backend_id,
-            dispatch_mode=self.window.preferences_coordinator.default_operation_dispatch_mode,
-            conflict_policy=self.window.preferences_coordinator.default_operation_conflict_policy,
+            dispatch_mode=(
+                self.window.preferences_coordinator.default_operation_dispatch_mode
+            ),
+            conflict_policy=(
+                self.window.preferences_coordinator.default_operation_conflict_policy
+            ),
             created_by=f"window:{self.window.window_id}",
         )
+
+    def build_archive_request(
+        self,
+        *,
+        kind: ArchiveOperationKind,
+        sources: list[Path],
+    ) -> OperationRequest | None:
+        """Open the archive dialog and build a request from it."""
+
+        from ...dialogs.archive_operation_dialog import ArchiveOperationDialog
+
+        dialog = ArchiveOperationDialog(
+            kind=kind,
+            sources=sources,
+            preferences=self.window.settings.ui_preferences(),
+            parent=self.window,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.build_request(created_by=f"window:{self.window.window_id}")
 
     def copy_or_move_one(
         self, *, source: Path, destination_dir: Path, move: bool

@@ -462,6 +462,7 @@ class OperationDialog(QDialog):
             kind=kind,
             sources=tuple(sources),
             target_dir=target_dir,
+            target_path=None,
             backend_id=selection.backend_id,
             dispatch_mode=selection.dispatch_mode,
             conflict_policy=selection.conflict_policy,

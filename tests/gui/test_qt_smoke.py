@@ -262,9 +262,20 @@ def test_help_text_mentions_total_commander_shortcuts(
     assert "F2: Refresh all visible panes" in captured["text"]
     assert "F4 / Shift+F4: Edit current file / create new file" in captured["text"]
     assert "F9: Open terminal here" in captured["text"]
+    assert "Alt+F7: Search active path in Everything" in captured["text"]
+    assert "Alt+F9: Open archive unpack dialog" in captured["text"]
     assert "Insert: Toggle selection and move down" in captured["text"]
     assert "Space: Toggle selection" in captured["text"]
     assert "Alt+F1: Open root picker for active tab" in captured["text"]
+    assert r"Ctrl+< / Ctrl+\: Jump to root" in captured["text"]
+    assert "Ctrl+Left / Ctrl+Right: Open in target pane" in captured["text"]
+    assert "Alt+Enter: Show properties" in captured["text"]
+    assert "Ctrl+F3/F4/F5/F6: Sort by name/ext/date/size" in captured["text"]
+    assert "Alt+F5: Open archive pack dialog" in captured["text"]
+    assert (
+        "Shift+F5 / Shift+F6 / Shift+F7: Copy here / rename / mkdir in target"
+        in captured["text"]
+    )
     assert "Ctrl+P: Copy selected item path or active pane path" in captured["text"]
     assert "Ctrl+Shift+T: Reopen last closed tab" in captured["text"]
     assert "Shift+Esc: Minimize app windows" in captured["text"]

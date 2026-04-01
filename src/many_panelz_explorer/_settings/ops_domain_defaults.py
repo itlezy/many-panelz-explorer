@@ -55,6 +55,46 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         )
 
     @property
+    def default_archive_packer_backend(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY,
+                self.DEFAULT_DEFAULT_ARCHIVE_PACKER_BACKEND,
+            ),
+            fallback=self.DEFAULT_DEFAULT_ARCHIVE_PACKER_BACKEND,
+        )
+
+    @default_archive_packer_backend.setter
+    def default_archive_packer_backend(self, backend: str) -> None:
+        self._storage.set_value(
+            self.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY,
+            normalize.normalize_text(
+                backend,
+                fallback=self.DEFAULT_DEFAULT_ARCHIVE_PACKER_BACKEND,
+            ),
+        )
+
+    @property
+    def default_archive_unpacker_backend(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
+                self.DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND,
+            ),
+            fallback=self.DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND,
+        )
+
+    @default_archive_unpacker_backend.setter
+    def default_archive_unpacker_backend(self, backend: str) -> None:
+        self._storage.set_value(
+            self.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
+            normalize.normalize_text(
+                backend,
+                fallback=self.DEFAULT_DEFAULT_ARCHIVE_UNPACKER_BACKEND,
+            ),
+        )
+
+    @property
     def default_operation_dispatch_mode(self) -> str:
         return normalize_dispatch_mode(
             self._storage.value(
@@ -786,5 +826,145 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
             normalize.normalize_text(
                 value,
                 fallback=self.DEFAULT_DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def everything_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.EVERYTHING_EXECUTABLE_KEY,
+                self.DEFAULT_EVERYTHING_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_EVERYTHING_EXECUTABLE,
+        )
+
+    @everything_executable.setter
+    def everything_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.EVERYTHING_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_EVERYTHING_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def seven_zip_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.SEVEN_ZIP_EXECUTABLE_KEY,
+                self.DEFAULT_SEVEN_ZIP_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_SEVEN_ZIP_EXECUTABLE,
+        )
+
+    @seven_zip_executable.setter
+    def seven_zip_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.SEVEN_ZIP_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_SEVEN_ZIP_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def seven_zip_pack_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE,
+        )
+
+    @seven_zip_pack_args_template.setter
+    def seven_zip_pack_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def seven_zip_extract_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE,
+        )
+
+    @seven_zip_extract_args_template.setter
+    def seven_zip_extract_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def winrar_executable(self) -> str:
+        return normalize.normalize_windows_path_text(
+            self._storage.value(
+                self.WINRAR_EXECUTABLE_KEY,
+                self.DEFAULT_WINRAR_EXECUTABLE,
+            ),
+            fallback=self.DEFAULT_WINRAR_EXECUTABLE,
+        )
+
+    @winrar_executable.setter
+    def winrar_executable(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINRAR_EXECUTABLE_KEY,
+            normalize.normalize_windows_path_text(
+                value,
+                fallback=self.DEFAULT_WINRAR_EXECUTABLE,
+            ),
+        )
+
+    @property
+    def winrar_pack_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WINRAR_PACK_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
+        )
+
+    @winrar_pack_args_template.setter
+    def winrar_pack_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINRAR_PACK_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
+            ),
+        )
+
+    @property
+    def winrar_extract_args_template(self) -> str:
+        return normalize.normalize_text(
+            self._storage.value(
+                self.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY,
+                self.DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
+            ),
+            fallback=self.DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
+        )
+
+    @winrar_extract_args_template.setter
+    def winrar_extract_args_template(self, value: str) -> None:
+        self._storage.set_value(
+            self.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY,
+            normalize.normalize_text(
+                value,
+                fallback=self.DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
             ),
         )

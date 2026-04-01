@@ -148,6 +148,14 @@ def load_operations_preferences(
         preferences.default_delete_backend,
     )
     dialog.set_combo_value(
+        dialog.default_archive_packer_backend_combo,
+        preferences.default_archive_packer_backend,
+    )
+    dialog.set_combo_value(
+        dialog.default_archive_unpacker_backend_combo,
+        preferences.default_archive_unpacker_backend,
+    )
+    dialog.set_combo_value(
         dialog.default_dispatch_mode_combo,
         preferences.default_operation_dispatch_mode,
     )
@@ -309,6 +317,17 @@ def load_operations_preferences(
     )
     dialog.double_commander_source_target_args_edit.setText(
         preferences.double_commander_source_target_args_template
+    )
+    dialog.everything_executable_edit.setText(preferences.everything_executable)
+    dialog.seven_zip_executable_edit.setText(preferences.seven_zip_executable)
+    dialog.seven_zip_pack_args_edit.setText(preferences.seven_zip_pack_args_template)
+    dialog.seven_zip_extract_args_edit.setText(
+        preferences.seven_zip_extract_args_template
+    )
+    dialog.winrar_executable_edit.setText(preferences.winrar_executable)
+    dialog.winrar_pack_args_edit.setText(preferences.winrar_pack_args_template)
+    dialog.winrar_extract_args_edit.setText(
+        preferences.winrar_extract_args_template
     )
     open_overrides_state.load_file_open_overrides(
         dialog,
@@ -518,6 +537,12 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
             dialog.default_copy_move_backend_combo.currentData()
         ),
         default_delete_backend=str(dialog.default_delete_backend_combo.currentData()),
+        default_archive_packer_backend=str(
+            dialog.default_archive_packer_backend_combo.currentData()
+        ),
+        default_archive_unpacker_backend=str(
+            dialog.default_archive_unpacker_backend_combo.currentData()
+        ),
         default_operation_dispatch_mode=str(
             dialog.default_dispatch_mode_combo.currentData()
         ),
@@ -633,6 +658,15 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         double_commander_source_target_args_template=(
             dialog.double_commander_source_target_args_edit.text().strip()
         ),
+        everything_executable=dialog.everything_executable_edit.text().strip(),
+        seven_zip_executable=dialog.seven_zip_executable_edit.text().strip(),
+        seven_zip_pack_args_template=dialog.seven_zip_pack_args_edit.text().strip(),
+        seven_zip_extract_args_template=(
+            dialog.seven_zip_extract_args_edit.text().strip()
+        ),
+        winrar_executable=dialog.winrar_executable_edit.text().strip(),
+        winrar_pack_args_template=dialog.winrar_pack_args_edit.text().strip(),
+        winrar_extract_args_template=dialog.winrar_extract_args_edit.text().strip(),
         file_open_overrides_json=open_overrides_state.serialize_file_open_overrides(
             dialog
         ),

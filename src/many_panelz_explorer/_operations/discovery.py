@@ -175,6 +175,8 @@ def is_scripted_backend(backend_id: str) -> bool:
         BACKEND_POWERSHELL_DELETE,
         BACKEND_RIMRAF,
         BACKEND_EXTERNAL_DELETE,
+        "archive_winrar",
+        "archive_7zip",
     }
 
 

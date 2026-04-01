@@ -11,6 +11,7 @@ from many_panelz_explorer._operations.backend_options import (
     UnstoppableBackendOptions,
 )
 from many_panelz_explorer._operations.types import (
+    BACKEND_ARCHIVE_WINRAR,
     BACKEND_PYTHON,
     BACKEND_RECYCLE_BIN,
     DEFAULT_ALACRITTY_TERMINAL_COMMAND_ARGS_TEMPLATE,
@@ -53,6 +54,15 @@ from many_panelz_explorer.external_file_managers import (
     DEFAULT_TOTAL_COMMANDER_EXECUTABLE,
     DEFAULT_TOTAL_COMMANDER_SOURCE_ARGS_TEMPLATE,
     DEFAULT_TOTAL_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE,
+)
+from many_panelz_explorer.external_tools import (
+    DEFAULT_EVERYTHING_EXECUTABLE,
+    DEFAULT_SEVEN_ZIP_EXECUTABLE,
+    DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE,
+    DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE,
+    DEFAULT_WINRAR_EXECUTABLE,
+    DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
+    DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
 )
 from many_panelz_explorer.panel_tab_positions import TAB_POSITION_MODE_TOP
 
@@ -107,6 +117,8 @@ class UiPreferences:
     target_panel_tint_intensity_percent: int = 28
     default_copy_move_backend: str = BACKEND_PYTHON
     default_delete_backend: str = BACKEND_RECYCLE_BIN
+    default_archive_packer_backend: str = BACKEND_ARCHIVE_WINRAR
+    default_archive_unpacker_backend: str = BACKEND_ARCHIVE_WINRAR
     default_operation_dispatch_mode: str = DISPATCH_MODE_QUEUE
     default_operation_conflict_policy: str = "rename"
     operation_shortcut_behavior: str = SHORTCUT_BEHAVIOR_DIRECT
@@ -175,6 +187,13 @@ class UiPreferences:
     double_commander_source_target_args_template: str = (
         DEFAULT_DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE
     )
+    everything_executable: str = DEFAULT_EVERYTHING_EXECUTABLE
+    seven_zip_executable: str = DEFAULT_SEVEN_ZIP_EXECUTABLE
+    seven_zip_pack_args_template: str = DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
+    seven_zip_extract_args_template: str = DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE
+    winrar_executable: str = DEFAULT_WINRAR_EXECUTABLE
+    winrar_pack_args_template: str = DEFAULT_WINRAR_PACK_ARGS_TEMPLATE
+    winrar_extract_args_template: str = DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
     use_extended_paths_robocopy: bool = False
     use_extended_paths_teracopy: bool = False
     use_extended_paths_unstoppable: bool = False

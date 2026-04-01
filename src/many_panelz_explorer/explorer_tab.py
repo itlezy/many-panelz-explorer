@@ -169,9 +169,19 @@ class ExplorerTab(QWidget):
         self._actions.create_directory()
 
     def create_zip_from_selection(self) -> None:
-        """Launch ZIP creation for the current selection."""
+        """Open the archive pack dialog for the current selection."""
 
         self._actions.create_zip_from_selection()
+
+    def launch_everything_search(self) -> None:
+        """Launch Everything scoped to the active tab path."""
+
+        self._actions.launch_everything_search()
+
+    def extract_supported_archive(self) -> None:
+        """Open the archive unpack dialog for one selected archive."""
+
+        self._actions.extract_supported_archive()
 
     def open_terminal_here(self) -> None:
         """Open the configured terminal at the active tab path."""
@@ -182,6 +192,41 @@ class ExplorerTab(QWidget):
         """Copy a selected item path, or fall back to the active panel path."""
 
         self._actions.copy_selected_item_or_panel_path()
+
+    def show_properties_selected_or_current(self) -> None:
+        """Open properties for the selected item or current row."""
+
+        self._actions.show_properties_selected_or_current()
+
+    def rename_selected_or_current(self) -> None:
+        """Rename the selected item or current row."""
+
+        self._actions.rename_selected_or_current()
+
+    def copy_selected_or_current_to_current_directory(self) -> None:
+        """Copy the selection into the current directory."""
+
+        self._actions.copy_selected_or_current_to_current_directory()
+
+    def create_directory_in_target(self) -> None:
+        """Create one directory in the resolved target pane."""
+
+        self._actions.create_directory_in_target()
+
+    def open_selected_or_current_in_target_pane(self) -> None:
+        """Open the selected directory in the resolved target pane."""
+
+        self._actions.open_selected_or_current_in_target_pane()
+
+    def sort_by_column(self, column: int) -> None:
+        """Sort the current file list by one column."""
+
+        self._actions.sort_by_column(column)
+
+    def go_root(self) -> None:
+        """Jump to the active root or drive root."""
+
+        self._actions.go_root()
 
     def _on_item_activated(self, index: QModelIndex) -> None:
         file_path = self.model.filePath(index)
@@ -232,6 +277,53 @@ class ExplorerTab(QWidget):
             return self._trigger_window_action("delete_selection_action")
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F9):
             return self._trigger_window_shortcut("terminal_here_shortcut")
+        if modifiers == Qt.KeyboardModifier.AltModifier and key == int(Qt.Key.Key_F7):
+            self.launch_everything_search()
+            return True
+        if modifiers == Qt.KeyboardModifier.AltModifier and key == int(Qt.Key.Key_F9):
+            self.extract_supported_archive()
+            return True
+        if modifiers == Qt.KeyboardModifier.AltModifier and key in {
+            int(Qt.Key.Key_Return),
+            int(Qt.Key.Key_Enter),
+        }:
+            self.show_properties_selected_or_current()
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_F3
+        ):
+            self.sort_by_column(0)
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_F4
+        ):
+            self.sort_by_column(1)
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_F5
+        ):
+            self.sort_by_column(3)
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_F6
+        ):
+            self.sort_by_column(2)
+            return True
+        if modifiers == Qt.KeyboardModifier.ShiftModifier and key == int(
+            Qt.Key.Key_F5
+        ):
+            self.copy_selected_or_current_to_current_directory()
+            return True
+        if modifiers == Qt.KeyboardModifier.ShiftModifier and key == int(
+            Qt.Key.Key_F6
+        ):
+            self.rename_selected_or_current()
+            return True
+        if modifiers == Qt.KeyboardModifier.ShiftModifier and key == int(
+            Qt.Key.Key_F7
+        ):
+            self.create_directory_in_target()
+            return True
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
             Qt.Key.Key_Delete
         ):
@@ -273,6 +365,27 @@ class ExplorerTab(QWidget):
                 int(Qt.Key.Key_Backspace),
             ): self.navigation.go_up,
         }
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key in {
+            int(Qt.Key.Key_Backslash),
+        }:
+            self.go_root()
+            return True
+        if (
+            modifiers
+            in {
+                Qt.KeyboardModifier.ControlModifier,
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+            }
+            and key == int(Qt.Key.Key_Less)
+        ):
+            self.go_root()
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key in {
+            int(Qt.Key.Key_Left),
+            int(Qt.Key.Key_Right),
+        }:
+            self.open_selected_or_current_in_target_pane()
+            return True
         handler = dispatch.get((modifiers, key))
         if handler is not None:
             handler()
