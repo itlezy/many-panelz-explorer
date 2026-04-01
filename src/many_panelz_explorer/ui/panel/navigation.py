@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt
@@ -24,6 +26,17 @@ if TYPE_CHECKING:
 
     from ...explorer_tab import ExplorerTab
     from ...panel_widget import PanelWidget
+
+
+_SAFE_ROOTS_CACHE_TTL_SECONDS = 1.0
+
+
+@dataclass(slots=True)
+class _RootPathCacheEntry:
+    """Store one short-lived existing-root cache entry."""
+
+    expires_at: float
+    paths: list[Path]
 
 
 def _navigation_root_text(path: Path | str) -> str:
@@ -56,6 +69,9 @@ class PanelNavigationCoordinator:
     ) -> None:
         self.panel = panel
         self._is_hidden_or_system_entry = is_hidden_or_system_entry
+        self._existing_roots_cache: dict[tuple[str, ...], _RootPathCacheEntry] = {}
+        self._root_buttons_signature: tuple[str, ...] | None = None
+        self._root_combo_signature: tuple[str, ...] | None = None
 
     def rebuild_root_controls(self, current_path: Path | None) -> None:
         roots = self.safe_roots(current_path)
@@ -66,16 +82,16 @@ class PanelNavigationCoordinator:
     def rebuild_root_buttons(
         self, current_path: Path | None, roots: list[Path]
     ) -> None:
-        while self.panel.root_buttons_layout.count():
-            item = self.panel.root_buttons_layout.takeAt(0)
-            if item is None:
-                continue
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-
-        self.panel.root_buttons = []
         active_root_index = self.resolve_active_root_index(current_path, roots)
+        roots_signature = self._root_signature(roots)
+        if self._root_buttons_signature == roots_signature and len(
+            self.panel.root_buttons
+        ) == len(roots):
+            self._sync_root_button_checks(active_root_index)
+            return
+
+        self._clear_root_buttons()
+        self.panel.root_buttons = []
         for index, root_path in enumerate(roots):
             button = QPushButton(_navigation_root_text(root_path))
             button.setFont(self.panel.navigation_font)
@@ -90,6 +106,7 @@ class PanelNavigationCoordinator:
             self.panel.root_buttons.append(button)
 
         self.panel.root_buttons_layout.addStretch(1)
+        self._root_buttons_signature = roots_signature
 
     def rebuild_root_combo(self, current_path: Path | None, roots: list[Path]) -> None:
         self.panel.root_combo.setVisible(self.panel.show_root_dropdown_enabled)
@@ -97,6 +114,16 @@ class PanelNavigationCoordinator:
             return
 
         active_root_index = self.resolve_active_root_index(current_path, roots)
+        roots_signature = self._root_signature(roots)
+        if (
+            self._root_combo_signature == roots_signature
+            and self.panel.root_combo.count() == len(roots)
+        ):
+            self.panel.root_combo.setCurrentIndex(
+                active_root_index if active_root_index is not None else -1
+            )
+            return
+
         self.panel.root_combo.blockSignals(True)
         try:
             self.panel.root_combo.clear()
@@ -116,6 +143,7 @@ class PanelNavigationCoordinator:
             )
         finally:
             self.panel.root_combo.blockSignals(False)
+        self._root_combo_signature = roots_signature
 
     def safe_roots(self, current_path: Path | None) -> list[Path]:
         try:
@@ -136,7 +164,20 @@ class PanelNavigationCoordinator:
         )
 
     def existing_unique_paths(self, paths: list[Path]) -> list[Path]:
-        return dedup_paths(paths, require_existing=True)
+        cache_key = self._paths_cache_key(paths)
+        if cache_key:
+            cached_entry = self._existing_roots_cache.get(cache_key)
+            current_time = monotonic()
+            if cached_entry is not None and cached_entry.expires_at >= current_time:
+                return list(cached_entry.paths)
+
+        unique_paths = dedup_paths(paths, require_existing=True)
+        if cache_key:
+            self._existing_roots_cache[cache_key] = _RootPathCacheEntry(
+                expires_at=monotonic() + _SAFE_ROOTS_CACHE_TTL_SECONDS,
+                paths=list(unique_paths),
+            )
+        return unique_paths
 
     def fallback_roots(self, current_path: Path | None) -> list[Path]:
         candidates: list[Path] = []
@@ -430,3 +471,30 @@ class PanelNavigationCoordinator:
             tab.navigation.go_to_history_index(index)
 
         return _handle_triggered
+
+    def _clear_root_buttons(self) -> None:
+        """Delete all root buttons and spacer items from the toolbar host."""
+
+        while self.panel.root_buttons_layout.count():
+            item = self.panel.root_buttons_layout.takeAt(0)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _sync_root_button_checks(self, active_root_index: int | None) -> None:
+        """Update root-button checked state without rebuilding widgets."""
+
+        for index, button in enumerate(self.panel.root_buttons):
+            button.setChecked(index == active_root_index)
+
+    def _root_signature(self, roots: list[Path]) -> tuple[str, ...]:
+        """Return a stable signature for one sorted root list."""
+
+        return tuple(path_key(root_path) for root_path in roots)
+
+    def _paths_cache_key(self, paths: list[Path]) -> tuple[str, ...]:
+        """Return a cache key for a path set used by root validation."""
+
+        return tuple(sorted({path_key(path) for path in paths}))

@@ -73,6 +73,10 @@ class UiPreferences:
     show_navigation_buttons: bool = True
     show_tab_close_buttons: bool = True
     default_tab_position: str = TAB_POSITION_MODE_TOP
+    horizontal_tab_width_mode: str = "adaptive"
+    horizontal_tab_fixed_width_px: int = 160
+    standard_tab_width_mode: str = "adaptive"
+    standard_tab_fixed_width_px: int = 160
     byte_thousands_separator: str = ","
     byte_decimal_separator: str = "."
     file_list_byte_format_mode: str = "bytes"

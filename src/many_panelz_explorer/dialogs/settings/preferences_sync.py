@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QTableWidgetItem
 
 from ..._operations.discovery import (
     resolve_system_command_paths,
@@ -14,7 +15,7 @@ from ..._settings.models import UiPreferences
 from . import backend_state, open_overrides_state
 
 if TYPE_CHECKING:
-    from PySide6.QtWidgets import QLabel
+    from PySide6.QtWidgets import QLabel, QTableWidget
 
     from ..settings_dialog import SettingsDialog
 
@@ -47,6 +48,22 @@ def sync_byte_format_controls(dialog: SettingsDialog) -> None:
     )
 
 
+def sync_horizontal_tab_width_controls(dialog: SettingsDialog) -> None:
+    """Enable the fixed-width spin box only when fixed mode is selected."""
+
+    dialog.horizontal_tab_fixed_width_spin.setEnabled(
+        str(dialog.horizontal_tab_width_mode_combo.currentData()) == "fixed"
+    )
+
+
+def sync_standard_tab_width_controls(dialog: SettingsDialog) -> None:
+    """Enable the standard fixed-width spin box only when fixed mode is selected."""
+
+    dialog.standard_tab_fixed_width_spin.setEnabled(
+        str(dialog.standard_tab_width_mode_combo.currentData()) == "fixed"
+    )
+
+
 def load_panel_preferences(dialog: SettingsDialog, preferences: UiPreferences) -> None:
     """Load panel behavior and byte-display preferences into controls."""
 
@@ -71,6 +88,20 @@ def load_panel_preferences(dialog: SettingsDialog, preferences: UiPreferences) -
     dialog.set_combo_value(
         dialog.default_tab_position_combo,
         preferences.default_tab_position,
+    )
+    dialog.set_combo_value(
+        dialog.horizontal_tab_width_mode_combo,
+        preferences.horizontal_tab_width_mode,
+    )
+    dialog.horizontal_tab_fixed_width_spin.setValue(
+        preferences.horizontal_tab_fixed_width_px
+    )
+    dialog.set_combo_value(
+        dialog.standard_tab_width_mode_combo,
+        preferences.standard_tab_width_mode,
+    )
+    dialog.standard_tab_fixed_width_spin.setValue(
+        preferences.standard_tab_fixed_width_px
     )
     dialog.show_storage_overview_status_row_checkbox.setChecked(
         preferences.show_storage_overview_status_row
@@ -145,15 +176,13 @@ def load_operations_preferences(
         resolved_windows_terminal,
         resolved_alacritty,
         resolved_wezterm,
-    ) = (
-        resolve_terminal_launcher_paths(
-            comspec_executable=preferences.comspec_terminal_executable,
-            pwsh_executable=preferences.pwsh_terminal_executable,
-            powershell5_executable=preferences.powershell5_terminal_executable,
-            windows_terminal_executable=preferences.windows_terminal_executable,
-            alacritty_executable=preferences.alacritty_terminal_executable,
-            wezterm_executable=preferences.wezterm_terminal_executable,
-        )
+    ) = resolve_terminal_launcher_paths(
+        comspec_executable=preferences.comspec_terminal_executable,
+        pwsh_executable=preferences.pwsh_terminal_executable,
+        powershell5_executable=preferences.powershell5_terminal_executable,
+        windows_terminal_executable=preferences.windows_terminal_executable,
+        alacritty_executable=preferences.alacritty_terminal_executable,
+        wezterm_executable=preferences.wezterm_terminal_executable,
     )
     dialog.comspec_terminal_executable_edit.setText(
         _preferred_terminal_executable_text(
@@ -385,43 +414,37 @@ def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
         resolved_windows_terminal,
         resolved_alacritty,
         resolved_wezterm,
-    ) = (
-        resolve_terminal_launcher_paths(
-            comspec_executable=dialog.comspec_terminal_executable_edit.text().strip(),
-            pwsh_executable=dialog.pwsh_terminal_executable_edit.text().strip(),
-            powershell5_executable=(
-                dialog.powershell5_terminal_executable_edit.text().strip()
-            ),
-            windows_terminal_executable=(
-                dialog.windows_terminal_executable_edit.text().strip()
-            ),
-            alacritty_executable=dialog.alacritty_terminal_executable_edit.text().strip(),
-            wezterm_executable=dialog.wezterm_terminal_executable_edit.text().strip(),
-        )
+    ) = resolve_terminal_launcher_paths(
+        comspec_executable=dialog.comspec_terminal_executable_edit.text().strip(),
+        pwsh_executable=dialog.pwsh_terminal_executable_edit.text().strip(),
+        powershell5_executable=(
+            dialog.powershell5_terminal_executable_edit.text().strip()
+        ),
+        windows_terminal_executable=(
+            dialog.windows_terminal_executable_edit.text().strip()
+        ),
+        alacritty_executable=dialog.alacritty_terminal_executable_edit.text().strip(),
+        wezterm_executable=dialog.wezterm_terminal_executable_edit.text().strip(),
     )
-    dialog.resolved_comspec_terminal_path_label.setText(f"ComSpec: {resolved_comspec}")
-    dialog.resolved_pwsh_terminal_path_label.setText(f"PowerShell 7: {resolved_pwsh}")
-    dialog.resolved_powershell5_terminal_path_label.setText(
-        f"Windows PowerShell 5.1: {resolved_powershell5}"
+    _populate_diagnostics_table(
+        dialog.resolved_terminal_paths_table,
+        rows=[
+            ("ComSpec", resolved_comspec),
+            ("PowerShell 7", resolved_pwsh),
+            ("Windows PowerShell 5.1", resolved_powershell5),
+            ("Windows Terminal", resolved_windows_terminal),
+            ("Alacritty", resolved_alacritty),
+            ("WezTerm", resolved_wezterm),
+        ],
     )
-    dialog.resolved_windows_terminal_path_label.setText(
-        f"Windows Terminal: {resolved_windows_terminal}"
-    )
-    dialog.resolved_alacritty_terminal_path_label.setText(
-        f"Alacritty: {resolved_alacritty}"
-    )
-    dialog.resolved_wezterm_terminal_path_label.setText(f"WezTerm: {resolved_wezterm}")
-    dialog.resolved_comspec_terminal_path_label.setToolTip(resolved_comspec)
-    dialog.resolved_pwsh_terminal_path_label.setToolTip(resolved_pwsh)
-    dialog.resolved_powershell5_terminal_path_label.setToolTip(resolved_powershell5)
-    dialog.resolved_windows_terminal_path_label.setToolTip(resolved_windows_terminal)
-    dialog.resolved_alacritty_terminal_path_label.setToolTip(resolved_alacritty)
-    dialog.resolved_wezterm_terminal_path_label.setToolTip(resolved_wezterm)
     resolved_cmd, resolved_robocopy = resolve_system_command_paths()
-    dialog.resolved_cmd_path_label.setText(f"ComSpec: {resolved_cmd}")
-    dialog.resolved_robocopy_path_label.setText(f"Robocopy: {resolved_robocopy}")
-    dialog.resolved_cmd_path_label.setToolTip(resolved_cmd)
-    dialog.resolved_robocopy_path_label.setToolTip(resolved_robocopy)
+    _populate_diagnostics_table(
+        dialog.resolved_system_paths_table,
+        rows=[
+            ("ComSpec", resolved_cmd),
+            ("Robocopy", resolved_robocopy),
+        ],
+    )
 
 
 def _preferred_terminal_executable_text(*, configured: str, resolved: str) -> str:
@@ -431,6 +454,22 @@ def _preferred_terminal_executable_text(*, configured: str, resolved: str) -> st
     if resolved_text:
         return resolved_text
     return str(configured).strip()
+
+
+def _populate_diagnostics_table(
+    table: QTableWidget,
+    *,
+    rows: list[tuple[str, str]],
+) -> None:
+    """Populate a read-only diagnostics table with name/path rows."""
+
+    table.setRowCount(len(rows))
+    for row_index, (name, resolved_path) in enumerate(rows):
+        name_item = QTableWidgetItem(name)
+        path_item = QTableWidgetItem(resolved_path)
+        path_item.setToolTip(resolved_path)
+        table.setItem(row_index, 0, name_item)
+        table.setItem(row_index, 1, path_item)
 
 
 def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
@@ -451,6 +490,12 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         show_navigation_buttons=dialog.show_navigation_buttons_checkbox.isChecked(),
         show_tab_close_buttons=dialog.show_tab_close_buttons_checkbox.isChecked(),
         default_tab_position=str(dialog.default_tab_position_combo.currentData()),
+        horizontal_tab_width_mode=str(
+            dialog.horizontal_tab_width_mode_combo.currentData()
+        ),
+        horizontal_tab_fixed_width_px=dialog.horizontal_tab_fixed_width_spin.value(),
+        standard_tab_width_mode=str(dialog.standard_tab_width_mode_combo.currentData()),
+        standard_tab_fixed_width_px=dialog.standard_tab_fixed_width_spin.value(),
         show_storage_overview_status_row=(
             dialog.show_storage_overview_status_row_checkbox.isChecked()
         ),

@@ -96,6 +96,7 @@ class PanelWidgetMapCoordinator:
         self.panel = panel
         self._enabled = False
         self._overlay = _PanelWidgetMapOverlay(panel)
+        self._last_overlay_signature: tuple[object, ...] | None = None
 
     def set_enabled(self, enabled: bool) -> None:
         self._enabled = bool(enabled)
@@ -151,10 +152,18 @@ class PanelWidgetMapCoordinator:
 
     def sync_overlay(self) -> None:
         if not self._enabled:
+            self._last_overlay_signature = None
             self._overlay.hide()
+            return
+        overlay_signature = self._overlay_signature()
+        if (
+            overlay_signature == self._last_overlay_signature
+            and self._overlay.isVisible()
+        ):
             return
         self._overlay.show()
         self._overlay.refresh()
+        self._last_overlay_signature = overlay_signature
 
     def _entry_for_widget(self, widget: QWidget) -> PanelWidgetMapEntry | None:
         widget_id = str(widget.property("widget_id") or "").strip()
@@ -162,3 +171,27 @@ class PanelWidgetMapCoordinator:
         if not widget_id or not alias:
             return None
         return PanelWidgetMapEntry(widget=widget, alias=alias, widget_id=widget_id)
+
+    def _overlay_signature(self) -> tuple[object, ...]:
+        """Return a stable signature for the overlay's visible content."""
+
+        entry_signatures: list[tuple[object, ...]] = []
+        for entry in self.entries():
+            widget = entry.widget
+            top_left = widget.mapTo(self.panel, QPoint(0, 0))
+            entry_signatures.append(
+                (
+                    entry.widget_id,
+                    entry.alias,
+                    widget.isVisible(),
+                    top_left.x(),
+                    top_left.y(),
+                    widget.width(),
+                    widget.height(),
+                )
+            )
+        return (
+            self.panel.width(),
+            self.panel.height(),
+            tuple(entry_signatures),
+        )

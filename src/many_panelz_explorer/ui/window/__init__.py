@@ -1,6 +1,7 @@
 """Window-level coordinators used by ExplorerWindow."""
 
 from .actions import WindowUiComposer
+from .bookmarks import WindowBookmarksCoordinator
 from .layout import WindowLayoutCoordinator
 from .operations import WindowOperationsCoordinator
 from .panels import WindowPanelsCoordinator
@@ -10,6 +11,7 @@ from .status import WindowStatusCoordinator
 from .views import WindowViewsCoordinator
 
 __all__ = [
+    "WindowBookmarksCoordinator",
     "WindowLayoutCoordinator",
     "WindowOperationsCoordinator",
     "WindowPanelsCoordinator",

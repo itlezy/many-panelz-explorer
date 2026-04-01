@@ -240,6 +240,12 @@ class WindowPanelRebuildCoordinator:
             show_address_bar,
             show_navigation_buttons,
         ) = self.window.preferences_coordinator.panel_toolbar_visibility_preferences()
+        (
+            horizontal_tab_width_mode,
+            horizontal_tab_fixed_width_px,
+            standard_tab_width_mode,
+            standard_tab_fixed_width_px,
+        ) = self.window.preferences_coordinator.panel_tab_width_preferences()
         panel.presentation_coordinator.set_role_visual_preferences(
             active_color_hex=active_color_hex,
             active_intensity_percent=active_intensity_percent,
@@ -261,6 +267,10 @@ class WindowPanelRebuildCoordinator:
         panel.presentation_coordinator.apply_tab_position(
             tab_position_mode=panel.tab_position_mode,
             default_tab_position=self.window.preferences_coordinator.default_tab_position,
+            horizontal_tab_width_mode=horizontal_tab_width_mode,
+            horizontal_tab_fixed_width_px=horizontal_tab_fixed_width_px,
+            standard_tab_width_mode=standard_tab_width_mode,
+            standard_tab_fixed_width_px=standard_tab_fixed_width_px,
         )
         panel.presentation_coordinator.apply_font_preferences(
             file_list_font=file_list_font,

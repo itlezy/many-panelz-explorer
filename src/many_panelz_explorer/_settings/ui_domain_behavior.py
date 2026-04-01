@@ -168,6 +168,106 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
         self._storage.set_value(self.DEFAULT_TAB_POSITION_KEY, normalized)
 
     @property
+    def horizontal_tab_width_mode(self) -> str:
+        """Return the current width policy for horizontal side tabs."""
+
+        return normalize.normalize_horizontal_tab_width_mode(
+            self._storage.value(
+                self.HORIZONTAL_TAB_WIDTH_MODE_KEY,
+                self.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE,
+            ),
+            fallback=self.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE,
+            allowed_modes=self.ALLOWED_HORIZONTAL_TAB_WIDTH_MODES,
+        )
+
+    @horizontal_tab_width_mode.setter
+    def horizontal_tab_width_mode(self, mode: str) -> None:
+        self._storage.set_value(
+            self.HORIZONTAL_TAB_WIDTH_MODE_KEY,
+            normalize.normalize_horizontal_tab_width_mode(
+                mode,
+                fallback=self.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE,
+                allowed_modes=self.ALLOWED_HORIZONTAL_TAB_WIDTH_MODES,
+            ),
+        )
+
+    @property
+    def horizontal_tab_fixed_width_px(self) -> int:
+        """Return the fixed width used for horizontal side tabs."""
+
+        return normalize.normalize_horizontal_tab_fixed_width_px(
+            self._storage.value(
+                self.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY,
+                self.DEFAULT_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+            ),
+            fallback=self.DEFAULT_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+            minimum=self.MIN_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+            maximum=self.MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+        )
+
+    @horizontal_tab_fixed_width_px.setter
+    def horizontal_tab_fixed_width_px(self, width_px: int) -> None:
+        self._storage.set_value(
+            self.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY,
+            normalize.normalize_horizontal_tab_fixed_width_px(
+                width_px,
+                fallback=self.DEFAULT_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+                minimum=self.MIN_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+                maximum=self.MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+            ),
+        )
+
+    @property
+    def standard_tab_width_mode(self) -> str:
+        """Return the current width policy for standard tab positions."""
+
+        return normalize.normalize_standard_tab_width_mode(
+            self._storage.value(
+                self.STANDARD_TAB_WIDTH_MODE_KEY,
+                self.DEFAULT_STANDARD_TAB_WIDTH_MODE,
+            ),
+            fallback=self.DEFAULT_STANDARD_TAB_WIDTH_MODE,
+            allowed_modes=self.ALLOWED_STANDARD_TAB_WIDTH_MODES,
+        )
+
+    @standard_tab_width_mode.setter
+    def standard_tab_width_mode(self, mode: str) -> None:
+        self._storage.set_value(
+            self.STANDARD_TAB_WIDTH_MODE_KEY,
+            normalize.normalize_standard_tab_width_mode(
+                mode,
+                fallback=self.DEFAULT_STANDARD_TAB_WIDTH_MODE,
+                allowed_modes=self.ALLOWED_STANDARD_TAB_WIDTH_MODES,
+            ),
+        )
+
+    @property
+    def standard_tab_fixed_width_px(self) -> int:
+        """Return the fixed width used by standard tab positions."""
+
+        return normalize.normalize_standard_tab_fixed_width_px(
+            self._storage.value(
+                self.STANDARD_TAB_FIXED_WIDTH_PX_KEY,
+                self.DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX,
+            ),
+            fallback=self.DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX,
+            minimum=self.MIN_STANDARD_TAB_FIXED_WIDTH_PX,
+            maximum=self.MAX_STANDARD_TAB_FIXED_WIDTH_PX,
+        )
+
+    @standard_tab_fixed_width_px.setter
+    def standard_tab_fixed_width_px(self, width_px: int) -> None:
+        self._storage.set_value(
+            self.STANDARD_TAB_FIXED_WIDTH_PX_KEY,
+            normalize.normalize_standard_tab_fixed_width_px(
+                width_px,
+                fallback=self.DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX,
+                minimum=self.MIN_STANDARD_TAB_FIXED_WIDTH_PX,
+                maximum=self.MAX_STANDARD_TAB_FIXED_WIDTH_PX,
+            ),
+        )
+
+    @property
     def context_immediate_child_scan_cap(self) -> int:
         return normalize.normalize_positive_int(
             self._storage.value(

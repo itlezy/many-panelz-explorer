@@ -319,6 +319,18 @@ class SettingsDialogRuntimeMixin:
         preferences_sync.sync_font_override_controls(self._dialog)
         self._on_controls_changed()
 
+    def on_horizontal_tab_width_mode_changed(self, _index: int) -> None:
+        """Refresh horizontal side-tab width controls after mode changes."""
+
+        preferences_sync.sync_horizontal_tab_width_controls(self._dialog)
+        self._on_controls_changed()
+
+    def on_standard_tab_width_mode_changed(self, _index: int) -> None:
+        """Refresh standard-tab width controls after mode changes."""
+
+        preferences_sync.sync_standard_tab_width_controls(self._dialog)
+        self._on_controls_changed()
+
     def _load_panel_tint_preferences(self, preferences: UiPreferences) -> None:
         """Load active and target panel tint preferences into controls."""
 
@@ -351,6 +363,8 @@ class SettingsDialogRuntimeMixin:
             preferences_sync.load_operations_preferences(dialog, preferences)
             preferences_sync.load_typography_preferences(dialog, preferences)
             preferences_sync.sync_font_override_controls(dialog)
+            preferences_sync.sync_horizontal_tab_width_controls(dialog)
+            preferences_sync.sync_standard_tab_width_controls(dialog)
             preferences_sync.sync_byte_format_controls(dialog)
             self.update_backend_generated_previews()
             preferences_sync.sync_slider_value_labels(dialog)

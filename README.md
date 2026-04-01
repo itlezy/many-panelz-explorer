@@ -26,7 +26,8 @@ A multi-panel, Windows-focused file explorer built with PySide6. Supports splitt
 - **File operations** - copy, cut, paste, rename, delete (to Recycle Bin via send2trash)
 - **Folder operations** - create new folders, ZIP create/extract
 - **Navigation** - back/forward/up buttons, address bar, root/drive buttons, history menu
-- **Commander-style pane actions** - F5 copy to target pane, F6 move to target pane, F8 delete
+- **Commander-style pane actions** - F5 copy to target pane, F6 move to target pane, F8 delete, F9 open terminal here
+- **Bookmarks** - menu-driven bookmark folders and entries stored in an editable TOML file beside the INI settings file
 - **Saved views** - save and restore named workspace layouts across sessions
 - **Multi-window sessions** - persistent window state (geometry, panels, tabs) restored on restart
 - **Selection memory** - remembers selected files when navigating back to a previously visited folder
@@ -125,6 +126,7 @@ Runtime settings are stored via QSettings:
 
 - Backend: `QSettings(IniFormat, UserScope, "ThreepSoftwz", "many_panelz_explorer")`
 - Default INI path: `%APPDATA%\ThreepSoftwz\many_panelz_explorer.ini`
+- Bookmarks file: `%APPDATA%\ThreepSoftwz\many_panelz_explorer.bookmarks.toml`
 - Runtime data root: `%LOCALAPPDATA%\ThreepSoftwz\many_panelz_explorer\`
 - OV01 overrides:
   - `CONFIG_DIR` for INI root
@@ -194,6 +196,7 @@ Runtime settings are stored via QSettings:
 | F5 | Copy selected to target pane |
 | F6 | Move selected to target pane |
 | F8 | Delete selected |
+| F9 | Open terminal here |
 | Tab / Shift+Tab | Cycle active pane |
 | Ctrl+R | Refresh active pane |
 | Ctrl+, | Open Settings dialog |
@@ -221,9 +224,16 @@ Runtime settings are stored via QSettings:
 - Move to Target Pane (Configure...)
 - Delete Selection (F8)
 - Delete Selection (Configure...)
+- Open terminal here (F9)
 - New Window (Ctrl+N)
 - Clone Current Window
 - Save View / Restore View / Replace View
+- Bookmarks:
+  - Add Current Folder
+  - Remove Current Folder Bookmark
+  - Create Bookmark Folder
+  - Edit Bookmarks File
+  - Open saved bookmarks from nested folder submenus
 - Close Tab (Ctrl+W) / Close Panel (Ctrl+Shift+W) / Close Window (Alt+W)
 - Exit (Ctrl+Q, Alt+X)
 

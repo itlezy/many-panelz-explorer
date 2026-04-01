@@ -68,6 +68,10 @@ class PanelPresentationCoordinator:
         *,
         tab_position_mode: str,
         default_tab_position: str,
+        horizontal_tab_width_mode: str,
+        horizontal_tab_fixed_width_px: int,
+        standard_tab_width_mode: str,
+        standard_tab_fixed_width_px: int,
     ) -> None:
         """Apply the panel tab-strip position using the current default."""
 
@@ -99,6 +103,26 @@ class PanelPresentationCoordinator:
 
         tab_bar = self.panel.tabs.tabBar()
         self.panel.tabs.setTabPosition(tab_position)
+        set_horizontal_tab_width_preferences = getattr(
+            tab_bar,
+            "set_horizontal_tab_width_preferences",
+            None,
+        )
+        if callable(set_horizontal_tab_width_preferences):
+            set_horizontal_tab_width_preferences(
+                horizontal_tab_width_mode,
+                horizontal_tab_fixed_width_px,
+            )
+        set_standard_tab_width_preferences = getattr(
+            tab_bar,
+            "set_standard_tab_width_preferences",
+            None,
+        )
+        if callable(set_standard_tab_width_preferences):
+            set_standard_tab_width_preferences(
+                standard_tab_width_mode,
+                standard_tab_fixed_width_px,
+            )
         tab_bar.setProperty("tab_render_mode", tab_render_mode)
         tab_bar.setProperty(
             "left_horizontal_mode",
@@ -174,12 +198,14 @@ class PanelPresentationCoordinator:
         self.panel.widget_map_coordinator.sync_overlay()
 
     def set_role_visual_state(self, *, is_active: bool, is_target: bool) -> None:
+        next_role = "normal"
         if is_active:
-            self.panel.pane_role = "active"
+            next_role = "active"
         elif is_target:
-            self.panel.pane_role = "target"
-        else:
-            self.panel.pane_role = "normal"
+            next_role = "target"
+        if next_role == self.panel.pane_role:
+            return
+        self.panel.pane_role = next_role
         self._apply_visual_role()
         self.panel.widget_map_coordinator.sync_overlay()
 
@@ -256,12 +282,15 @@ class PanelPresentationCoordinator:
         else:
             background_color = "rgba(0, 0, 0, 0)"
         panel_object_name = self.panel.objectName()
-        self.panel.setStyleSheet(
+        style_sheet = (
             f"QWidget#{panel_object_name} {{ "
             f"border: none; "
             f"background-color: {background_color}; "
             f"}}"
         )
+        if style_sheet == self.panel.styleSheet():
+            return
+        self.panel.setStyleSheet(style_sheet)
 
     def _normalize_percent(self, value: int) -> int:
         if value < 0:

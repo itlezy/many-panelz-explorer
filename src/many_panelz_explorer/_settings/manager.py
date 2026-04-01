@@ -47,6 +47,22 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     show_navigation_buttons = delegate_domain_property("ui", "show_navigation_buttons")
     show_tab_close_buttons = delegate_domain_property("ui", "show_tab_close_buttons")
     default_tab_position = delegate_domain_property("ui", "default_tab_position")
+    horizontal_tab_width_mode = delegate_domain_property(
+        "ui",
+        "horizontal_tab_width_mode",
+    )
+    horizontal_tab_fixed_width_px = delegate_domain_property(
+        "ui",
+        "horizontal_tab_fixed_width_px",
+    )
+    standard_tab_width_mode = delegate_domain_property(
+        "ui",
+        "standard_tab_width_mode",
+    )
+    standard_tab_fixed_width_px = delegate_domain_property(
+        "ui",
+        "standard_tab_fixed_width_px",
+    )
     byte_thousands_separator = delegate_domain_property(
         "ui", "byte_thousands_separator"
     )
@@ -301,6 +317,10 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             show_navigation_buttons=self.show_navigation_buttons,
             show_tab_close_buttons=self.show_tab_close_buttons,
             default_tab_position=self.default_tab_position,
+            horizontal_tab_width_mode=self.horizontal_tab_width_mode,
+            horizontal_tab_fixed_width_px=self.horizontal_tab_fixed_width_px,
+            standard_tab_width_mode=self.standard_tab_width_mode,
+            standard_tab_fixed_width_px=self.standard_tab_fixed_width_px,
             byte_thousands_separator=self.byte_thousands_separator,
             byte_decimal_separator=self.byte_decimal_separator,
             file_list_byte_format_mode=self.file_list_byte_format_mode,
@@ -365,9 +385,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             windows_terminal_command_args_template=(
                 self.windows_terminal_command_args_template
             ),
-            windows_terminal_startup_position=(
-                self.windows_terminal_startup_position
-            ),
+            windows_terminal_startup_position=(self.windows_terminal_startup_position),
             alacritty_terminal_executable=self.alacritty_terminal_executable,
             alacritty_terminal_open_args_template=(
                 self.alacritty_terminal_open_args_template
@@ -437,6 +455,10 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.show_navigation_buttons = preferences.show_navigation_buttons
         self.show_tab_close_buttons = preferences.show_tab_close_buttons
         self.default_tab_position = preferences.default_tab_position
+        self.horizontal_tab_width_mode = preferences.horizontal_tab_width_mode
+        self.horizontal_tab_fixed_width_px = preferences.horizontal_tab_fixed_width_px
+        self.standard_tab_width_mode = preferences.standard_tab_width_mode
+        self.standard_tab_fixed_width_px = preferences.standard_tab_fixed_width_px
         self.ui.set_byte_separators(
             preferences.byte_thousands_separator,
             preferences.byte_decimal_separator,

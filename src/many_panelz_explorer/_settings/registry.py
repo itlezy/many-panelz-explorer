@@ -79,6 +79,10 @@ class SettingsRegistry:
     SHOW_NAVIGATION_BUTTONS_KEY = "ui/show_navigation_buttons"
     SHOW_TAB_CLOSE_BUTTONS_KEY = "ui/show_tab_close_buttons"
     DEFAULT_TAB_POSITION_KEY = "ui/default_tab_position"
+    HORIZONTAL_TAB_WIDTH_MODE_KEY = "ui/tabs/horizontal_width_mode"
+    HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY = "ui/tabs/horizontal_fixed_width_px"
+    STANDARD_TAB_WIDTH_MODE_KEY = "ui/tabs/standard_width_mode"
+    STANDARD_TAB_FIXED_WIDTH_PX_KEY = "ui/tabs/standard_fixed_width_px"
     BYTES_THOUSANDS_SEPARATOR_KEY = "ui/bytes/separators/thousands"
     BYTES_DECIMAL_SEPARATOR_KEY = "ui/bytes/separators/decimal"
     FILE_LIST_BYTE_FORMAT_MODE_KEY = "ui/bytes/file_list/mode"
@@ -147,9 +151,7 @@ class SettingsRegistry:
     WINDOWS_TERMINAL_COMMAND_ARGS_TEMPLATE_KEY = (
         "ops/open/windows_terminal/command_args_template"
     )
-    WINDOWS_TERMINAL_STARTUP_POSITION_KEY = (
-        "ops/open/windows_terminal/startup_position"
-    )
+    WINDOWS_TERMINAL_STARTUP_POSITION_KEY = "ops/open/windows_terminal/startup_position"
     ALACRITTY_TERMINAL_EXECUTABLE_KEY = "ops/open/alacritty_terminal/executable"
     ALACRITTY_TERMINAL_OPEN_ARGS_TEMPLATE_KEY = (
         "ops/open/alacritty_terminal/open_args_template"
@@ -234,6 +236,14 @@ class SettingsRegistry:
     DEFAULT_NAVIGATION_FONT_SIZE_PT = 10
     DEFAULT_SHOW_TAB_CLOSE_BUTTONS = True
     DEFAULT_DEFAULT_TAB_POSITION = TAB_POSITION_MODE_TOP
+    DEFAULT_HORIZONTAL_TAB_WIDTH_MODE = "adaptive"
+    DEFAULT_HORIZONTAL_TAB_FIXED_WIDTH_PX = 160
+    MIN_HORIZONTAL_TAB_FIXED_WIDTH_PX = 72
+    MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX = 480
+    DEFAULT_STANDARD_TAB_WIDTH_MODE = "adaptive"
+    DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX = 160
+    MIN_STANDARD_TAB_FIXED_WIDTH_PX = 72
+    MAX_STANDARD_TAB_FIXED_WIDTH_PX = 480
     DEFAULT_SHOW_STORAGE_OVERVIEW_STATUS_ROW = True
     DEFAULT_BYTES_THOUSANDS_SEPARATOR = ","
     DEFAULT_BYTES_DECIMAL_SEPARATOR = "."
@@ -363,6 +373,14 @@ class SettingsRegistry:
     ALLOWED_DEFAULT_TAB_POSITION_MODES: ClassVar[set[str]] = (
         ALLOWED_DEFAULT_TAB_POSITIONS
     )
+    ALLOWED_HORIZONTAL_TAB_WIDTH_MODES: ClassVar[set[str]] = {
+        "adaptive",
+        "fixed",
+    }
+    ALLOWED_STANDARD_TAB_WIDTH_MODES: ClassVar[set[str]] = {
+        "adaptive",
+        "fixed",
+    }
     ALLOWED_BYTE_FORMAT_MODES: ClassVar[set[str]] = {
         "human_readable",
         "always_mb",

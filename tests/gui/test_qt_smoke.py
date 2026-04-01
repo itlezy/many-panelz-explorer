@@ -78,6 +78,11 @@ def test_shortcuts_and_menu_parity(qtbot, tmp_path: Path) -> None:
     assert window.copy_to_target_action.shortcut().toString() == "F5"
     assert window.move_to_target_action.shortcut().toString() == "F6"
     assert window.delete_selection_action.shortcut().toString() == "F8"
+    assert window.list_files_shortcut.key().toString() == "F3"
+    assert window.edit_files_shortcut.key().toString() == "F4"
+    assert window.new_file_shortcut.key().toString() == "Shift+F4"
+    assert window.create_directory_shortcut.key().toString() == "F7"
+    assert window.terminal_here_shortcut.key().toString() == "F9"
 
     assert window.close_window_action.shortcut().toString() == "Alt+W"
     exit_shortcuts = {seq.toString() for seq in window.exit_action.shortcuts()}
@@ -98,8 +103,19 @@ def test_shortcuts_and_menu_parity(qtbot, tmp_path: Path) -> None:
     assert "Close Window" in file_labels
     assert "Exit" in file_labels
     assert "Save View" in file_labels
+    assert "Bookmarks" in file_labels
     assert "Restore View" in file_labels
     assert "Replace View" in file_labels
+    bookmarks_action = next(
+        (
+            action
+            for action in file_menu.actions()
+            if action.text().replace("&", "") == "Bookmarks"
+        ),
+        None,
+    )
+    assert bookmarks_action is not None
+    assert bookmarks_action.menu() is window.bookmarks_menu
     tab_groups_action = next(
         (action for action in file_menu.actions() if action.text() == "Tab Groups"),
         None,
@@ -244,6 +260,10 @@ def test_help_text_mentions_total_commander_shortcuts(
 
     assert captured["title"] == "Help"
     assert "F2: Refresh all visible panes" in captured["text"]
+    assert "F4 / Shift+F4: Edit current file / create new file" in captured["text"]
+    assert "F9: Open terminal here" in captured["text"]
+    assert "Insert: Toggle selection and move down" in captured["text"]
+    assert "Space: Toggle selection" in captured["text"]
     assert "Alt+F1: Open root picker for active tab" in captured["text"]
     assert "Ctrl+P: Copy selected item path or active pane path" in captured["text"]
     assert "Ctrl+Shift+T: Reopen last closed tab" in captured["text"]

@@ -113,6 +113,10 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
             "show_navigation_buttons",
             "show_tab_close_buttons",
             "default_tab_position",
+            "horizontal_tab_width_mode",
+            "horizontal_tab_fixed_width_px",
+            "standard_tab_width_mode",
+            "standard_tab_fixed_width_px",
             "show_storage_overview_status_row",
             "column_width_auto_align_mode",
             "autofit_columns",
@@ -245,6 +249,10 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         generic_delete_args_edit: QLineEdit
         generic_delete_executable_edit: QLineEdit
         generic_delete_test_btn: QPushButton
+        horizontal_tab_fixed_width_spin: QSpinBox
+        horizontal_tab_width_mode_combo: QComboBox
+        standard_tab_fixed_width_spin: QSpinBox
+        standard_tab_width_mode_combo: QComboBox
         navigation_font_family_combo: QComboBox
         navigation_font_size_spin: FontSizeSpinBox
         navigation_use_app_font_checkbox: QCheckBox
@@ -276,14 +284,8 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         pwsh_terminal_open_args_edit: QLineEdit
         pwsh_terminal_startup_position_combo: QComboBox
         remove_override_row_btn: QPushButton
-        resolved_comspec_terminal_path_label: QLabel
-        resolved_cmd_path_label: QLabel
-        resolved_powershell5_terminal_path_label: QLabel
-        resolved_pwsh_terminal_path_label: QLabel
-        resolved_windows_terminal_path_label: QLabel
-        resolved_alacritty_terminal_path_label: QLabel
-        resolved_wezterm_terminal_path_label: QLabel
-        resolved_robocopy_path_label: QLabel
+        resolved_system_paths_table: QTableWidget
+        resolved_terminal_paths_table: QTableWidget
         rimraf_args_edit: QLineEdit
         rimraf_executable_edit: QLineEdit
         rimraf_test_btn: QPushButton

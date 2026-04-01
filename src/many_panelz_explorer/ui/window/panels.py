@@ -306,6 +306,18 @@ class WindowPanelsCoordinator:
         panel.presentation_coordinator.apply_tab_position(
             tab_position_mode=mode,
             default_tab_position=self.window.preferences_coordinator.default_tab_position,
+            horizontal_tab_width_mode=(
+                self.window.preferences_coordinator.horizontal_tab_width_mode
+            ),
+            horizontal_tab_fixed_width_px=(
+                self.window.preferences_coordinator.horizontal_tab_fixed_width_px
+            ),
+            standard_tab_width_mode=(
+                self.window.preferences_coordinator.standard_tab_width_mode
+            ),
+            standard_tab_fixed_width_px=(
+                self.window.preferences_coordinator.standard_tab_fixed_width_px
+            ),
         )
         self.window.ui_composer.sync_active_panel_tab_position_actions()
 

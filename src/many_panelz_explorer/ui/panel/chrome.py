@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 
 type _TabRenderMode = Literal["native", "west_horizontal", "east_horizontal"]
+type _TabWidthMode = Literal["adaptive", "fixed"]
 
 
 class _PanelTabBar(QTabBar):
@@ -40,6 +41,10 @@ class _PanelTabBar(QTabBar):
         super().__init__(panel)
         self._panel = panel
         self._tab_render_mode: _TabRenderMode = "native"
+        self._horizontal_tab_width_mode: _TabWidthMode = "adaptive"
+        self._horizontal_tab_fixed_width_px = 160
+        self._standard_tab_width_mode: _TabWidthMode = "adaptive"
+        self._standard_tab_fixed_width_px = 160
         self._sync_render_mode_properties()
 
     def set_tab_render_mode(self, mode: str) -> None:
@@ -68,13 +73,65 @@ class _PanelTabBar(QTabBar):
 
         self.set_tab_render_mode("west_horizontal" if enabled else "native")
 
+    def set_horizontal_tab_width_preferences(
+        self,
+        mode: str,
+        fixed_width_px: int,
+    ) -> None:
+        """Apply the width policy used by horizontal side tabs."""
+
+        normalized_mode = self._normalize_tab_width_mode(mode)
+        normalized_width = max(1, int(fixed_width_px))
+        if (
+            self._horizontal_tab_width_mode == normalized_mode
+            and self._horizontal_tab_fixed_width_px == normalized_width
+        ):
+            return
+        self._horizontal_tab_width_mode = normalized_mode
+        self._horizontal_tab_fixed_width_px = normalized_width
+        self._sync_render_mode_properties()
+        self.setElideMode(self.elideMode())
+        QTimer.singleShot(0, self._reposition_horizontal_side_tab_buttons)
+        self.updateGeometry()
+        self.update()
+
+    def set_standard_tab_width_preferences(
+        self,
+        mode: str,
+        fixed_width_px: int,
+    ) -> None:
+        """Apply the width policy used by standard tab positions."""
+
+        normalized_mode = self._normalize_tab_width_mode(mode)
+        normalized_width = max(1, int(fixed_width_px))
+        if (
+            self._standard_tab_width_mode == normalized_mode
+            and self._standard_tab_fixed_width_px == normalized_width
+        ):
+            return
+        self._standard_tab_width_mode = normalized_mode
+        self._standard_tab_fixed_width_px = normalized_width
+        self._sync_render_mode_properties()
+        self.setElideMode(self.elideMode())
+        QTimer.singleShot(0, self._reposition_horizontal_side_tab_buttons)
+        self.updateGeometry()
+        self.update()
+
     @override
     def tabSizeHint(self, index: int) -> QSize:
         """Return a size hint adjusted for side tabs with horizontal labels."""
 
         size = super().tabSizeHint(index)
         if not self._use_horizontal_label_mode():
+            if self._standard_tab_width_mode != "fixed":
+                return size
+            if self._uses_vertical_tab_shape():
+                return QSize(size.width(), self._standard_tab_fixed_width_px)
+            if self._uses_horizontal_tab_shape():
+                return QSize(self._standard_tab_fixed_width_px, size.height())
             return size
+        if self._horizontal_tab_width_mode == "fixed":
+            return QSize(self._horizontal_tab_fixed_width_px, size.width())
         return QSize(size.height(), size.width())
 
     @override
@@ -176,6 +233,32 @@ class _PanelTabBar(QTabBar):
                     button_x = tab_rect.right() - button_rect.width() - 4
                 button.move(button_x, button_y)
 
+    @staticmethod
+    def _normalize_tab_width_mode(mode: str) -> _TabWidthMode:
+        """Normalize an incoming tab-width mode value."""
+
+        return "fixed" if mode == "fixed" else "adaptive"
+
+    def _uses_horizontal_tab_shape(self) -> bool:
+        """Return whether the current native shape uses horizontal tabs."""
+
+        return self.shape() in {
+            QTabBar.Shape.RoundedNorth,
+            QTabBar.Shape.TriangularNorth,
+            QTabBar.Shape.RoundedSouth,
+            QTabBar.Shape.TriangularSouth,
+        }
+
+    def _uses_vertical_tab_shape(self) -> bool:
+        """Return whether the current native shape uses rotated side tabs."""
+
+        return self.shape() in {
+            QTabBar.Shape.RoundedWest,
+            QTabBar.Shape.TriangularWest,
+            QTabBar.Shape.RoundedEast,
+            QTabBar.Shape.TriangularEast,
+        }
+
     def _sync_render_mode_properties(self) -> None:
         """Mirror the current render mode into stable widget properties."""
 
@@ -187,6 +270,22 @@ class _PanelTabBar(QTabBar):
         self.setProperty(
             "right_horizontal_mode",
             self._tab_render_mode == "east_horizontal",
+        )
+        self.setProperty(
+            "horizontal_tab_width_mode",
+            self._horizontal_tab_width_mode,
+        )
+        self.setProperty(
+            "horizontal_tab_fixed_width_px",
+            self._horizontal_tab_fixed_width_px,
+        )
+        self.setProperty(
+            "standard_tab_width_mode",
+            self._standard_tab_width_mode,
+        )
+        self.setProperty(
+            "standard_tab_fixed_width_px",
+            self._standard_tab_fixed_width_px,
         )
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:

@@ -35,6 +35,10 @@ def _tracked_keys() -> list[str]:
         SettingsManager.SHOW_NAVIGATION_BUTTONS_KEY,
         SettingsManager.SHOW_TAB_CLOSE_BUTTONS_KEY,
         SettingsManager.DEFAULT_TAB_POSITION_KEY,
+        SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY,
+        SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY,
+        SettingsManager.STANDARD_TAB_WIDTH_MODE_KEY,
+        SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY,
         SettingsManager.BYTES_THOUSANDS_SEPARATOR_KEY,
         SettingsManager.BYTES_DECIMAL_SEPARATOR_KEY,
         SettingsManager.FILE_LIST_BYTE_FORMAT_MODE_KEY,
@@ -158,6 +162,10 @@ def test_ui_preferences_round_trip() -> None:
             show_navigation_buttons=False,
             show_tab_close_buttons=False,
             default_tab_position="left_horizontal",
+            horizontal_tab_width_mode="fixed",
+            horizontal_tab_fixed_width_px=220,
+            standard_tab_width_mode="fixed",
+            standard_tab_fixed_width_px=240,
             byte_thousands_separator=" ",
             byte_decimal_separator=",",
             file_list_byte_format_mode="custom",
@@ -428,6 +436,10 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         settings.remove(SettingsManager.SHOW_NAVIGATION_BUTTONS_KEY)
         settings.remove(SettingsManager.SHOW_TAB_CLOSE_BUTTONS_KEY)
         settings.set_value(SettingsManager.DEFAULT_TAB_POSITION_KEY, "sideways")
+        settings.set_value(SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY, "stretch")
+        settings.set_value(SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY, 9999)
+        settings.set_value(SettingsManager.STANDARD_TAB_WIDTH_MODE_KEY, "stretch")
+        settings.set_value(SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY, 9999)
         settings.set_value(SettingsManager.BYTES_THOUSANDS_SEPARATOR_KEY, ",")
         settings.set_value(SettingsManager.BYTES_DECIMAL_SEPARATOR_KEY, ",")
         settings.set_value(SettingsManager.FILE_LIST_BYTE_FORMAT_MODE_KEY, "invalid")
@@ -564,8 +576,23 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         assert loaded.show_navigation_buttons is True
         assert loaded.show_tab_close_buttons is True
         assert (
-            loaded.default_tab_position
-            == SettingsManager.DEFAULT_DEFAULT_TAB_POSITION
+            loaded.default_tab_position == SettingsManager.DEFAULT_DEFAULT_TAB_POSITION
+        )
+        assert (
+            loaded.horizontal_tab_width_mode
+            == SettingsManager.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE
+        )
+        assert (
+            loaded.horizontal_tab_fixed_width_px
+            == SettingsManager.MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX
+        )
+        assert (
+            loaded.standard_tab_width_mode
+            == SettingsManager.DEFAULT_STANDARD_TAB_WIDTH_MODE
+        )
+        assert (
+            loaded.standard_tab_fixed_width_px
+            == SettingsManager.MAX_STANDARD_TAB_FIXED_WIDTH_PX
         )
         assert (
             loaded.byte_thousands_separator
@@ -917,6 +944,110 @@ def test_ui_preferences_default_tab_position_round_trip() -> None:
         _restore(settings, before)
 
 
+def test_ui_preferences_horizontal_tab_width_defaults_when_unset() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.remove(SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY)
+        settings.remove(SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY)
+        loaded = settings.ui_preferences()
+        assert (
+            loaded.horizontal_tab_width_mode
+            == SettingsManager.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE
+        )
+        assert (
+            loaded.horizontal_tab_fixed_width_px
+            == SettingsManager.DEFAULT_HORIZONTAL_TAB_FIXED_WIDTH_PX
+        )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_horizontal_tab_width_mode_invalid_uses_default() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.set_value(SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY, "elastic")
+        loaded = settings.ui_preferences()
+        assert (
+            loaded.horizontal_tab_width_mode
+            == SettingsManager.DEFAULT_HORIZONTAL_TAB_WIDTH_MODE
+        )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_horizontal_tab_fixed_width_clamps_to_range() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.set_value(SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY, 10)
+        assert (
+            settings.ui_preferences().horizontal_tab_fixed_width_px
+            == SettingsManager.MIN_HORIZONTAL_TAB_FIXED_WIDTH_PX
+        )
+
+        settings.set_value(SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY, 1000)
+        assert (
+            settings.ui_preferences().horizontal_tab_fixed_width_px
+            == SettingsManager.MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX
+        )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_standard_tab_width_defaults_when_unset() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.remove(SettingsManager.STANDARD_TAB_WIDTH_MODE_KEY)
+        settings.remove(SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY)
+        loaded = settings.ui_preferences()
+        assert (
+            loaded.standard_tab_width_mode
+            == SettingsManager.DEFAULT_STANDARD_TAB_WIDTH_MODE
+        )
+        assert (
+            loaded.standard_tab_fixed_width_px
+            == SettingsManager.DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX
+        )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_standard_tab_width_mode_invalid_uses_default() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.set_value(SettingsManager.STANDARD_TAB_WIDTH_MODE_KEY, "elastic")
+        loaded = settings.ui_preferences()
+        assert (
+            loaded.standard_tab_width_mode
+            == SettingsManager.DEFAULT_STANDARD_TAB_WIDTH_MODE
+        )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_standard_tab_fixed_width_clamps_to_range() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.set_value(SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY, 10)
+        assert (
+            settings.ui_preferences().standard_tab_fixed_width_px
+            == SettingsManager.MIN_STANDARD_TAB_FIXED_WIDTH_PX
+        )
+
+        settings.set_value(SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY, 1000)
+        assert (
+            settings.ui_preferences().standard_tab_fixed_width_px
+            == SettingsManager.MAX_STANDARD_TAB_FIXED_WIDTH_PX
+        )
+    finally:
+        _restore(settings, before)
+
+
 def test_ui_preferences_default_tab_position_defaults_when_unset() -> None:
     settings = SettingsManager()
     before = _snapshot(settings)
@@ -924,8 +1055,7 @@ def test_ui_preferences_default_tab_position_defaults_when_unset() -> None:
         settings.remove(SettingsManager.DEFAULT_TAB_POSITION_KEY)
         loaded = settings.ui_preferences()
         assert (
-            loaded.default_tab_position
-            == SettingsManager.DEFAULT_DEFAULT_TAB_POSITION
+            loaded.default_tab_position == SettingsManager.DEFAULT_DEFAULT_TAB_POSITION
         )
     finally:
         _restore(settings, before)

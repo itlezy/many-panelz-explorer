@@ -152,6 +152,68 @@ def normalize_positive_int(
     return int(value)
 
 
+def normalize_horizontal_tab_width_mode(
+    raw: Any,
+    *,
+    fallback: str,
+    allowed_modes: set[str],
+) -> str:
+    """Normalize the horizontal side-tab width mode."""
+
+    mode = str(raw or "").strip().lower()
+    if mode in allowed_modes:
+        return mode
+    return str(fallback)
+
+
+def normalize_horizontal_tab_fixed_width_px(
+    raw: Any,
+    *,
+    fallback: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Clamp the horizontal side-tab fixed width into the supported range."""
+
+    return normalize_positive_int(
+        raw,
+        fallback=fallback,
+        minimum=minimum,
+        maximum=maximum,
+    )
+
+
+def normalize_standard_tab_width_mode(
+    raw: Any,
+    *,
+    fallback: str,
+    allowed_modes: set[str],
+) -> str:
+    """Normalize the width mode used by standard tab positions."""
+
+    mode = str(raw or "").strip().lower()
+    if mode in allowed_modes:
+        return mode
+    return str(fallback)
+
+
+def normalize_standard_tab_fixed_width_px(
+    raw: Any,
+    *,
+    fallback: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Clamp the standard-tab fixed width into the supported range."""
+
+    return normalize_positive_int(
+        raw,
+        fallback=fallback,
+        minimum=minimum,
+        maximum=maximum,
+    )
+
+
 def normalize_overrides_json(raw: Any, *, fallback: str) -> str:
     """Normalize file-open override JSON into a canonical mapping string."""
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeGuard
 
 from ...explorer_tab import ExplorerTab
 from ...panel_groups import DEFAULT_TAB_GROUP_ID, DEFAULT_TAB_GROUP_TITLE
@@ -145,6 +145,7 @@ class PanelStateCoordinator:
                 and self.panel.column_widths
                 and self.panel.column_width_auto_align_mode
                 != self.panel.COLUMN_ALIGN_MODE_NONE
+                and not self._tab_widths_match(tab, self.panel.column_widths)
             ):
                 tab.columns.set_widths(self.panel.column_widths)
             if tab is not None and self.panel.filter_edit.isVisible():
@@ -166,12 +167,10 @@ class PanelStateCoordinator:
 
         if self.panel.syncing_column_widths or self.panel.restoring_state:
             return
-        if not isinstance(widths, tuple) or not widths:
+        if not self._is_width_sequence(widths) or not widths:
             return
 
-        normalized = self._coerce_column_widths(
-            list(cast("tuple[object, ...]", widths))
-        )
+        normalized = self._coerce_column_widths(widths)
         if not normalized or normalized == self.panel.column_widths:
             return
         self.panel.column_widths = normalized
@@ -211,6 +210,8 @@ class PanelStateCoordinator:
                 if not isinstance(widget, ExplorerTab):
                     continue
                 if source_tab is not None and widget is source_tab:
+                    continue
+                if self._tab_widths_match(widget, widths):
                     continue
                 widget.columns.set_widths(widths)
         finally:
@@ -260,3 +261,19 @@ class PanelStateCoordinator:
         }:
             return normalized
         return self.panel.COLUMN_ALIGN_MODE_CURRENT_PANEL_TABS
+
+    def _tab_widths_match(
+        self,
+        tab: ExplorerTab,
+        widths: Sequence[int],
+    ) -> bool:
+        """Return whether a tab already uses the requested column widths."""
+
+        return list(tab.columns.widths) == list(widths)
+
+    def _is_width_sequence(
+        self, value: object
+    ) -> TypeGuard[tuple[object, ...] | list[object]]:
+        """Return whether a signal payload contains raw width values."""
+
+        return isinstance(value, (tuple, list))

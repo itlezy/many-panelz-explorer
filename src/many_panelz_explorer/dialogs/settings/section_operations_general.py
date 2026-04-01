@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QHeaderView,
     QLabel,
@@ -758,12 +759,10 @@ def build_terminal_tool_rows(
         controls=[wezterm_controls],
     )
 
-    dialog.resolved_comspec_terminal_path_label = QLabel(dialog)
-    dialog.resolved_pwsh_terminal_path_label = QLabel(dialog)
-    dialog.resolved_powershell5_terminal_path_label = QLabel(dialog)
-    dialog.resolved_windows_terminal_path_label = QLabel(dialog)
-    dialog.resolved_alacritty_terminal_path_label = QLabel(dialog)
-    dialog.resolved_wezterm_terminal_path_label = QLabel(dialog)
+    dialog.resolved_terminal_paths_table = _build_diagnostics_table(
+        dialog,
+        row_count=6,
+    )
     add_row(
         dialog,
         section=terminal_tools_group,
@@ -776,14 +775,7 @@ def build_terminal_tool_rows(
             "resolved terminal paths comspec cmd pwsh powershell 5 7 wt "
             "windows terminal alacritty wezterm"
         ),
-        controls=[
-            dialog.resolved_comspec_terminal_path_label,
-            dialog.resolved_pwsh_terminal_path_label,
-            dialog.resolved_powershell5_terminal_path_label,
-            dialog.resolved_windows_terminal_path_label,
-            dialog.resolved_alacritty_terminal_path_label,
-            dialog.resolved_wezterm_terminal_path_label,
-        ],
+        controls=[dialog.resolved_terminal_paths_table],
     )
 
 
@@ -794,8 +786,10 @@ def build_operation_diagnostics_rows(
 ) -> None:
     """Build read-only diagnostics rows for resolved tool paths."""
 
-    dialog.resolved_cmd_path_label = QLabel(dialog)
-    dialog.resolved_robocopy_path_label = QLabel(dialog)
+    dialog.resolved_system_paths_table = _build_diagnostics_table(
+        dialog,
+        row_count=2,
+    )
     add_row(
         dialog,
         section=diagnostics_group,
@@ -803,11 +797,46 @@ def build_operation_diagnostics_rows(
         title="Resolved System Commands",
         description="Runtime resolved command paths for shell and robocopy.",
         terms="comspec cmd robocopy windir resolved path",
-        controls=[
-            dialog.resolved_cmd_path_label,
-            dialog.resolved_robocopy_path_label,
-        ],
+        controls=[dialog.resolved_system_paths_table],
     )
+
+
+def _build_diagnostics_table(
+    dialog: SettingsDialog,
+    *,
+    row_count: int,
+) -> QTableWidget:
+    """Build a compact read-only table for resolved-path diagnostics."""
+
+    table = QTableWidget(row_count, 2, dialog)
+    table.setHorizontalHeaderLabels(["Tool", "Resolved Path"])
+    table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    table.setAlternatingRowColors(False)
+    table.setCornerButtonEnabled(False)
+    table.setWordWrap(False)
+    table.verticalHeader().setVisible(False)
+    table.horizontalHeader().setStretchLastSection(False)
+    table.horizontalHeader().setSectionResizeMode(
+        0,
+        QHeaderView.ResizeMode.ResizeToContents,
+    )
+    table.horizontalHeader().setSectionResizeMode(
+        1,
+        QHeaderView.ResizeMode.Stretch,
+    )
+    table.setMinimumHeight(_diagnostics_table_minimum_height(table, row_count))
+    return table
+
+
+def _diagnostics_table_minimum_height(table: QTableWidget, row_count: int) -> int:
+    """Return a compact minimum height for a diagnostics table."""
+
+    header_height = table.horizontalHeader().sizeHint().height()
+    row_height = table.verticalHeader().defaultSectionSize()
+    frame_height = table.frameWidth() * 2
+    return header_height + (row_height * row_count) + frame_height
 
 
 def build_about_rows(

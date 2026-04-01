@@ -146,6 +146,86 @@ def test_panel_toolbar_address_updates_on_tab_switch(qtbot, tmp_path: Path) -> N
     assert panel.current_tab().navigation.path == root
 
 
+def test_tab_switch_reuses_root_controls_when_roots_are_unchanged(
+    qtbot, tmp_path: Path
+) -> None:
+    root = tmp_path / "root"
+    a = root / "a"
+    c = root / "c"
+    a.mkdir(parents=True)
+    c.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        show_root_dropdown=True,
+        roots_provider=lambda _current: [root, a, c],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+
+    tab_a = panel.add_tab(a)
+    tab_c = panel.add_tab(c)
+    assert tab_a is not None
+    assert tab_c is not None
+
+    panel.tabs.setCurrentWidget(tab_a)
+    qtbot.waitUntil(lambda: _norm(panel.address_edit.text()) == _norm(a))
+    button_ids_before = [id(button) for button in panel.root_buttons]
+    combo_items_before = [
+        panel.root_combo.itemData(index) for index in range(panel.root_combo.count())
+    ]
+
+    panel.tabs.setCurrentWidget(tab_c)
+    qtbot.waitUntil(lambda: _norm(panel.address_edit.text()) == _norm(c))
+
+    assert [id(button) for button in panel.root_buttons] == button_ids_before
+    assert [
+        panel.root_combo.itemData(index) for index in range(panel.root_combo.count())
+    ] == combo_items_before
+    assert _button_for_root(panel, c).isChecked() is True
+    assert panel.root_combo.currentData() == str(c)
+
+
+def test_root_validation_is_cached_across_toolbar_syncs(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    provider_root = root / "mount"
+    provider_root.mkdir()
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [provider_root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    panel.add_tab(root)
+
+    import many_panelz_explorer.ui.panel.navigation as navigation_module
+
+    dedup_calls = 0
+    original_dedup_paths = navigation_module.dedup_paths
+
+    def _counting_dedup_paths(
+        paths: list[Path], *, require_existing: bool
+    ) -> list[Path]:
+        nonlocal dedup_calls
+        dedup_calls += 1
+        return original_dedup_paths(paths, require_existing=require_existing)
+
+    monkeypatch.setattr(navigation_module, "dedup_paths", _counting_dedup_paths)
+
+    panel.presentation_coordinator.sync_toolbar_for_current_tab()
+    panel.presentation_coordinator.sync_toolbar_for_current_tab()
+
+    assert dedup_calls == 0
+
+
 def test_address_submission_normalizes_windows_slashes(qtbot, tmp_path: Path) -> None:
     root = tmp_path / "root"
     child = root / "child"
@@ -454,6 +534,10 @@ def test_horizontal_side_tabs_render_correctly_without_tab_switch(
     panel.presentation_coordinator.apply_tab_position(
         tab_position_mode=tab_position_mode,
         default_tab_position="top",
+        horizontal_tab_width_mode="adaptive",
+        horizontal_tab_fixed_width_px=160,
+        standard_tab_width_mode="adaptive",
+        standard_tab_fixed_width_px=160,
     )
 
     tab_bar = panel.tabs.tabBar()
@@ -485,6 +569,116 @@ def test_horizontal_side_tabs_render_correctly_without_tab_switch(
     qtbot.waitUntil(
         lambda: _horizontal_side_text_dark_pixel_count(tab_bar, current_index) > 40
     )
+
+
+@pytest.mark.parametrize(
+    "tab_position_mode",
+    ["left_horizontal", "right_horizontal"],
+)
+def test_horizontal_side_tabs_support_fixed_width(
+    qtbot,
+    tmp_path: Path,
+    tab_position_mode: str,
+) -> None:
+    root = tmp_path / "root"
+    long_named = root / "very-long-folder-name-for-fixed-width-tabs"
+    short_named = root / "short"
+    long_named.mkdir(parents=True)
+    short_named.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.resize(900, 300)
+    panel.show()
+    panel.add_tab(long_named)
+    panel.add_tab(short_named)
+
+    panel.presentation_coordinator.apply_tab_position(
+        tab_position_mode=tab_position_mode,
+        default_tab_position="top",
+        horizontal_tab_width_mode="fixed",
+        horizontal_tab_fixed_width_px=210,
+        standard_tab_width_mode="adaptive",
+        standard_tab_fixed_width_px=160,
+    )
+
+    tab_bar = panel.tabs.tabBar()
+    qtbot.waitUntil(
+        lambda: all(tab_bar.tabSizeHint(index).width() == 210 for index in range(2))
+    )
+    qtbot.waitUntil(
+        lambda: all(tab_bar.tabRect(index).width() == 210 for index in range(2))
+    )
+    assert str(tab_bar.property("horizontal_tab_width_mode")) == "fixed"
+    assert int(tab_bar.property("horizontal_tab_fixed_width_px")) == 210
+
+
+@pytest.mark.parametrize(
+    ("tab_position_mode", "expected_dimension"),
+    [
+        ("top", "width"),
+        ("bottom", "width"),
+        ("left", "height"),
+        ("right", "height"),
+    ],
+)
+def test_standard_tabs_support_fixed_width(
+    qtbot,
+    tmp_path: Path,
+    tab_position_mode: str,
+    expected_dimension: str,
+) -> None:
+    root = tmp_path / "root"
+    long_named = root / "very-long-folder-name-for-fixed-width-tabs"
+    short_named = root / "short"
+    long_named.mkdir(parents=True)
+    short_named.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.resize(900, 300)
+    panel.show()
+    panel.add_tab(long_named)
+    panel.add_tab(short_named)
+
+    panel.presentation_coordinator.apply_tab_position(
+        tab_position_mode=tab_position_mode,
+        default_tab_position="top",
+        horizontal_tab_width_mode="adaptive",
+        horizontal_tab_fixed_width_px=160,
+        standard_tab_width_mode="fixed",
+        standard_tab_fixed_width_px=210,
+    )
+
+    tab_bar = panel.tabs.tabBar()
+    if expected_dimension == "width":
+        qtbot.waitUntil(
+            lambda: all(tab_bar.tabSizeHint(index).width() == 210 for index in range(2))
+        )
+        qtbot.waitUntil(
+            lambda: all(tab_bar.tabRect(index).width() == 210 for index in range(2))
+        )
+    else:
+        qtbot.waitUntil(
+            lambda: all(
+                tab_bar.tabSizeHint(index).height() == 210 for index in range(2)
+            )
+        )
+        qtbot.waitUntil(
+            lambda: all(tab_bar.tabRect(index).height() == 210 for index in range(2))
+        )
+    assert str(tab_bar.property("standard_tab_width_mode")) == "fixed"
+    assert int(tab_bar.property("standard_tab_fixed_width_px")) == 210
 
 
 def test_toolbar_visibility_flags_are_independent(qtbot, tmp_path: Path) -> None:
@@ -778,6 +972,51 @@ def test_column_widths_sync_across_tabs_in_panel(qtbot, tmp_path: Path) -> None:
     qtbot.waitUntil(lambda: first_tab.view.columnWidth(2) == 260)
 
 
+def test_tab_switch_skips_reapplying_matching_column_widths(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+
+    first_tab = panel.add_tab(root)
+    second_tab = panel.add_tab(root)
+    first_tab.view.setColumnWidth(0, 360)
+    qtbot.waitUntil(lambda: second_tab.view.columnWidth(0) == 360)
+
+    set_widths_calls = 0
+    original_first_set_widths = first_tab.columns.set_widths
+    original_second_set_widths = second_tab.columns.set_widths
+
+    def _count_first_set_widths(widths: object) -> None:
+        nonlocal set_widths_calls
+        set_widths_calls += 1
+        original_first_set_widths(widths)
+
+    def _count_second_set_widths(widths: object) -> None:
+        nonlocal set_widths_calls
+        set_widths_calls += 1
+        original_second_set_widths(widths)
+
+    monkeypatch.setattr(first_tab.columns, "set_widths", _count_first_set_widths)
+    monkeypatch.setattr(second_tab.columns, "set_widths", _count_second_set_widths)
+
+    panel.tabs.setCurrentWidget(first_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+    panel.tabs.setCurrentWidget(second_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is second_tab)
+
+    assert set_widths_calls == 0
+
+
 def test_column_widths_persist_when_navigating_directories_in_same_tab(
     qtbot, tmp_path: Path
 ) -> None:
@@ -1006,6 +1245,106 @@ def test_widget_map_overlay_can_be_toggled(qtbot, tmp_path: Path) -> None:
 
     panel.widget_map_coordinator.set_enabled(False)
     assert panel.widget_map_coordinator.overlay_visible() is False
+
+
+def test_widget_map_overlay_skips_refresh_when_state_is_unchanged(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    panel.add_tab(root)
+
+    refresh_calls = 0
+    original_refresh = panel.widget_map_coordinator._overlay.refresh
+
+    def _count_refresh() -> None:
+        nonlocal refresh_calls
+        refresh_calls += 1
+        original_refresh()
+
+    monkeypatch.setattr(
+        panel.widget_map_coordinator._overlay, "refresh", _count_refresh
+    )
+
+    panel.widget_map_coordinator.set_enabled(True)
+    qtbot.waitUntil(panel.widget_map_coordinator.overlay_visible)
+    baseline_calls = refresh_calls
+
+    panel.widget_map_coordinator.sync_overlay()
+    panel.widget_map_coordinator.sync_overlay()
+    assert refresh_calls == baseline_calls
+
+    panel.resize(panel.width() + 24, panel.height())
+    panel.widget_map_coordinator.sync_overlay()
+    assert refresh_calls == baseline_calls + 1
+
+
+def test_role_visual_state_skips_noop_style_updates(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+
+    style_calls = 0
+    overlay_calls = 0
+    original_set_style_sheet = panel.setStyleSheet
+    original_sync_overlay = panel.widget_map_coordinator.sync_overlay
+
+    def _count_set_style_sheet(style_sheet: str) -> None:
+        nonlocal style_calls
+        style_calls += 1
+        original_set_style_sheet(style_sheet)
+
+    def _count_sync_overlay() -> None:
+        nonlocal overlay_calls
+        overlay_calls += 1
+        original_sync_overlay()
+
+    monkeypatch.setattr(panel, "setStyleSheet", _count_set_style_sheet)
+    monkeypatch.setattr(
+        panel.widget_map_coordinator,
+        "sync_overlay",
+        _count_sync_overlay,
+    )
+
+    panel.presentation_coordinator.set_role_visual_state(
+        is_active=False,
+        is_target=False,
+    )
+    assert style_calls == 0
+    assert overlay_calls == 0
+
+    panel.presentation_coordinator.set_role_visual_state(
+        is_active=True,
+        is_target=False,
+    )
+    assert style_calls == 1
+    assert overlay_calls == 1
+
+    panel.presentation_coordinator.set_role_visual_state(
+        is_active=True,
+        is_target=False,
+    )
+    assert style_calls == 1
+    assert overlay_calls == 1
 
 
 def test_type_to_focus_does_not_show_filter_overlay_from_address_bar(

@@ -18,6 +18,12 @@ from many_panelz_explorer._operations.queue_manager import OperationQueueManager
 from many_panelz_explorer._operations.types import OperationExecutionPreferences
 from many_panelz_explorer._settings.manager import SettingsManager
 from many_panelz_explorer._settings.models import UiPreferences
+from many_panelz_explorer.bookmarks import (
+    Bookmark,
+    BookmarkCollection,
+    BookmarkFolder,
+    BookmarkStore,
+)
 from many_panelz_explorer.explorer_tab import ExplorerTab
 from many_panelz_explorer.operation_queue_widgets import OperationQueueTableModel
 from many_panelz_explorer.panel_widget import PanelWidget
@@ -94,6 +100,18 @@ def _ordered_panels(window: ExplorerWindow) -> list[PanelWidget]:
     return [window.panel_widgets[panel_id] for panel_id in ordered_ids]
 
 
+def _configure_bookmarks(
+    window: ExplorerWindow,
+    *,
+    bookmarks_file: Path,
+    collection: BookmarkCollection,
+) -> None:
+    store = BookmarkStore(bookmarks_file)
+    store.save(collection)
+    window.bookmarks_coordinator._store = store
+    window.bookmarks_coordinator._reload_bookmarks(report_errors=False)
+
+
 def _column_test_root(tmp_path: Path) -> Path:
     root = tmp_path / "column-test-root"
     root.mkdir(exist_ok=True)
@@ -133,6 +151,14 @@ def _select_paths(tab: ExplorerTab, paths: list[Path]) -> None:
             model_index,
             first_flags if index == 0 else add_flags,
         )
+
+
+def _selected_real_paths(tab: ExplorerTab) -> list[Path]:
+    return [
+        Path(tab.model.filePath(index))
+        for index in tab.view.selectionModel().selectedRows()
+        if index.isValid() and not tab.model.is_parent_index(index)
+    ]
 
 
 class _ControllerCloneStub(_ControllerStub):
@@ -467,15 +493,9 @@ def test_active_panel_tab_position_actions_update_only_the_active_panel(
     window.right_horizontal_tab_position_action.trigger()
     assert first_panel.tab_position_mode == "right_horizontal"
     assert first_panel.tabs.tabPosition() == QTabWidget.TabPosition.East
-    assert (
-        bool(first_panel.tabs.tabBar().property("right_horizontal_mode")) is True
-    )
-    assert (
-        bool(second_panel.tabs.tabBar().property("right_horizontal_mode")) is False
-    )
-    assert (
-        bool(first_panel.tabs.tabBar().property("left_horizontal_mode")) is False
-    )
+    assert bool(first_panel.tabs.tabBar().property("right_horizontal_mode")) is True
+    assert bool(second_panel.tabs.tabBar().property("right_horizontal_mode")) is False
+    assert bool(first_panel.tabs.tabBar().property("left_horizontal_mode")) is False
     assert window.right_horizontal_tab_position_action.isChecked() is True
 
     window.panels_coordinator.set_active_panel(second_panel.panel_id)
@@ -780,6 +800,7 @@ def test_file_shortcuts_use_expected_file_actions(
     opened_default: list[Path] = []
     opened_viewer: list[Path] = []
     edited_paths: list[Path] = []
+    prompt_calls: list[tuple[str, str, str]] = []
     monkeypatch.setattr(
         "many_panelz_explorer._explorer_tab_actions.file_ops.open_with_default",
         lambda path: opened_default.append(Path(path)),
@@ -792,11 +813,18 @@ def test_file_shortcuts_use_expected_file_actions(
         "many_panelz_explorer._explorer_tab_actions.file_ops.open_in_text_editor",
         lambda path: edited_paths.append(Path(path)),
     )
-    monkeypatch.setattr(
-        QInputDialog,
-        "getText",
-        lambda *_a, **_k: ("fresh.txt", True),
-    )
+
+    def _capture_get_text(*args: object, **kwargs: object) -> tuple[str, bool]:
+        prompt_calls.append(
+            (
+                str(args[1]),
+                str(args[2]),
+                str(kwargs.get("text", "")),
+            )
+        )
+        return "fresh.txt", True
+
+    monkeypatch.setattr(QInputDialog, "getText", _capture_get_text)
 
     _select_paths(tab, [file_path])
     QTest.keyClick(tab.view, Qt.Key_F3)
@@ -821,6 +849,7 @@ def test_file_shortcuts_use_expected_file_actions(
     created = root / "fresh.txt"
     qtbot.waitUntil(created.exists)
     assert edited_paths[-1] == created
+    assert prompt_calls == [("New file", "File name:", "New File.txt")]
     qtbot.waitUntil(
         lambda: Path(tab.model.filePath(tab.view.currentIndex())) == created
     )
@@ -830,6 +859,148 @@ def test_file_shortcuts_use_expected_file_actions(
     QTest.keyClick(tab.view, Qt.Key_F3)
     qtbot.waitUntil(lambda: tab.navigation.path == directory)
     assert opened_default == []
+
+
+def test_core_file_operation_shortcuts_route_through_window_commands(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-core-file-ops",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "core-shortcuts-root"
+    root.mkdir()
+    file_path = root / "alpha.txt"
+    file_path.write_text("alpha", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    window.panels_coordinator.set_active_panel(panel.panel_id)
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(file_path)).isValid())
+    tab.view.setFocus()
+    _select_paths(tab, [file_path])
+
+    transfer_calls: list[tuple[bool, bool]] = []
+    delete_calls: list[bool] = []
+    terminal_calls: list[Path] = []
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "transfer_selected_to_target",
+        lambda *, move, configure=False: transfer_calls.append((move, configure)),
+    )
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "delete_selected_items",
+        lambda configure=False: delete_calls.append(configure),
+    )
+    monkeypatch.setattr(
+        "many_panelz_explorer._explorer_tab_actions.file_ops.open_terminal_here",
+        lambda path: terminal_calls.append(Path(path)),
+    )
+
+    QTest.keyClick(tab.view, Qt.Key_F5)
+    QTest.keyClick(tab.view, Qt.Key_F6)
+    QTest.keyClick(tab.view, Qt.Key_F8)
+    QTest.keyClick(tab.view, Qt.Key_F9)
+
+    assert transfer_calls == [(False, False), (True, False)]
+    assert delete_calls == [False]
+    assert terminal_calls == [root]
+
+
+def test_tc_selection_shortcuts_toggle_current_row_and_advance(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-selection-flow",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "selection-shortcuts-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.txt"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+    gamma_file.write_text("gamma", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+    tab.view.setFocus()
+
+    alpha_index = tab.model.index(str(alpha_file))
+    beta_index = tab.model.index(str(beta_file))
+    gamma_index = tab.model.index(str(gamma_file))
+    parent_index = tab.model.index(0, 0, tab.view.rootIndex())
+    assert alpha_index.isValid()
+    assert beta_index.isValid()
+    assert gamma_index.isValid()
+    assert parent_index.isValid()
+    assert tab.model.is_parent_index(parent_index) is True
+
+    tab.view.selectionModel().clearSelection()
+    tab.view.selectionModel().setCurrentIndex(
+        alpha_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    QTest.keyClick(tab.view, Qt.Key_Insert)
+    assert _selected_real_paths(tab) == [alpha_file]
+    assert Path(tab.model.filePath(tab.view.currentIndex())) == beta_file
+
+    QTest.keyClick(tab.view, Qt.Key_Space)
+    assert _selected_real_paths(tab) == [alpha_file, beta_file]
+    assert Path(tab.model.filePath(tab.view.currentIndex())) == beta_file
+
+    QTest.keyClick(tab.view, Qt.Key_Space)
+    assert _selected_real_paths(tab) == [alpha_file]
+    assert Path(tab.model.filePath(tab.view.currentIndex())) == beta_file
+
+    _select_paths(tab, [beta_file])
+    QTest.keyClick(tab.view, Qt.Key_Insert)
+    assert _selected_real_paths(tab) == []
+    assert Path(tab.model.filePath(tab.view.currentIndex())) == gamma_file
+
+    tab.view.selectionModel().clearSelection()
+    tab.view.selectionModel().setCurrentIndex(
+        gamma_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    QTest.keyClick(tab.view, Qt.Key_Insert)
+    assert _selected_real_paths(tab) == [gamma_file]
+    assert Path(tab.model.filePath(tab.view.currentIndex())) == gamma_file
+
+    tab.view.selectionModel().clearSelection()
+    tab.view.selectionModel().setCurrentIndex(
+        parent_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    QTest.keyClick(tab.view, Qt.Key_Space)
+    QTest.keyClick(tab.view, Qt.Key_Insert)
+    assert _selected_real_paths(tab) == []
+    assert tab.view.currentIndex() == parent_index
 
 
 def test_file_list_shortcuts_cover_selection_context_and_clipboard(
@@ -973,6 +1144,312 @@ def test_alt_f1_and_shift_esc_use_active_panel_and_window_helpers(
     assert first_calls == []
     assert active_calls == ["active"]
     assert controller.minimize_calls == 1
+
+
+def test_f9_opens_terminal_for_active_tab(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="shortcut-terminal",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+    window.new_vertical_panel_action.trigger()
+
+    ordered = _ordered_panels(window)
+    first_panel = ordered[0]
+    active_panel = ordered[-1]
+    window.panels_coordinator.set_active_panel(first_panel.panel_id)
+    window.panels_coordinator.set_active_panel(active_panel.panel_id)
+    active_panel.current_tab().view.setFocus()
+
+    first_calls: list[str] = []
+    active_calls: list[str] = []
+    monkeypatch.setattr(
+        first_panel.current_tab(),
+        "open_terminal_here",
+        lambda: first_calls.append("first"),
+    )
+    monkeypatch.setattr(
+        active_panel.current_tab(),
+        "open_terminal_here",
+        lambda: active_calls.append("active"),
+    )
+
+    window.terminal_here_shortcut.activated.emit()
+
+    assert first_calls == []
+    assert active_calls == ["active"]
+
+
+def test_bookmarks_menu_populates_and_opens_in_active_tab(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerCloneStub(settings, roots_provider),
+        settings=settings,
+        window_id="bookmarks-active-tab",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    bookmark_path = tmp_path / "bookmark-target"
+    bookmark_path.mkdir()
+    _configure_bookmarks(
+        window,
+        bookmarks_file=tmp_path / "many_panelz_explorer.bookmarks.toml",
+        collection=BookmarkCollection(
+            folders=(BookmarkFolder(path="Work"),),
+            bookmarks=(
+                Bookmark(
+                    label="Bookmark Target",
+                    path=bookmark_path,
+                    folder="Work",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        QApplication,
+        "keyboardModifiers",
+        staticmethod(lambda: Qt.KeyboardModifier.NoModifier),
+    )
+
+    window.bookmarks_coordinator.populate_bookmarks_menu(window.bookmarks_menu)
+    work_menu_action = next(
+        action
+        for action in window.bookmarks_menu.actions()
+        if action.menu() is not None and action.text() == "Work"
+    )
+    work_menu = work_menu_action.menu()
+    assert work_menu is not None
+    bookmark_action = next(
+        action for action in work_menu.actions() if action.text() == "Bookmark Target"
+    )
+    bookmark_action.trigger()
+
+    active_panel = window.panels_coordinator.active_panel()
+    assert active_panel is not None
+    assert active_panel.current_path() == bookmark_path
+
+
+def test_bookmarks_menu_ctrl_opens_new_tab_and_shift_opens_new_window(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerCloneStub(settings, roots_provider)
+    window = ExplorerWindow(
+        controller=controller,
+        settings=settings,
+        window_id="bookmarks-modifiers",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    bookmark_path = tmp_path / "bookmark-target-mod"
+    bookmark_path.mkdir()
+    _configure_bookmarks(
+        window,
+        bookmarks_file=tmp_path / "many_panelz_explorer.bookmarks.toml",
+        collection=BookmarkCollection(
+            folders=(BookmarkFolder(path="Work"),),
+            bookmarks=(
+                Bookmark(
+                    label="Bookmark Target",
+                    path=bookmark_path,
+                    folder="Work",
+                ),
+            ),
+        ),
+    )
+    active_panel = window.panels_coordinator.active_panel()
+    assert active_panel is not None
+
+    monkeypatch.setattr(
+        QApplication,
+        "keyboardModifiers",
+        staticmethod(lambda: Qt.KeyboardModifier.ControlModifier),
+    )
+    window.bookmarks_coordinator.populate_bookmarks_menu(window.bookmarks_menu)
+    work_menu_action = next(
+        action
+        for action in window.bookmarks_menu.actions()
+        if action.menu() is not None and action.text() == "Work"
+    )
+    work_menu = work_menu_action.menu()
+    assert work_menu is not None
+    bookmark_action = next(
+        action for action in work_menu.actions() if action.text() == "Bookmark Target"
+    )
+    bookmark_action.trigger()
+    assert active_panel.tab_count() == 2
+    assert active_panel.current_path() == bookmark_path
+
+    monkeypatch.setattr(
+        QApplication,
+        "keyboardModifiers",
+        staticmethod(lambda: Qt.KeyboardModifier.ShiftModifier),
+    )
+    window.bookmarks_coordinator.populate_bookmarks_menu(window.bookmarks_menu)
+    work_menu_action = next(
+        action
+        for action in window.bookmarks_menu.actions()
+        if action.menu() is not None and action.text() == "Work"
+    )
+    work_menu = work_menu_action.menu()
+    assert work_menu is not None
+    bookmark_action = next(
+        action for action in work_menu.actions() if action.text() == "Bookmark Target"
+    )
+    bookmark_action.trigger()
+    assert len(controller.created_windows) == 1
+    assert controller.created_windows[0].panels_coordinator.active_panel() is not None
+    assert (
+        controller.created_windows[0].panels_coordinator.active_panel().current_path()
+        == bookmark_path
+    )
+
+
+def test_add_current_folder_bookmark_writes_store_and_file_watcher_reloads(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="bookmarks-add-watch",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    current_path = tmp_path / "watch-target"
+    current_path.mkdir()
+    active_panel = window.panels_coordinator.active_panel()
+    assert active_panel is not None
+    active_panel.current_tab().navigation.set_path(current_path)
+
+    bookmarks_file = tmp_path / "many_panelz_explorer.bookmarks.toml"
+    _configure_bookmarks(
+        window,
+        bookmarks_file=bookmarks_file,
+        collection=BookmarkCollection(),
+    )
+    monkeypatch.setattr(
+        QInputDialog,
+        "getText",
+        staticmethod(
+            lambda *_args, **_kwargs: (
+                (
+                    "Watch Target",
+                    True,
+                )
+                if "Bookmark label:" in str(_args[2])
+                else (
+                    "Work/Watch",
+                    True,
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        QInputDialog,
+        "getItem",
+        staticmethod(
+            lambda *_args, **_kwargs: (
+                "<Create new folder...>",
+                True,
+            )
+        ),
+    )
+
+    window.add_current_folder_bookmark_action.trigger()
+
+    assert bookmarks_file.exists() is True
+    assert (
+        Bookmark(
+            label="Watch Target",
+            path=current_path,
+            folder="Work/Watch",
+        )
+        in window.bookmarks_coordinator.bookmarks
+    )
+    assert "Work/Watch" in window.bookmarks_coordinator.folder_paths
+
+    external_path_text = str(tmp_path / "external-target").replace("\\", "\\\\")
+    bookmarks_file.write_text(
+        (
+            '[[folders]]\npath = "External"\n\n'
+            '[[bookmarks]]\nlabel = "External Repo"\npath = "'
+            + external_path_text
+            + '"\nfolder = "External"\n'
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "external-target").mkdir()
+
+    qtbot.waitUntil(
+        lambda: any(
+            bookmark.label == "External Repo"
+            for bookmark in window.bookmarks_coordinator.bookmarks
+        ),
+        timeout=5000,
+    )
+    assert "External" in window.bookmarks_coordinator.folder_paths
+
+
+def test_create_bookmark_folder_action_creates_nested_submenu(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="bookmarks-create-folder",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    _configure_bookmarks(
+        window,
+        bookmarks_file=tmp_path / "many_panelz_explorer.bookmarks.toml",
+        collection=BookmarkCollection(),
+    )
+    monkeypatch.setattr(
+        QInputDialog,
+        "getText",
+        staticmethod(lambda *_args, **_kwargs: ("Work/Clients", True)),
+    )
+
+    window.create_bookmark_folder_action.trigger()
+    window.bookmarks_coordinator.populate_bookmarks_menu(window.bookmarks_menu)
+
+    work_menu_action = next(
+        action
+        for action in window.bookmarks_menu.actions()
+        if action.menu() is not None and action.text() == "Work"
+    )
+    work_menu = work_menu_action.menu()
+    assert work_menu is not None
+    assert any(action.text() == "Clients" for action in work_menu.actions())
 
 
 def test_root_dropdown_ini_setting_controls_panel_dropdown(

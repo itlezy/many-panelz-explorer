@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
+from ..._settings.registry import SettingsRegistry
 from . import control_builders
 from .section_models import FontSizeSpinBox, SubsectionEntry
 from .section_structure import add_row
@@ -386,11 +387,73 @@ def build_panel_visibility_rows(
         section=visibility_group,
         key="default_tab_position",
         title="Default Tab Position",
-        description=(
-            "Choose where panels that follow defaults place their tab strip."
-        ),
+        description=("Choose where panels that follow defaults place their tab strip."),
         terms="default tab position top bottom left right horizontal panels",
         controls=[dialog.default_tab_position_combo],
+    )
+
+    dialog.horizontal_tab_width_mode_combo = QComboBox(dialog)
+    dialog.horizontal_tab_width_mode_combo.addItem("Adaptive", "adaptive")
+    dialog.horizontal_tab_width_mode_combo.addItem("Fixed", "fixed")
+    dialog.horizontal_tab_width_mode_combo.currentIndexChanged.connect(
+        dialog.on_horizontal_tab_width_mode_changed
+    )
+    dialog.horizontal_tab_fixed_width_spin = QSpinBox(dialog)
+    dialog.horizontal_tab_fixed_width_spin.setRange(
+        SettingsRegistry.MIN_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+        SettingsRegistry.MAX_HORIZONTAL_TAB_FIXED_WIDTH_PX,
+    )
+    dialog.horizontal_tab_fixed_width_spin.setSuffix(" px")
+    dialog.horizontal_tab_fixed_width_spin.valueChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=visibility_group,
+        key="horizontal_tab_width",
+        title="Horizontal Side Tab Width",
+        description=(
+            "Choose adaptive sizing or a fixed width for Left Horizontal and "
+            "Right Horizontal tabs."
+        ),
+        terms=(
+            "horizontal side tab width adaptive fixed pixels left right horizontal tabs"
+        ),
+        controls=[
+            dialog.horizontal_tab_width_mode_combo,
+            dialog.horizontal_tab_fixed_width_spin,
+        ],
+    )
+
+    dialog.standard_tab_width_mode_combo = QComboBox(dialog)
+    dialog.standard_tab_width_mode_combo.addItem("Adaptive", "adaptive")
+    dialog.standard_tab_width_mode_combo.addItem("Fixed", "fixed")
+    dialog.standard_tab_width_mode_combo.currentIndexChanged.connect(
+        dialog.on_standard_tab_width_mode_changed
+    )
+    dialog.standard_tab_fixed_width_spin = QSpinBox(dialog)
+    dialog.standard_tab_fixed_width_spin.setRange(
+        SettingsRegistry.MIN_STANDARD_TAB_FIXED_WIDTH_PX,
+        SettingsRegistry.MAX_STANDARD_TAB_FIXED_WIDTH_PX,
+    )
+    dialog.standard_tab_fixed_width_spin.setSuffix(" px")
+    dialog.standard_tab_fixed_width_spin.valueChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=visibility_group,
+        key="standard_tab_width",
+        title="Standard Tab Width",
+        description=(
+            "Choose adaptive sizing or a fixed width for Top, Bottom, Left, and "
+            "Right tabs."
+        ),
+        terms="standard tab width adaptive fixed pixels top bottom left right tabs",
+        controls=[
+            dialog.standard_tab_width_mode_combo,
+            dialog.standard_tab_fixed_width_spin,
+        ],
     )
 
     dialog.show_storage_overview_status_row_checkbox = QCheckBox(

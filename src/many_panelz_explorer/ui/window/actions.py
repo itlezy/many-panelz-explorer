@@ -190,7 +190,7 @@ class WindowUiComposer:
         self.window.copy_to_target_action = QAction("&Copy to Target Pane", self.window)
         self.window.copy_to_target_action.setShortcut(QKeySequence("F5"))
         self.window.copy_to_target_action.triggered.connect(
-            self._transfer_selected_to_target_callback(move=False, configure=False)
+            self._copy_active_selection_to_target
         )
 
         self.window.copy_to_target_configure_action = QAction(
@@ -203,7 +203,7 @@ class WindowUiComposer:
         self.window.move_to_target_action = QAction("&Move to Target Pane", self.window)
         self.window.move_to_target_action.setShortcut(QKeySequence("F6"))
         self.window.move_to_target_action.triggered.connect(
-            self._transfer_selected_to_target_callback(move=True, configure=False)
+            self._move_active_selection_to_target
         )
 
         self.window.move_to_target_configure_action = QAction(
@@ -216,7 +216,7 @@ class WindowUiComposer:
         self.window.delete_selection_action = QAction("&Delete Selection", self.window)
         self.window.delete_selection_action.setShortcut(QKeySequence("F8"))
         self.window.delete_selection_action.triggered.connect(
-            self.window.operations_coordinator.delete_selected_items
+            self._delete_active_selection
         )
 
         self.window.delete_selection_configure_action = QAction(
@@ -310,6 +310,38 @@ class WindowUiComposer:
         self.window.replace_view_action = QAction("Re&place View", self.window)
         self.window.replace_view_action.triggered.connect(
             self.window.views_coordinator.replace_view
+        )
+
+        self.window.add_current_folder_bookmark_action = QAction(
+            "&Add Current Folder",
+            self.window,
+        )
+        self.window.add_current_folder_bookmark_action.triggered.connect(
+            self.window.bookmarks_coordinator.prompt_add_current_folder
+        )
+
+        self.window.remove_current_folder_bookmark_action = QAction(
+            "&Remove Current Folder Bookmark",
+            self.window,
+        )
+        self.window.remove_current_folder_bookmark_action.triggered.connect(
+            self.window.bookmarks_coordinator.remove_current_folder
+        )
+
+        self.window.create_bookmark_folder_action = QAction(
+            "&Create Bookmark Folder",
+            self.window,
+        )
+        self.window.create_bookmark_folder_action.triggered.connect(
+            self.window.bookmarks_coordinator.create_bookmark_folder
+        )
+
+        self.window.edit_bookmarks_file_action = QAction(
+            "&Edit Bookmarks File",
+            self.window,
+        )
+        self.window.edit_bookmarks_file_action.triggered.connect(
+            self.window.bookmarks_coordinator.edit_bookmarks_file
         )
 
         self.window.active_panel_tab_position_action_group = QActionGroup(self.window)
@@ -517,12 +549,10 @@ class WindowUiComposer:
         self.window.edit_files_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self.window.edit_files_shortcut.activated.connect(self._edit_active_selection)
 
-        self.window.new_text_file_shortcut = QShortcut(
-            QKeySequence("Shift+F4"), self.window
-        )
-        self.window.new_text_file_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-        self.window.new_text_file_shortcut.activated.connect(
-            self._create_new_text_file_in_active_tab
+        self.window.new_file_shortcut = QShortcut(QKeySequence("Shift+F4"), self.window)
+        self.window.new_file_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self.window.new_file_shortcut.activated.connect(
+            self._create_new_file_in_active_tab
         )
 
         self.window.create_directory_shortcut = QShortcut(
@@ -545,6 +575,12 @@ class WindowUiComposer:
         self.window.copy_path_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self.window.copy_path_shortcut.activated.connect(
             self._copy_active_selection_or_panel_path
+        )
+
+        self.window.terminal_here_shortcut = QShortcut(QKeySequence("F9"), self.window)
+        self.window.terminal_here_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self.window.terminal_here_shortcut.activated.connect(
+            self._open_terminal_in_active_tab
         )
 
         self.window.root_picker_shortcut = QShortcut(
@@ -614,6 +650,9 @@ class WindowUiComposer:
         file_menu.addAction(self.window.clone_window_action)
         file_menu.addSeparator()
         file_menu.addAction(self.window.save_view_action)
+        self.window.bookmarks_menu = QMenu("&Bookmarks", self.window)
+        self.window.bookmarks_menu.aboutToShow.connect(self._populate_bookmarks_menu)
+        file_menu.addMenu(self.window.bookmarks_menu)
         self.window.restore_view_menu = QMenu("&Restore View", self.window)
         self.window.restore_view_menu.aboutToShow.connect(
             self._populate_restore_view_menu
@@ -679,6 +718,10 @@ class WindowUiComposer:
                 self.window.new_window_action,
                 self.window.clone_window_action,
                 self.window.save_view_action,
+                self.window.add_current_folder_bookmark_action,
+                self.window.remove_current_folder_bookmark_action,
+                self.window.create_bookmark_folder_action,
+                self.window.edit_bookmarks_file_action,
                 self.window.restore_view_action,
                 self.window.replace_view_action,
                 self.window.close_tab_action,
@@ -809,8 +852,8 @@ class WindowUiComposer:
         enabled = panel is not None
         has_current_tab = enabled and panel.current_tab() is not None
         has_multiple_groups = enabled and panel.group_count() > 1
-        has_move_target = (
-            enabled and bool(panel.ordered_group_choices(include_active=False))
+        has_move_target = enabled and bool(
+            panel.ordered_group_choices(include_active=False)
         )
 
         self.window.tab_groups_menu.menuAction().setEnabled(enabled)
@@ -828,6 +871,11 @@ class WindowUiComposer:
     def _populate_restore_view_menu(self) -> None:
         self.window.views_coordinator.populate_restore_view_menu(
             self.window.restore_view_menu
+        )
+
+    def _populate_bookmarks_menu(self) -> None:
+        self.window.bookmarks_coordinator.populate_bookmarks_menu(
+            self.window.bookmarks_menu
         )
 
     def _sync_external_file_manager_actions(self) -> None:
@@ -941,10 +989,10 @@ class WindowUiComposer:
         if tab is not None:
             tab.edit_selected_or_current()
 
-    def _create_new_text_file_in_active_tab(self) -> None:
+    def _create_new_file_in_active_tab(self) -> None:
         tab = self._active_tab()
         if tab is not None:
-            tab.create_new_text_file_and_edit()
+            tab.create_new_file_and_edit()
 
     def _create_directory_in_active_tab(self) -> None:
         tab = self._active_tab()
@@ -956,10 +1004,36 @@ class WindowUiComposer:
         if tab is not None:
             tab.create_zip_from_selection()
 
+    def _copy_active_selection_to_target(self) -> None:
+        """Copy the active-pane selection to the resolved target pane."""
+
+        self.window.operations_coordinator.transfer_selected_to_target(
+            move=False,
+            configure=False,
+        )
+
+    def _move_active_selection_to_target(self) -> None:
+        """Move the active-pane selection to the resolved target pane."""
+
+        self.window.operations_coordinator.transfer_selected_to_target(
+            move=True,
+            configure=False,
+        )
+
+    def _delete_active_selection(self) -> None:
+        """Delete the active-pane selection with the default shortcut flow."""
+
+        self.window.operations_coordinator.delete_selected_items(configure=False)
+
     def _copy_active_selection_or_panel_path(self) -> None:
         tab = self._active_tab()
         if tab is not None:
             tab.copy_selected_item_or_panel_path()
+
+    def _open_terminal_in_active_tab(self) -> None:
+        tab = self._active_tab()
+        if tab is not None:
+            tab.open_terminal_here()
 
     def _show_active_panel_root_picker(self) -> None:
         panel = self.window.panels_coordinator.active_panel()

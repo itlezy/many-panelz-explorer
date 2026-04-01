@@ -11,7 +11,7 @@ pytest.importorskip("pytestqt")
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QMessageBox, QTabWidget
+from PySide6.QtWidgets import QApplication, QMessageBox, QTableWidget, QTabWidget
 
 from many_panelz_explorer._operations.backend_options import (
     resolve_copy_move_backend_args,
@@ -208,6 +208,27 @@ class _ControllerSettingsStub:
         return None
 
 
+def _table_text_rows(table: QTableWidget) -> list[tuple[str, str]]:
+    """Return all populated rows from a two-column diagnostics table."""
+
+    rows: list[tuple[str, str]] = []
+    for row_index in range(table.rowCount()):
+        name_item = table.item(row_index, 0)
+        path_item = table.item(row_index, 1)
+        assert name_item is not None
+        assert path_item is not None
+        rows.append((name_item.text(), path_item.text()))
+    return rows
+
+
+def _table_path_value(table: QTableWidget, row_index: int) -> str:
+    """Return the resolved-path text for one diagnostics row."""
+
+    path_item = table.item(row_index, 1)
+    assert path_item is not None
+    return path_item.text()
+
+
 def _test_roots_provider(tmp_path: Path):
     root = tmp_path / "roots"
     root.mkdir(parents=True, exist_ok=True)
@@ -228,6 +249,10 @@ def _tracked_keys() -> list[str]:
         SettingsManager.SHOW_NAVIGATION_BUTTONS_KEY,
         SettingsManager.SHOW_TAB_CLOSE_BUTTONS_KEY,
         SettingsManager.DEFAULT_TAB_POSITION_KEY,
+        SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY,
+        SettingsManager.HORIZONTAL_TAB_FIXED_WIDTH_PX_KEY,
+        SettingsManager.STANDARD_TAB_WIDTH_MODE_KEY,
+        SettingsManager.STANDARD_TAB_FIXED_WIDTH_PX_KEY,
         SettingsManager.BYTES_THOUSANDS_SEPARATOR_KEY,
         SettingsManager.BYTES_DECIMAL_SEPARATOR_KEY,
         SettingsManager.FILE_LIST_BYTE_FORMAT_MODE_KEY,
@@ -884,18 +909,59 @@ def test_settings_dialog_shows_resolved_terminal_diagnostics(
     dialog._section_tree.setCurrentItem(terminal_item)
     qtbot.waitUntil(lambda: dialog._section_tree.currentItem() is terminal_item)
 
-    assert dialog.resolved_comspec_terminal_path_label.text().startswith("ComSpec:")
-    assert dialog.resolved_pwsh_terminal_path_label.text().startswith("PowerShell 7:")
-    assert dialog.resolved_powershell5_terminal_path_label.text().startswith(
-        "Windows PowerShell 5.1:"
+    assert dialog.resolved_terminal_paths_table.columnCount() == 2
+    assert dialog.resolved_terminal_paths_table.horizontalHeaderItem(0).text() == "Tool"
+    assert (
+        dialog.resolved_terminal_paths_table.horizontalHeaderItem(1).text()
+        == "Resolved Path"
     )
-    assert dialog.resolved_windows_terminal_path_label.text().startswith(
-        "Windows Terminal:"
+    assert _table_text_rows(dialog.resolved_terminal_paths_table) == [
+        ("ComSpec", _table_path_value(dialog.resolved_terminal_paths_table, 0)),
+        ("PowerShell 7", _table_path_value(dialog.resolved_terminal_paths_table, 1)),
+        (
+            "Windows PowerShell 5.1",
+            _table_path_value(dialog.resolved_terminal_paths_table, 2),
+        ),
+        (
+            "Windows Terminal",
+            _table_path_value(dialog.resolved_terminal_paths_table, 3),
+        ),
+        ("Alacritty", _table_path_value(dialog.resolved_terminal_paths_table, 4)),
+        ("WezTerm", _table_path_value(dialog.resolved_terminal_paths_table, 5)),
+    ]
+    assert dialog.resolved_terminal_paths_table.item(
+        0, 1
+    ).toolTip() == _table_path_value(dialog.resolved_terminal_paths_table, 0)
+
+
+def test_settings_dialog_shows_resolved_system_command_diagnostics(
+    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+) -> None:
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerSettingsStub(isolated_settings)
+    window = _new_window(
+        qtbot,
+        controller=controller,
+        settings=isolated_settings,
+        window_id="settings-system-diagnostics",
+        roots_provider=roots_provider,
     )
-    assert dialog.resolved_alacritty_terminal_path_label.text().startswith(
-        "Alacritty:"
+    dialog = SettingsDialog(controller=controller, parent=window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    diagnostics_item = dialog._subsection_tree_items["operations/diagnostics"]
+    dialog._section_tree.setCurrentItem(diagnostics_item)
+    qtbot.waitUntil(lambda: dialog._section_tree.currentItem() is diagnostics_item)
+
+    assert dialog.resolved_system_paths_table.columnCount() == 2
+    assert _table_text_rows(dialog.resolved_system_paths_table) == [
+        ("ComSpec", _table_path_value(dialog.resolved_system_paths_table, 0)),
+        ("Robocopy", _table_path_value(dialog.resolved_system_paths_table, 1)),
+    ]
+    assert dialog.resolved_system_paths_table.item(1, 1).toolTip() == _table_path_value(
+        dialog.resolved_system_paths_table, 1
     )
-    assert dialog.resolved_wezterm_terminal_path_label.text().startswith("WezTerm:")
 
 
 def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
@@ -1387,9 +1453,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
         dialog.alacritty_terminal_startup_position_combo,
         "normal",
     )
-    dialog.wezterm_terminal_executable_edit.setText(
-        r"C:\tools\WezTerm\wezterm-gui.exe"
-    )
+    dialog.wezterm_terminal_executable_edit.setText(r"C:\tools\WezTerm\wezterm-gui.exe")
     dialog.wezterm_terminal_open_args_edit.setText("start --cwd {folder}")
     dialog.wezterm_terminal_command_args_edit.setText(
         "start --cwd {folder} cmd.exe /K {shell_command}"
@@ -1455,8 +1519,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     )
     assert persisted.powershell5_terminal_startup_position == "left_of_screen"
     assert (
-        persisted.windows_terminal_executable
-        == r"C:\Program Files\WindowsApps\wt.exe"
+        persisted.windows_terminal_executable == r"C:\Program Files\WindowsApps\wt.exe"
     )
     assert persisted.windows_terminal_open_args_template == "-d {folder}"
     assert (
@@ -1465,8 +1528,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     )
     assert persisted.windows_terminal_startup_position == "maximized"
     assert (
-        persisted.alacritty_terminal_executable
-        == r"C:\tools\Alacritty\alacritty.exe"
+        persisted.alacritty_terminal_executable == r"C:\tools\Alacritty\alacritty.exe"
     )
     assert (
         persisted.alacritty_terminal_open_args_template
@@ -1543,17 +1605,197 @@ def test_settings_dialog_default_tab_position_updates_follow_default_panels(
         lambda: first_panel.tabs.tabPosition() == QTabWidget.TabPosition.East
     )
     qtbot.waitUntil(
-        lambda: bool(first_panel.tabs.tabBar().property("right_horizontal_mode"))
-        is True
+        lambda: (
+            bool(first_panel.tabs.tabBar().property("right_horizontal_mode")) is True
+        )
     )
     assert second_panel.tabs.tabPosition() == QTabWidget.TabPosition.North
-    assert (
-        bool(second_panel.tabs.tabBar().property("right_horizontal_mode")) is False
-    )
+    assert bool(second_panel.tabs.tabBar().property("right_horizontal_mode")) is False
 
     dialog._apply_and_commit()
     persisted = isolated_settings.ui_preferences()
     assert persisted.default_tab_position == "right_horizontal"
+
+
+def test_settings_dialog_horizontal_tab_width_controls_toggle_and_persist(
+    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+) -> None:
+    isolated_settings.horizontal_tab_width_mode = "adaptive"
+    isolated_settings.horizontal_tab_fixed_width_px = 180
+    isolated_settings.sync()
+
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerSettingsStub(isolated_settings)
+    window = _new_window(
+        qtbot,
+        controller=controller,
+        settings=isolated_settings,
+        window_id="settings-horizontal-tab-width",
+        roots_provider=roots_provider,
+    )
+
+    dialog = SettingsDialog(controller=controller, parent=window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    assert str(dialog.horizontal_tab_width_mode_combo.currentData()) == "adaptive"
+    assert dialog.horizontal_tab_fixed_width_spin.value() == 180
+    assert dialog.horizontal_tab_fixed_width_spin.isEnabled() is False
+
+    dialog.set_combo_value(dialog.horizontal_tab_width_mode_combo, "fixed")
+    assert dialog.horizontal_tab_fixed_width_spin.isEnabled() is True
+    dialog.horizontal_tab_fixed_width_spin.setValue(210)
+    dialog._apply_and_commit()
+
+    persisted = isolated_settings.ui_preferences()
+    assert persisted.horizontal_tab_width_mode == "fixed"
+    assert persisted.horizontal_tab_fixed_width_px == 210
+
+
+def test_settings_dialog_horizontal_tab_width_preview_updates_horizontal_panels(
+    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+) -> None:
+    isolated_settings.default_tab_position = "top"
+    isolated_settings.horizontal_tab_width_mode = "adaptive"
+    isolated_settings.horizontal_tab_fixed_width_px = 160
+    isolated_settings.sync()
+
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerSettingsStub(isolated_settings)
+    window = _new_window(
+        qtbot,
+        controller=controller,
+        settings=isolated_settings,
+        window_id="settings-horizontal-tab-width-preview",
+        roots_provider=roots_provider,
+    )
+
+    ordered_ids = [panel_id for row in window.layout_rows for panel_id in row]
+    first_panel = window.panel_widgets[ordered_ids[0]]
+    second_panel = window.panel_widgets[ordered_ids[1]]
+    window.panels_coordinator.set_active_panel(second_panel.panel_id)
+    window.panels_coordinator.set_active_panel_tab_position_mode("top")
+    window.panels_coordinator.set_active_panel(first_panel.panel_id)
+
+    dialog = SettingsDialog(controller=controller, parent=window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    dialog.set_combo_value(dialog.default_tab_position_combo, "right_horizontal")
+    dialog.set_combo_value(dialog.horizontal_tab_width_mode_combo, "fixed")
+    dialog.horizontal_tab_fixed_width_spin.setValue(210)
+
+    qtbot.waitUntil(
+        lambda: first_panel.tabs.tabPosition() == QTabWidget.TabPosition.East
+    )
+    qtbot.waitUntil(
+        lambda: (
+            bool(first_panel.tabs.tabBar().property("right_horizontal_mode")) is True
+        )
+    )
+    qtbot.waitUntil(
+        lambda: (
+            str(first_panel.tabs.tabBar().property("horizontal_tab_width_mode"))
+            == "fixed"
+        )
+    )
+    qtbot.waitUntil(
+        lambda: (
+            int(first_panel.tabs.tabBar().property("horizontal_tab_fixed_width_px"))
+            == 210
+        )
+    )
+    qtbot.waitUntil(lambda: first_panel.tabs.tabBar().tabSizeHint(0).width() == 210)
+    assert second_panel.tabs.tabPosition() == QTabWidget.TabPosition.North
+
+
+def test_settings_dialog_standard_tab_width_controls_toggle_and_persist(
+    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+) -> None:
+    isolated_settings.standard_tab_width_mode = "adaptive"
+    isolated_settings.standard_tab_fixed_width_px = 180
+    isolated_settings.sync()
+
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerSettingsStub(isolated_settings)
+    window = _new_window(
+        qtbot,
+        controller=controller,
+        settings=isolated_settings,
+        window_id="settings-standard-tab-width",
+        roots_provider=roots_provider,
+    )
+
+    dialog = SettingsDialog(controller=controller, parent=window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    assert str(dialog.standard_tab_width_mode_combo.currentData()) == "adaptive"
+    assert dialog.standard_tab_fixed_width_spin.value() == 180
+    assert dialog.standard_tab_fixed_width_spin.isEnabled() is False
+
+    dialog.set_combo_value(dialog.standard_tab_width_mode_combo, "fixed")
+    assert dialog.standard_tab_fixed_width_spin.isEnabled() is True
+    dialog.standard_tab_fixed_width_spin.setValue(210)
+    dialog._apply_and_commit()
+
+    persisted = isolated_settings.ui_preferences()
+    assert persisted.standard_tab_width_mode == "fixed"
+    assert persisted.standard_tab_fixed_width_px == 210
+
+
+def test_settings_dialog_standard_tab_width_preview_updates_standard_panels(
+    qtbot, tmp_path: Path, isolated_settings: SettingsManager
+) -> None:
+    isolated_settings.default_tab_position = "top"
+    isolated_settings.horizontal_tab_width_mode = "adaptive"
+    isolated_settings.horizontal_tab_fixed_width_px = 160
+    isolated_settings.standard_tab_width_mode = "adaptive"
+    isolated_settings.standard_tab_fixed_width_px = 160
+    isolated_settings.sync()
+
+    roots_provider = _test_roots_provider(tmp_path)
+    controller = _ControllerSettingsStub(isolated_settings)
+    window = _new_window(
+        qtbot,
+        controller=controller,
+        settings=isolated_settings,
+        window_id="settings-standard-tab-width-preview",
+        roots_provider=roots_provider,
+    )
+
+    ordered_ids = [panel_id for row in window.layout_rows for panel_id in row]
+    first_panel = window.panel_widgets[ordered_ids[0]]
+    second_panel = window.panel_widgets[ordered_ids[1]]
+    window.panels_coordinator.set_active_panel(second_panel.panel_id)
+    window.panels_coordinator.set_active_panel_tab_position_mode("right_horizontal")
+    window.panels_coordinator.set_active_panel(first_panel.panel_id)
+
+    dialog = SettingsDialog(controller=controller, parent=window)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    dialog.set_combo_value(dialog.standard_tab_width_mode_combo, "fixed")
+    dialog.standard_tab_fixed_width_spin.setValue(210)
+
+    qtbot.waitUntil(
+        lambda: first_panel.tabs.tabPosition() == QTabWidget.TabPosition.North
+    )
+    qtbot.waitUntil(
+        lambda: (
+            str(first_panel.tabs.tabBar().property("standard_tab_width_mode"))
+            == "fixed"
+        )
+    )
+    qtbot.waitUntil(
+        lambda: (
+            int(first_panel.tabs.tabBar().property("standard_tab_fixed_width_px"))
+            == 210
+        )
+    )
+    qtbot.waitUntil(lambda: first_panel.tabs.tabBar().tabSizeHint(0).width() == 210)
+    assert second_panel.tabs.tabPosition() == QTabWidget.TabPosition.East
+    assert bool(second_panel.tabs.tabBar().property("right_horizontal_mode")) is True
 
 
 def test_settings_dialog_removes_central_extended_paths_row(

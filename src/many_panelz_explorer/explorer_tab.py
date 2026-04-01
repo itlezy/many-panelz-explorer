@@ -158,10 +158,10 @@ class ExplorerTab(QWidget):
 
         self._actions.edit_selected_or_current()
 
-    def create_new_text_file_and_edit(self) -> None:
-        """Create a new text file in the active folder and open it in the editor."""
+    def create_new_file_and_edit(self) -> None:
+        """Create a new file in the active folder and open it in the editor."""
 
-        self._actions.create_new_text_file_and_edit()
+        self._actions.create_new_file_and_edit()
 
     def create_directory(self) -> None:
         """Create a new folder in the active path."""
@@ -172,6 +172,11 @@ class ExplorerTab(QWidget):
         """Launch ZIP creation for the current selection."""
 
         self._actions.create_zip_from_selection()
+
+    def open_terminal_here(self) -> None:
+        """Open the configured terminal at the active tab path."""
+
+        self._actions.open_terminal_here()
 
     def copy_selected_item_or_panel_path(self) -> None:
         """Copy a selected item path, or fall back to the active panel path."""
@@ -200,10 +205,37 @@ class ExplorerTab(QWidget):
         modifiers = key_event.modifiers()
         key = key_event.key()
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
+            Qt.Key.Key_Insert
+        ):
+            self._actions.toggle_current_item_selection_and_advance()
+            return True
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
+            Qt.Key.Key_Space
+        ):
+            self._actions.toggle_current_item_selection()
+            return True
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F3):
+            return self._trigger_window_shortcut("list_files_shortcut")
+        if modifiers == Qt.KeyboardModifier.AltModifier and key == int(Qt.Key.Key_F3):
+            return self._trigger_window_shortcut("alt_list_files_shortcut")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F4):
+            return self._trigger_window_shortcut("edit_files_shortcut")
+        if modifiers == Qt.KeyboardModifier.ShiftModifier and key == int(Qt.Key.Key_F4):
+            return self._trigger_window_shortcut("new_file_shortcut")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F5):
+            return self._trigger_window_action("copy_to_target_action")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F6):
+            return self._trigger_window_action("move_to_target_action")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F7):
+            return self._trigger_window_shortcut("create_directory_shortcut")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F8):
+            return self._trigger_window_action("delete_selection_action")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F9):
+            return self._trigger_window_shortcut("terminal_here_shortcut")
+        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
             Qt.Key.Key_Delete
         ):
-            self._trigger_window_action("delete_selection_action")
-            return True
+            return self._trigger_window_action("delete_selection_action")
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
             Qt.Key.Key_A
         ):
@@ -249,14 +281,27 @@ class ExplorerTab(QWidget):
             Qt.Key.Key_Right
         )
 
-    def _trigger_window_action(self, action_name: str) -> None:
+    def _trigger_window_action(self, action_name: str) -> bool:
         window = self.window()
         if not isinstance(window, QMainWindow):
-            return
+            return False
         action = getattr(window, action_name, None)
         if action is None:
-            return
+            return False
         action.trigger()
+        return True
+
+    def _trigger_window_shortcut(self, shortcut_name: str) -> bool:
+        """Trigger one window-owned shortcut by attribute name."""
+
+        window = self.window()
+        if not isinstance(window, QMainWindow):
+            return False
+        shortcut = getattr(window, shortcut_name, None)
+        if not isinstance(shortcut, QShortcut):
+            return False
+        shortcut.activated.emit()
+        return True
 
     def _default_file_list_size_formatter(self, value: int) -> str:
         return f"{int(value):,}"

@@ -94,6 +94,30 @@ class WindowPreferencesCoordinator:
         return self._default_tab_position
 
     @property
+    def horizontal_tab_width_mode(self) -> str:
+        """Return the width policy for horizontal side tabs."""
+
+        return self._horizontal_tab_width_mode
+
+    @property
+    def horizontal_tab_fixed_width_px(self) -> int:
+        """Return the fixed width used by horizontal side tabs."""
+
+        return self._horizontal_tab_fixed_width_px
+
+    @property
+    def standard_tab_width_mode(self) -> str:
+        """Return the width policy for standard tab positions."""
+
+        return self._standard_tab_width_mode
+
+    @property
+    def standard_tab_fixed_width_px(self) -> int:
+        """Return the fixed width used by standard tab positions."""
+
+        return self._standard_tab_fixed_width_px
+
+    @property
     def column_width_auto_align_mode(self) -> str:
         """Return the selected auto-alignment mode for file list widths."""
         return self._column_width_auto_align_mode
@@ -159,6 +183,16 @@ class WindowPreferencesCoordinator:
             self._show_navigation_buttons,
         )
 
+    def panel_tab_width_preferences(self) -> tuple[str, int, str, int]:
+        """Return the width preferences used by panel tab bars."""
+
+        return (
+            self._horizontal_tab_width_mode,
+            self._horizontal_tab_fixed_width_px,
+            self._standard_tab_width_mode,
+            self._standard_tab_fixed_width_px,
+        )
+
     def apply_ui_preferences(self, preferences: UiPreferences) -> None:
         """Apply updated UI preferences to the live window and its panels."""
         self._load_preferences(preferences)
@@ -182,6 +216,10 @@ class WindowPreferencesCoordinator:
             panel.presentation_coordinator.apply_tab_position(
                 tab_position_mode=panel.tab_position_mode,
                 default_tab_position=self._default_tab_position,
+                horizontal_tab_width_mode=self._horizontal_tab_width_mode,
+                horizontal_tab_fixed_width_px=self._horizontal_tab_fixed_width_px,
+                standard_tab_width_mode=self._standard_tab_width_mode,
+                standard_tab_fixed_width_px=self._standard_tab_fixed_width_px,
             )
             panel.state_coordinator.set_column_width_auto_align_mode(
                 self._column_width_auto_align_mode
@@ -299,6 +337,12 @@ class WindowPreferencesCoordinator:
         self._default_tab_position = normalize_default_tab_position(
             preferences.default_tab_position
         )
+        self._horizontal_tab_width_mode = preferences.horizontal_tab_width_mode
+        self._horizontal_tab_fixed_width_px = int(
+            preferences.horizontal_tab_fixed_width_px
+        )
+        self._standard_tab_width_mode = preferences.standard_tab_width_mode
+        self._standard_tab_fixed_width_px = int(preferences.standard_tab_fixed_width_px)
         self._byte_format_preferences = self._build_byte_format_preferences(preferences)
         self._status_bar_storage_label_template = (
             preferences.status_bar_storage_label_template

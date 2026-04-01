@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QObject, QPoint
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QPoint
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QFileDialog,
     QInputDialog,
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 
     from ._operations.types import TerminalLauncherId
     from .explorer_tab import ExplorerTab
+    from .ui.window import WindowBookmarksCoordinator
 
 
 class ExplorerTabActions(QObject):
@@ -44,6 +46,7 @@ class ExplorerTabActions(QObject):
             action = QAction(text, self._tab)
             action.triggered.connect(handler)
             menu.addAction(action)
+        self._add_bookmark_menu_items(menu)
         self._add_terminal_menu_items(menu)
         menu.exec(self._tab.view.viewport().mapToGlobal(pos))
 
@@ -124,12 +127,12 @@ class ExplorerTabActions(QObject):
 
         self._run_action(_open_files)
 
-    def create_new_text_file_and_edit(self) -> None:
-        """Prompt for a new text file name, create it, and open it in the editor."""
+    def create_new_file_and_edit(self) -> None:
+        """Prompt for a new file name, create it, and open it in the editor."""
 
         name, ok = QInputDialog.getText(
             self._tab,
-            "New text file",
+            "New file",
             "File name:",
             text="New File.txt",
         )
@@ -176,6 +179,41 @@ class ExplorerTabActions(QObject):
         if last_index.isValid() and not self._tab.model.is_parent_index(last_index):
             selection_model.setCurrentIndex(last_index, flags)
 
+    def toggle_current_item_selection(self) -> None:
+        """Toggle selection on the current real row without changing focus."""
+
+        current_index = self._current_real_index()
+        if not current_index.isValid():
+            return
+        self._toggle_row_selection(current_index)
+        self._tab.view.scrollTo(
+            current_index,
+            QAbstractItemView.ScrollHint.PositionAtCenter,
+        )
+
+    def toggle_current_item_selection_and_advance(self) -> None:
+        """Toggle selection on the current real row and advance to the next row."""
+
+        current_index = self._current_real_index()
+        if not current_index.isValid():
+            return
+        next_index = self._next_selectable_row_index(current_index)
+        self._toggle_row_selection(current_index)
+        if not next_index.isValid():
+            self._tab.view.scrollTo(
+                current_index,
+                QAbstractItemView.ScrollHint.PositionAtCenter,
+            )
+            return
+        self._tab.view.selectionModel().setCurrentIndex(
+            next_index,
+            QItemSelectionModel.SelectionFlag.Current,
+        )
+        self._tab.view.scrollTo(
+            next_index,
+            QAbstractItemView.ScrollHint.PositionAtCenter,
+        )
+
     def create_directory(self) -> None:
         """Prompt for and create a new directory in the current path."""
 
@@ -185,6 +223,11 @@ class ExplorerTabActions(QObject):
         """Launch the ZIP creation flow for the current selection."""
 
         self._zip_create()
+
+    def open_terminal_here(self) -> None:
+        """Open the configured terminal at the current tab path."""
+
+        self._open_terminal()
 
     def _menu_specs(self) -> list[tuple[str | None, Callable[[], None]]]:
         return [
@@ -223,6 +266,23 @@ class ExplorerTabActions(QObject):
             action.setEnabled(False)
             action.setToolTip(hint)
             action.setStatusTip(hint)
+
+    def _add_bookmark_menu_items(self, menu: QMenu) -> None:
+        """Append quick bookmark actions for the current folder."""
+
+        coordinator = self._window_bookmarks_coordinator()
+        if coordinator is None:
+            return
+
+        menu.addSeparator()
+        add_action = QAction("Add current folder to bookmarks", self._tab)
+        add_action.triggered.connect(coordinator.prompt_add_current_folder)
+        menu.addAction(add_action)
+
+        remove_action = QAction("Remove current folder bookmark", self._tab)
+        remove_action.triggered.connect(coordinator.remove_current_folder)
+        remove_action.setEnabled(coordinator.has_current_folder_bookmark())
+        menu.addAction(remove_action)
 
     def _open_selected(self) -> None:
         for path in self._tab.selected_paths():
@@ -394,6 +454,33 @@ class ExplorerTabActions(QObject):
             return []
         return [Path(file_path)]
 
+    def _current_real_index(self) -> QModelIndex:
+        current_index = self._tab.view.currentIndex()
+        if current_index.isValid():
+            current_index = current_index.siblingAtColumn(0)
+        if not current_index.isValid() or self._tab.model.is_parent_index(
+            current_index
+        ):
+            return QModelIndex()
+        return current_index
+
+    def _toggle_row_selection(self, index: QModelIndex) -> None:
+        self._tab.view.selectionModel().select(
+            index,
+            QItemSelectionModel.SelectionFlag.Toggle
+            | QItemSelectionModel.SelectionFlag.Rows,
+        )
+
+    def _next_selectable_row_index(self, current_index: QModelIndex) -> QModelIndex:
+        root_index = self._tab.view.rootIndex()
+        row_count = self._tab.model.rowCount(root_index)
+        for row in range(current_index.row() + 1, row_count):
+            candidate = self._tab.model.index(row, 0, root_index)
+            if not candidate.isValid() or self._tab.model.is_parent_index(candidate):
+                continue
+            return candidate
+        return QModelIndex()
+
     def _copy_text_to_clipboard(self, value: str) -> None:
         clipboard = QApplication.clipboard()
         clipboard.setText(str(value or ""))
@@ -402,6 +489,17 @@ class ExplorerTabActions(QObject):
         window = self._tab.window()
         if isinstance(window, QMainWindow):
             window.statusBar().showMessage(message, timeout_ms)
+
+    def _window_bookmarks_coordinator(self) -> WindowBookmarksCoordinator | None:
+        """Return the owning window bookmarks coordinator when available."""
+
+        from .ui.window.bookmarks import WindowBookmarksCoordinator
+
+        window = self._tab.window()
+        coordinator = getattr(window, "bookmarks_coordinator", None)
+        if not isinstance(coordinator, WindowBookmarksCoordinator):
+            return None
+        return coordinator
 
     def _run_and_refresh(self, action: Callable[[], object]) -> None:
         self._run_action(action)

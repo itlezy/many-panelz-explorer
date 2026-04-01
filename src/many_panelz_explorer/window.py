@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypeGuard
 
-from PySide6.QtCore import QEvent, QSignalBlocker, Qt, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -25,6 +25,7 @@ from . import widget_naming
 from ._context import ContextMenuController
 from .external_file_managers import ExternalFileManagerLauncher
 from .ui.window import (
+    WindowBookmarksCoordinator,
     WindowLayoutCoordinator,
     WindowOperationsCoordinator,
     WindowPanelsCoordinator,
@@ -81,6 +82,8 @@ def _is_operation_job(value: object) -> TypeGuard[_OperationJob]:
 class ExplorerWindow(QMainWindow):
     """Main explorer window composed from focused UI coordinators."""
 
+    CONTEXT_MENU_REFRESH_DEBOUNCE_MS = 180
+
     window_activated = Signal()
     request_new_window = Signal()
 
@@ -106,6 +109,10 @@ class ExplorerWindow(QMainWindow):
     save_view_action: QAction
     restore_view_action: QAction
     replace_view_action: QAction
+    add_current_folder_bookmark_action: QAction
+    remove_current_folder_bookmark_action: QAction
+    create_bookmark_folder_action: QAction
+    edit_bookmarks_file_action: QAction
     close_tab_action: QAction
     reopen_closed_tab_action: QAction
     new_tab_group_action: QAction
@@ -142,6 +149,7 @@ class ExplorerWindow(QMainWindow):
     active_panel_tab_position_action_group: QActionGroup
     active_panel_tab_position_menu: QMenu
     restore_view_menu: QMenu
+    bookmarks_menu: QMenu
     context_menu: QMenu
     menu_file_action: QAction
     menu_view_action: QAction
@@ -154,10 +162,11 @@ class ExplorerWindow(QMainWindow):
     list_files_shortcut: QShortcut
     alt_list_files_shortcut: QShortcut
     edit_files_shortcut: QShortcut
-    new_text_file_shortcut: QShortcut
+    new_file_shortcut: QShortcut
     create_directory_shortcut: QShortcut
     pack_files_shortcut: QShortcut
     copy_path_shortcut: QShortcut
+    terminal_here_shortcut: QShortcut
     root_picker_shortcut: QShortcut
     minimize_windows_shortcut: QShortcut
     queue_dock: QDockWidget
@@ -170,6 +179,7 @@ class ExplorerWindow(QMainWindow):
     storage_entries_host: QWidget
     storage_entries_layout: QHBoxLayout
     storage_overview_labels: list[StorageOverviewLabel]
+    bookmarks_coordinator: WindowBookmarksCoordinator
 
     def __init__(
         self,
@@ -201,6 +211,7 @@ class ExplorerWindow(QMainWindow):
             preferences=ui_preferences,
         )
         self.views_coordinator = WindowViewsCoordinator(self)
+        self.bookmarks_coordinator = WindowBookmarksCoordinator(self)
         self.ui_composer = WindowUiComposer(self)
         self.context_menu_controller: ContextMenuController | None = None
 
@@ -216,10 +227,17 @@ class ExplorerWindow(QMainWindow):
         self.setCentralWidget(self._central)
         self.default_maximize_on_first_show = True
         self._did_schedule_initial_autofit = False
+        self._context_menu_refresh_dirty = False
+        self._context_menu_refresh_timer = QTimer(self)
+        self._context_menu_refresh_timer.setSingleShot(True)
+        self._context_menu_refresh_timer.timeout.connect(
+            self._flush_context_menu_refresh
+        )
 
         self.ui_composer.build_actions()
         self.ui_composer.build_menus()
         self.context_menu_controller = ContextMenuController(self, self.context_menu)
+        self.context_menu.aboutToShow.connect(self._on_context_menu_about_to_show)
         self.ui_composer.build_shortcuts()
         self.ui_composer.build_operation_queue_widgets()
         self.status_coordinator.set_storage_bytes_formatter(
@@ -251,7 +269,7 @@ class ExplorerWindow(QMainWindow):
             preferred_active_panel=None,
         )
         self.ui_composer.apply_operation_queue_visibility()
-        self._refresh_context_menu()
+        self._refresh_context_menu(immediate=True)
 
     def clone_current_window(self) -> None:
         new_window = self.controller.new_window(from_window=self, show=False)
@@ -274,7 +292,7 @@ class ExplorerWindow(QMainWindow):
     def event(self, event: QEvent) -> bool:
         if event.type() == QEvent.Type.WindowActivate:
             self.window_activated.emit()
-            self._refresh_context_menu()
+            self._refresh_context_menu(immediate=True)
         return super().event(event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -344,12 +362,15 @@ class ExplorerWindow(QMainWindow):
             "Help",
             "Keyboard shortcuts:\n"
             "F2: Refresh all visible panes\n"
-            "F3 / Alt+F3: View selected file(s)\n"
-            "F4 / Shift+F4: Edit selected file(s) / create text file\n"
+            "F3 / Alt+F3: View current item / dedicated viewer\n"
+            "F4 / Shift+F4: Edit current file / create new file\n"
             "F5: Copy to target pane\n"
             "F6: Move to target pane\n"
             "F7: Create directory\n"
             "F8 / Delete: Delete selection\n"
+            "F9: Open terminal here\n"
+            "Insert: Toggle selection and move down\n"
+            "Space: Toggle selection\n"
             "Alt+F1: Open root picker for active tab\n"
             "Alt+F5: Create ZIP from selection\n"
             "Tab / Shift+Tab: Switch active pane\n"
@@ -379,9 +400,29 @@ class ExplorerWindow(QMainWindow):
         self.ui_composer.sync_active_panel_tab_group_actions()
         self._refresh_context_menu()
 
-    def _refresh_context_menu(self) -> None:
+    def _refresh_context_menu(self, *, immediate: bool = False) -> None:
+        """Mark the context menu dirty and rebuild lazily or immediately."""
+
         if self.context_menu_controller is None:
             return
+        self._context_menu_refresh_dirty = True
+        if immediate:
+            self._context_menu_refresh_timer.stop()
+            self._flush_context_menu_refresh()
+            return
+        self._context_menu_refresh_timer.start(self.CONTEXT_MENU_REFRESH_DEBOUNCE_MS)
+
+    def _on_context_menu_about_to_show(self) -> None:
+        """Ensure the Context menu is rebuilt before it is opened."""
+
+        self._refresh_context_menu(immediate=True)
+
+    def _flush_context_menu_refresh(self) -> None:
+        """Rebuild the Context menu when a dirty refresh is pending."""
+
+        if self.context_menu_controller is None or not self._context_menu_refresh_dirty:
+            return
+        self._context_menu_refresh_dirty = False
         self.context_menu_controller.rebuild()
 
     def default_close_warning(self) -> bool:
