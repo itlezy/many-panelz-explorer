@@ -431,6 +431,118 @@ def test_reopen_closed_tab_restores_most_recent_tab(qtbot, tmp_path: Path) -> No
     assert window.recently_closed_tabs == []
 
 
+def test_tc_tab_switch_shortcuts_cycle_active_panel_tabs(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="tc-tab-switching",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    first_tab = panel.current_tab()
+    assert first_tab is not None
+
+    path_a = tmp_path / "tab-a"
+    path_b = tmp_path / "tab-b"
+    path_c = tmp_path / "tab-c"
+    path_a.mkdir()
+    path_b.mkdir()
+    path_c.mkdir()
+
+    first_tab.navigation.set_path(path_a)
+    second_tab = panel.add_tab(path_b)
+    third_tab = panel.add_tab(path_c)
+    panel.tabs.setCurrentWidget(first_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+    first_tab.view.setFocus()
+
+    QTest.keyClick(first_tab.view, Qt.Key.Key_Tab, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(lambda: panel.current_tab() is second_tab)
+
+    QTest.keyClick(
+        second_tab.view,
+        Qt.Key.Key_Tab,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+
+    QTest.keyClick(
+        first_tab.view,
+        Qt.Key.Key_PageDown,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    qtbot.waitUntil(lambda: panel.current_tab() is second_tab)
+
+    QTest.keyClick(
+        second_tab.view,
+        Qt.Key.Key_PageUp,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+
+    panel.tabs.setCurrentWidget(third_tab)
+    qtbot.waitUntil(lambda: panel.current_tab() is third_tab)
+    QTest.keyClick(
+        third_tab.view,
+        Qt.Key.Key_Tab,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+    qtbot.waitUntil(lambda: panel.current_tab() is first_tab)
+
+
+def test_tc_exchange_and_sync_target_panel_shortcuts(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="tc-panel-path-shortcuts",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+    window.new_vertical_panel_action.trigger()
+
+    source_panel, target_panel = _ordered_panels(window)[:2]
+    window.panels_coordinator.set_active_panel(source_panel.panel_id)
+    source_tab = source_panel.current_tab()
+    target_tab = target_panel.current_tab()
+    assert source_tab is not None
+    assert target_tab is not None
+
+    source_root = tmp_path / "source-dir"
+    target_root = tmp_path / "target-dir"
+    source_root.mkdir()
+    target_root.mkdir()
+
+    source_tab.navigation.set_path(source_root)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_panel.current_path() == source_root)
+    qtbot.waitUntil(lambda: target_panel.current_path() == target_root)
+    source_tab.view.setFocus()
+
+    QTest.keyClick(source_tab.view, Qt.Key.Key_U, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(lambda: source_panel.current_path() == target_root)
+    qtbot.waitUntil(lambda: target_panel.current_path() == source_root)
+
+    source_tab.navigation.set_path(source_root)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_panel.current_path() == source_root)
+    qtbot.waitUntil(lambda: target_panel.current_path() == target_root)
+
+    QTest.keyClick(source_tab.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(lambda: target_panel.current_path() == source_root)
+    assert source_panel.current_path() == source_root
+
+
 def test_show_widget_map_toggle_updates_existing_and_new_panels(
     qtbot, tmp_path: Path
 ) -> None:
@@ -1399,6 +1511,7 @@ def test_tc_everything_archive_properties_and_target_mkdir_shortcuts(
 
     everything_calls: list[tuple[str, Path]] = []
     unpack_calls: list[Path] = []
+    archive_test_calls: list[list[Path]] = []
 
     def _record_everything(*, executable: str, path: Path) -> None:
         everything_calls.append((str(executable), Path(path)))
@@ -1411,6 +1524,13 @@ def test_tc_everything_archive_properties_and_target_mkdir_shortcuts(
         window.operations_coordinator,
         "unpack_archive",
         lambda *, archive: unpack_calls.append(Path(archive)),
+    )
+    monkeypatch.setattr(
+        window.operations_coordinator,
+        "test_archives",
+        lambda *, archives: archive_test_calls.append(
+            [Path(path) for path in archives]
+        ),
     )
     captured_properties: dict[str, Path] = {}
 
@@ -1442,6 +1562,14 @@ def test_tc_everything_archive_properties_and_target_mkdir_shortcuts(
     _select_paths(source_tab, [archive_rar])
     QTest.keyClick(source_tab.view, Qt.Key_F9, Qt.KeyboardModifier.AltModifier)
     assert unpack_calls == [archive_7z, archive_rar]
+
+    _select_paths(source_tab, [archive_7z, archive_rar])
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key_F9,
+        Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert archive_test_calls == [[archive_7z, archive_rar]]
 
     _select_paths(source_tab, [properties_file])
     QTest.keyClick(source_tab.view, Qt.Key_Return, Qt.KeyboardModifier.AltModifier)
@@ -1505,6 +1633,69 @@ def test_bookmarks_menu_populates_and_opens_in_active_tab(
 
     active_panel = window.panels_coordinator.active_panel()
     assert active_panel is not None
+    assert active_panel.current_path() == bookmark_path
+
+
+def test_bookmarks_hotlist_shortcut_opens_popup_and_uses_bookmark_actions(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerCloneStub(settings, roots_provider),
+        settings=settings,
+        window_id="bookmarks-hotlist",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    bookmark_path = tmp_path / "bookmark-hotlist-target"
+    bookmark_path.mkdir()
+    _configure_bookmarks(
+        window,
+        bookmarks_file=tmp_path / "many_panelz_explorer.bookmarks.toml",
+        collection=BookmarkCollection(
+            folders=(BookmarkFolder(path="Work"),),
+            bookmarks=(
+                Bookmark(
+                    label="Bookmark Target",
+                    path=bookmark_path,
+                    folder="Work",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        QApplication,
+        "keyboardModifiers",
+        staticmethod(lambda: Qt.KeyboardModifier.NoModifier),
+    )
+
+    active_panel = window.panels_coordinator.active_panel()
+    assert active_panel is not None
+    active_tab = active_panel.current_tab()
+    assert active_tab is not None
+    active_tab.view.setFocus()
+
+    QTest.keyClick(active_tab.view, Qt.Key.Key_D, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(lambda: window.bookmarks_coordinator._hotlist_menu is not None)
+
+    hotlist_menu = window.bookmarks_coordinator._hotlist_menu
+    assert hotlist_menu is not None
+    work_menu_action = next(
+        action
+        for action in hotlist_menu.actions()
+        if action.menu() is not None and action.text() == "Work"
+    )
+    work_menu = work_menu_action.menu()
+    assert work_menu is not None
+    bookmark_action = next(
+        action for action in work_menu.actions() if action.text() == "Bookmark Target"
+    )
+    bookmark_action.trigger()
+
     assert active_panel.current_path() == bookmark_path
 
 

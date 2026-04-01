@@ -515,6 +515,46 @@ class WindowUiComposer:
             self.window.panels_coordinator.focus_previous_panel
         )
 
+        self.window.next_tab_shortcut = QShortcut(
+            QKeySequence("Ctrl+Tab"), self.window
+        )
+        self.window.next_tab_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self.window.next_tab_shortcut.activated.connect(
+            self.window.panels_coordinator.focus_next_tab
+        )
+
+        self.window.previous_tab_shortcut = QShortcut(
+            QKeySequence("Ctrl+Shift+Tab"), self.window
+        )
+        self.window.previous_tab_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self.window.previous_tab_shortcut.activated.connect(
+            self.window.panels_coordinator.focus_previous_tab
+        )
+
+        self.window.next_tab_alias_shortcut = QShortcut(
+            QKeySequence("Ctrl+PgDown"), self.window
+        )
+        self.window.next_tab_alias_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self.window.next_tab_alias_shortcut.activated.connect(
+            self.window.panels_coordinator.focus_next_tab
+        )
+
+        self.window.previous_tab_alias_shortcut = QShortcut(
+            QKeySequence("Ctrl+PgUp"), self.window
+        )
+        self.window.previous_tab_alias_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self.window.previous_tab_alias_shortcut.activated.connect(
+            self.window.panels_coordinator.focus_previous_tab
+        )
+
         self.window.menu_focus_shortcut = QShortcut(QKeySequence("F10"), self.window)
         self.window.menu_focus_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self.window.menu_focus_shortcut.activated.connect(self.window.focus_menu_bar)
@@ -577,6 +617,16 @@ class WindowUiComposer:
             self._copy_active_selection_or_panel_path
         )
 
+        self.window.bookmarks_hotlist_shortcut = QShortcut(
+            QKeySequence("Ctrl+D"), self.window
+        )
+        self.window.bookmarks_hotlist_shortcut.setContext(
+            Qt.ShortcutContext.WindowShortcut
+        )
+        self.window.bookmarks_hotlist_shortcut.activated.connect(
+            self.window.bookmarks_coordinator.show_bookmarks_hotlist
+        )
+
         self.window.terminal_here_shortcut = QShortcut(QKeySequence("F9"), self.window)
         self.window.terminal_here_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self.window.terminal_here_shortcut.activated.connect(
@@ -589,6 +639,26 @@ class WindowUiComposer:
         self.window.root_picker_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         self.window.root_picker_shortcut.activated.connect(
             self._show_active_panel_root_picker
+        )
+
+        self.window.exchange_panel_paths_shortcut = QShortcut(
+            QKeySequence("Ctrl+U"), self.window
+        )
+        self.window.exchange_panel_paths_shortcut.setContext(
+            Qt.ShortcutContext.WindowShortcut
+        )
+        self.window.exchange_panel_paths_shortcut.activated.connect(
+            self.window.panels_coordinator.exchange_active_and_target_paths
+        )
+
+        self.window.sync_target_panel_path_shortcut = QShortcut(
+            QKeySequence("Ctrl+I"), self.window
+        )
+        self.window.sync_target_panel_path_shortcut.setContext(
+            Qt.ShortcutContext.WindowShortcut
+        )
+        self.window.sync_target_panel_path_shortcut.activated.connect(
+            self.window.panels_coordinator.sync_target_panel_to_active_path
         )
 
         self.window.minimize_windows_shortcut = QShortcut(

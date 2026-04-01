@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-OperationKind = Literal["copy", "move", "delete", "pack", "unpack"]
+OperationKind = Literal["copy", "move", "delete", "pack", "unpack", "archive_test"]
 OperationStatus = Literal[
     "queued",
     "running",
@@ -97,6 +97,7 @@ DEFAULT_SEVEN_ZIP_PACK_ARGS = (
 DEFAULT_SEVEN_ZIP_UNPACK_ARGS = (
     "{extract_mode} -y {archive} -o{target} {overwrite_mode}"
 )
+DEFAULT_SEVEN_ZIP_TEST_ARGS = "t -y {sources}"
 DEFAULT_WINRAR_PACK_ARGS = (
     "a {recurse_mode} {compression_level} {solid_mode} {recovery_mode} "
     "{lock_mode} {archive} {sources}"
@@ -104,6 +105,7 @@ DEFAULT_WINRAR_PACK_ARGS = (
 DEFAULT_WINRAR_UNPACK_ARGS = (
     "{extract_mode} -y {archive} {target} {overwrite_mode} {keep_broken_mode}"
 )
+DEFAULT_WINRAR_TEST_ARGS = "t -y {sources}"
 DEFAULT_ROBOCOPY_COPY_ARGS = "/E /R:0 /W:0"
 DEFAULT_ROBOCOPY_MOVE_ARGS = "/E /MOVE /R:0 /W:0"
 DEFAULT_CMD_DELETE_ARGS = "/Q"
@@ -270,6 +272,8 @@ class OperationJob:
                 else "(none)"
             )
             return f"Unpack {source_count} archive(s) to {target}"
+        if self.request.kind == "archive_test":
+            return f"Test {source_count} archive(s)"
         target = (
             str(self.request.target_dir)
             if self.request.target_dir is not None

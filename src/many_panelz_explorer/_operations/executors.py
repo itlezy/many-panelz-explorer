@@ -40,7 +40,9 @@ from .types import (
     BACKEND_TERACOPY,
     BACKEND_UNSTOPPABLE,
     COMPANION_TOOL_NOT_FOUND,
+    DEFAULT_SEVEN_ZIP_TEST_ARGS,
     DEFAULT_UNSTOPPABLE_ARGS,
+    DEFAULT_WINRAR_TEST_ARGS,
     OperationArtifacts,
     OperationExecutionPreferences,
     OperationRequest,
@@ -571,31 +573,39 @@ def execute_operation_request(
             use_extended_paths_default=preferences.use_extended_paths_external_delete,
         )
     if backend == BACKEND_ARCHIVE_7ZIP:
+        if request.kind == "archive_test":
+            args_template = DEFAULT_SEVEN_ZIP_TEST_ARGS
+        else:
+            args_template = (
+                preferences.seven_zip_pack_args_template
+                if request.kind == "pack"
+                else preferences.seven_zip_unpack_args_template
+            )
         return execute_external_command(
             request,
             artifacts,
             wait=wait,
             preferences=preferences,
             executable=preferences.seven_zip_executable,
-            args_template=(
-                preferences.seven_zip_pack_args_template
-                if request.kind == "pack"
-                else preferences.seven_zip_unpack_args_template
-            ),
+            args_template=args_template,
             use_extended_paths_default=False,
         )
     if backend == BACKEND_ARCHIVE_WINRAR:
+        if request.kind == "archive_test":
+            args_template = DEFAULT_WINRAR_TEST_ARGS
+        else:
+            args_template = (
+                preferences.winrar_pack_args_template
+                if request.kind == "pack"
+                else preferences.winrar_unpack_args_template
+            )
         return execute_external_command(
             request,
             artifacts,
             wait=wait,
             preferences=preferences,
             executable=preferences.winrar_executable,
-            args_template=(
-                preferences.winrar_pack_args_template
-                if request.kind == "pack"
-                else preferences.winrar_unpack_args_template
-            ),
+            args_template=args_template,
             use_extended_paths_default=False,
         )
     return OperationResult(status="failed", message=f"Unknown backend: {backend}")

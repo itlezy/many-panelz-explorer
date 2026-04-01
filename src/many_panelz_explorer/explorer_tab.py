@@ -183,6 +183,11 @@ class ExplorerTab(QWidget):
 
         self._actions.extract_supported_archive()
 
+    def test_supported_archives(self) -> None:
+        """Queue or run archive tests for the current archive selection."""
+
+        self._actions.test_supported_archives()
+
     def open_terminal_here(self) -> None:
         """Open the configured terminal at the active tab path."""
 
@@ -249,6 +254,37 @@ class ExplorerTab(QWidget):
     def _handle_file_list_shortcut_key(self, key_event: QKeyEvent) -> bool:
         modifiers = key_event.modifiers()
         key = key_event.key()
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_Tab
+        ):
+            return self._trigger_window_shortcut("next_tab_shortcut")
+        if modifiers == (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        ) and key in {
+            int(Qt.Key.Key_Tab),
+            int(Qt.Key.Key_Backtab),
+        }:
+            return self._trigger_window_shortcut("previous_tab_shortcut")
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_PageDown
+        ):
+            return self._trigger_window_shortcut("next_tab_alias_shortcut")
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_PageUp
+        ):
+            return self._trigger_window_shortcut("previous_tab_alias_shortcut")
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_D
+        ):
+            return self._trigger_window_shortcut("bookmarks_hotlist_shortcut")
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_I
+        ):
+            return self._trigger_window_shortcut("sync_target_panel_path_shortcut")
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_U
+        ):
+            return self._trigger_window_shortcut("exchange_panel_paths_shortcut")
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
             Qt.Key.Key_Insert
         ):
@@ -282,6 +318,11 @@ class ExplorerTab(QWidget):
             return True
         if modifiers == Qt.KeyboardModifier.AltModifier and key == int(Qt.Key.Key_F9):
             self.extract_supported_archive()
+            return True
+        if modifiers == (
+            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ) and key == int(Qt.Key.Key_F9):
+            self.test_supported_archives()
             return True
         if modifiers == Qt.KeyboardModifier.AltModifier and key in {
             int(Qt.Key.Key_Return),

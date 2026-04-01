@@ -45,7 +45,7 @@ It serves two purposes:
 | `Alt+Shift+F7` | Find in separate process | None | No equivalent | `Not implemented` | No equivalent. |
 | `Alt+F8` | Command-line history | None | No equivalent | `Not implemented` | No command line in the app. |
 | `Alt+F9` | Same as `Alt+F6` | `Alt+F9` | Open archive unpack dialog | `Keep` | Opens the queued unpack dialog for `.rar` and `.7z` archives. |
-| `Alt+Shift+F9` | Test archives | None | No equivalent | `Not implemented` | No archive test flow. |
+| `Alt+Shift+F9` | Test archives | `Alt+Shift+F9` | Queue or run archive tests for selected `.rar` and `.7z` files | `Keep` | Uses the configured default archive unpacker backend. |
 | `Alt+F10` | Current directory tree dialog | None | No equivalent | `Not implemented` | Root picker exists, but not a current-dir tree dialog on this key. |
 | `Alt+F11` | Open left breadcrumb bar | None | No equivalent | `Not implemented` | No shortcut for left-side breadcrumb focus. |
 | `Alt+F12` | Open right breadcrumb bar | None | No equivalent | `Not implemented` | No shortcut for right-side breadcrumb focus. |
@@ -128,19 +128,19 @@ It serves two purposes:
 | `Ctrl+Shift+A` | Show list of open tabs | None | No equivalent | `Not implemented` | No tab list menu shortcut. |
 | `Ctrl+B` | Directory branch | None | No equivalent | `Not implemented` | No branch view shortcut. |
 | `Ctrl+Shift+B` | Branch for selected directories | None | No equivalent | `Not implemented` | No branch view shortcut. |
-| `Ctrl+I` | Switch to target directory | None | No equivalent | `Not implemented` | No source-to-target path sync shortcut. |
+| `Ctrl+I` | Switch to target directory | `Ctrl+I` | Sync target pane path to the active pane path | `Keep` | Mirrors the active path into the resolved target pane. |
 | `Ctrl+Q` | Show quick view panel | `Ctrl+Q` | Exit application | `Not implemented` | `Ctrl+Q` is already used differently in the app. |
 | `Ctrl+Shift+Q` | Separate quick view window | None | No equivalent | `Not implemented` | No quick-view window shortcut. |
 | `Ctrl+T` | Open new folder tab and activate it | `Ctrl+T` | New tab in active panel | `Keep` | Direct match. |
 | `Ctrl+Shift+T` | Open new folder tab without activation | `Ctrl+Shift+T` | Reopen last closed tab | `Not implemented` | Key is already used differently in the app. |
-| `Ctrl+U` | Exchange directories | None | No equivalent | `Not implemented` | No pane-directory swap shortcut. |
+| `Ctrl+U` | Exchange directories | `Ctrl+U` | Exchange current paths between active and target panes | `Keep` | Swaps the visible directories without changing the active pane. |
 | `Ctrl+Shift+U` | Exchange directories and tabs | None | No equivalent | `Not implemented` | No pane-and-tab swap shortcut. |
 | `Ctrl+W` | Close active tab | `Ctrl+W` | Close current tab | `Keep` | Direct match. |
 | `Ctrl+Shift+W` | Close all open tabs | `Ctrl+Shift+W` | Close active panel | `Not implemented` | Key is already used differently in the app. |
 | `Ctrl+Up` | Open dir under cursor in new tab | None | No equivalent | `Not implemented` | No open-in-new-tab shortcut. |
 | `Ctrl+Shift+Up` | Open dir under cursor in other window | None | No equivalent | `Not implemented` | No open-in-other-pane shortcut. |
-| `Ctrl+Tab` | Jump to next tab | None | No current binding | `Add` | Approved future parity target. |
-| `Ctrl+Shift+Tab` | Jump to previous tab | None | No current binding | `Add` | Approved future parity target. |
+| `Ctrl+Tab` | Jump to next tab | `Ctrl+Tab` | Jump to next tab in the active pane | `Keep` | Direct active-pane tab cycling. |
+| `Ctrl+Shift+Tab` | Jump to previous tab | `Ctrl+Shift+Tab` | Jump to previous tab in the active pane | `Keep` | Direct active-pane tab cycling. |
 
 ### Clipboard, Bookmarks, Filter, Search, And Misc
 
@@ -149,7 +149,7 @@ It serves two purposes:
 | `Letter` | Redirect to command line | None | No equivalent | `Not implemented` | No command-line focus model. |
 | `Ctrl+A` | Select all | `Ctrl+A` | Select all items in file list | `Keep` | Direct match. |
 | `Ctrl+C` | Copy files to clipboard | None | No equivalent | `Not implemented` | No file copy-to-clipboard shortcut. |
-| `Ctrl+D` | Open directory hotlist | None | Bookmarks menu exists | `Not implemented` | Bookmark feature exists, binding does not. |
+| `Ctrl+D` | Open directory hotlist | `Ctrl+D` | Open bookmarks hotlist popup | `Keep` | Uses the existing bookmarks menu tree as the hotlist surface. |
 | `Ctrl+F` | Connect to FTP server | `Ctrl+F` | Open inline filter | `Not implemented` | Key is already used differently in the app. |
 | `Ctrl+Shift+F` | Disconnect FTP | None | No equivalent | `Not implemented` | No FTP layer. |
 | `Ctrl+L` | Calculate occupied space | None | No equivalent | `Not implemented` | No shortcut for size calculation. |

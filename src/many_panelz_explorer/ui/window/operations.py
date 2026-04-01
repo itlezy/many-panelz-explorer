@@ -98,6 +98,37 @@ class WindowOperationsCoordinator:
         if panel is not None and job.status in {"succeeded", "failed", "cancelled"}:
             panel.navigation_coordinator.refresh_current_path()
 
+    def test_archives(self, *, archives: list[Path]) -> None:
+        """Queue or run an archive-integrity test for supported selections."""
+
+        supported = [
+            Path(path)
+            for path in archives
+            if Path(path).is_file() and Path(path).suffix.casefold() in {".7z", ".rar"}
+        ]
+        if not supported:
+            self.window.statusBar().showMessage(
+                "Alt+Shift+F9 supports only .7z and .rar archives.",
+                3000,
+            )
+            return
+
+        preferences = self.window.settings.ui_preferences()
+        request = OperationRequest(
+            kind="archive_test",
+            sources=tuple(supported),
+            target_dir=None,
+            backend_id=preferences.default_archive_unpacker_backend,
+            dispatch_mode=preferences.default_operation_dispatch_mode,
+            conflict_policy=preferences.default_operation_conflict_policy,
+            created_by=f"window:{self.window.window_id}",
+        )
+        job = self.window.controller.operation_queue_manager.submit(request)
+        self.window.statusBar().showMessage(
+            f"Archive test job {job.job_id[:8]}: {job.status}.",
+            3500,
+        )
+
     def transfer_selected_to_target(
         self, *, move: bool, configure: bool = False
     ) -> None:

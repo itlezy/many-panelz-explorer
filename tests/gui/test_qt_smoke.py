@@ -264,9 +264,15 @@ def test_help_text_mentions_total_commander_shortcuts(
     assert "F9: Open terminal here" in captured["text"]
     assert "Alt+F7: Search active path in Everything" in captured["text"]
     assert "Alt+F9: Open archive unpack dialog" in captured["text"]
+    assert "Alt+Shift+F9: Test selected archives" in captured["text"]
     assert "Insert: Toggle selection and move down" in captured["text"]
     assert "Space: Toggle selection" in captured["text"]
     assert "Alt+F1: Open root picker for active tab" in captured["text"]
+    assert (
+        "Ctrl+Tab / Ctrl+Shift+Tab: Next / previous tab in active pane"
+        in captured["text"]
+    )
+    assert "Ctrl+PageDown / Ctrl+PageUp: Tab switching aliases" in captured["text"]
     assert r"Ctrl+< / Ctrl+\: Jump to root" in captured["text"]
     assert "Ctrl+Left / Ctrl+Right: Open in target pane" in captured["text"]
     assert "Alt+Enter: Show properties" in captured["text"]
@@ -276,6 +282,8 @@ def test_help_text_mentions_total_commander_shortcuts(
         "Shift+F5 / Shift+F6 / Shift+F7: Copy here / rename / mkdir in target"
         in captured["text"]
     )
+    assert "Ctrl+D: Open bookmarks hotlist" in captured["text"]
+    assert "Ctrl+U / Ctrl+I: Exchange pane paths / sync target path" in captured["text"]
     assert "Ctrl+P: Copy selected item path or active pane path" in captured["text"]
     assert "Ctrl+Shift+T: Reopen last closed tab" in captured["text"]
     assert "Shift+Esc: Minimize app windows" in captured["text"]

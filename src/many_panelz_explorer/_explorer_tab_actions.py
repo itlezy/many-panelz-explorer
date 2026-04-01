@@ -264,6 +264,25 @@ class ExplorerTabActions(QObject):
             return
         operations.unpack_archive(archive=archive)
 
+    def test_supported_archives(self) -> None:
+        """Queue or run archive tests for the selected `.7z` and `.rar` files."""
+
+        selected_archives = [
+            path
+            for path in self._selected_or_current_paths()
+            if path.is_file() and path.suffix.casefold() in {".7z", ".rar"}
+        ]
+        if not selected_archives:
+            self._show_status_message(
+                "Alt+Shift+F9 supports only .7z and .rar archives.",
+                2400,
+            )
+            return
+        operations = self._window_operations_coordinator()
+        if operations is None:
+            return
+        operations.test_archives(archives=selected_archives)
+
     def show_properties_selected_or_current(self) -> None:
         """Open properties for the selected item or current row."""
 

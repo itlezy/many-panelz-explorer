@@ -401,3 +401,73 @@ def test_execute_unstoppable_deduplicates_plus_and_minus_groups(
     assert "+dz -r" in command_line
     assert "+d +dz" not in command_line
     assert "-r -r" not in command_line
+
+
+def test_execute_archive_test_uses_backend_test_template(
+    monkeypatch, tmp_path: Path
+) -> None:
+    archive = tmp_path / "sample.7z"
+    archive.write_text("archive", encoding="utf-8")
+    seven_zip_exe = tmp_path / "7z.exe"
+    seven_zip_exe.write_text("", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def _fake_write_script(
+        artifacts: OperationArtifacts,
+        script_lines: list[str],
+    ) -> Path:
+        captured["lines"] = list(script_lines)
+        return artifacts.job_dir / "run.cmd"
+
+    def _fake_run_script(
+        script_path: Path,
+        log_path: Path,
+        *,
+        cmd_path: str,
+        wait: bool,
+    ) -> OperationResult:
+        _ = script_path, log_path, cmd_path, wait
+        return OperationResult(status="succeeded", message="ok", processed_count=1)
+
+    monkeypatch.setattr(
+        "many_panelz_explorer._operations.executors.write_script",
+        _fake_write_script,
+    )
+    monkeypatch.setattr(
+        "many_panelz_explorer._operations.executors.run_script",
+        _fake_run_script,
+    )
+
+    request = OperationRequest(
+        kind="archive_test",
+        sources=(archive,),
+        target_dir=None,
+        backend_id="archive_7zip",
+        dispatch_mode="run_now_wait",
+        conflict_policy="rename",
+    )
+    preferences = OperationExecutionPreferences(
+        seven_zip_executable=str(seven_zip_exe),
+        resolved_cmd_path=str(tmp_path / "cmd.exe"),
+    )
+    artifacts = OperationArtifacts(
+        job_dir=tmp_path,
+        metadata_path=tmp_path / "job.json",
+        log_path=tmp_path / "output.log",
+    )
+
+    result = execute_operation_request(
+        request,
+        wait=True,
+        preferences=preferences,
+        artifacts=artifacts,
+    )
+
+    assert result.status == "succeeded"
+    lines = captured["lines"]
+    assert isinstance(lines, list)
+    assert lines
+    assert "7z.exe" in str(lines[0])
+    assert " t -y " in str(lines[0])
+    assert str(archive) in str(lines[0])

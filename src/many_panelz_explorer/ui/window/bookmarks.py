@@ -37,12 +37,14 @@ class WindowBookmarksCoordinator(QObject):
     def __init__(self, window: ExplorerWindow) -> None:
         super().__init__(window)
         self.window = window
-        self._store = BookmarkStore.from_settings(window.settings)
+        settings_path = Path(str(window.settings.settings_path))
+        self._store = BookmarkStore(settings_path.with_suffix(".bookmarks.toml"))
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._on_bookmarks_fs_changed)
         self._watcher.directoryChanged.connect(self._on_bookmarks_fs_changed)
         self._collection = BookmarkCollection()
         self._tree = BookmarkFolderNode(path="")
+        self._hotlist_menu: QMenu | None = None
         self._reload_bookmarks(report_errors=False)
 
     @property
@@ -175,6 +177,24 @@ class WindowBookmarksCoordinator(QObject):
             self._open_bookmark_in_new_tab(bookmark.path)
             return
         self._open_bookmark_in_active_tab(bookmark.path)
+
+    def show_bookmarks_hotlist(self) -> None:
+        """Show the bookmark hotlist near the active file list."""
+
+        menu = QMenu(self.window)
+        menu.setToolTipsVisible(True)
+        self.populate_bookmarks_menu(menu)
+        self._hotlist_menu = menu
+        menu.aboutToHide.connect(self._clear_hotlist_menu)
+
+        active_panel = self.window.panels_coordinator.active_panel()
+        active_tab = active_panel.current_tab() if active_panel is not None else None
+        if active_tab is not None:
+            viewport = active_tab.view.viewport()
+            global_pos = viewport.mapToGlobal(viewport.rect().center())
+        else:
+            global_pos = self.window.mapToGlobal(self.window.rect().center())
+        menu.popup(global_pos)
 
     def has_current_folder_bookmark(self) -> bool:
         """Return whether the active folder currently has a bookmark."""
@@ -327,6 +347,11 @@ class WindowBookmarksCoordinator(QObject):
         """Reload bookmarks after an external edit or file-creation change."""
 
         self._reload_bookmarks(report_errors=True)
+
+    def _clear_hotlist_menu(self) -> None:
+        """Drop the current popup-menu reference after it closes."""
+
+        self._hotlist_menu = None
 
     def _show_status_message(self, message: str, timeout_ms: int) -> None:
         """Show one transient status-bar message."""

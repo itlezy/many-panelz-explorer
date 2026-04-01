@@ -157,6 +157,10 @@ class ExplorerWindow(QMainWindow):
     menu_help_action: QAction
     next_pane_shortcut: QShortcut
     previous_pane_shortcut: QShortcut
+    next_tab_shortcut: QShortcut
+    previous_tab_shortcut: QShortcut
+    next_tab_alias_shortcut: QShortcut
+    previous_tab_alias_shortcut: QShortcut
     menu_focus_shortcut: QShortcut
     reread_visible_lists_shortcut: QShortcut
     list_files_shortcut: QShortcut
@@ -166,8 +170,11 @@ class ExplorerWindow(QMainWindow):
     create_directory_shortcut: QShortcut
     pack_files_shortcut: QShortcut
     copy_path_shortcut: QShortcut
+    bookmarks_hotlist_shortcut: QShortcut
     terminal_here_shortcut: QShortcut
     root_picker_shortcut: QShortcut
+    exchange_panel_paths_shortcut: QShortcut
+    sync_target_panel_path_shortcut: QShortcut
     minimize_windows_shortcut: QShortcut
     queue_dock: QDockWidget
     queue_panel: OperationQueuePanel
@@ -371,17 +378,22 @@ class ExplorerWindow(QMainWindow):
             "F9: Open terminal here\n"
             "Alt+F7: Search active path in Everything\n"
             "Alt+F9: Open archive unpack dialog\n"
+            "Alt+Shift+F9: Test selected archives\n"
             "Insert: Toggle selection and move down\n"
             "Space: Toggle selection\n"
             "Alt+F1: Open root picker for active tab\n"
             "Alt+F5: Open archive pack dialog\n"
             "Tab / Shift+Tab: Switch active pane\n"
+            "Ctrl+Tab / Ctrl+Shift+Tab: Next / previous tab in active pane\n"
+            "Ctrl+PageDown / Ctrl+PageUp: Tab switching aliases\n"
             "Ctrl+< / Ctrl+\\: Jump to root\n"
             "Ctrl+Left / Ctrl+Right: Open in target pane\n"
             "Alt+Enter: Show properties\n"
             "Ctrl+F3/F4/F5/F6: Sort by name/ext/date/size\n"
             "Shift+F5 / Shift+F6 / Shift+F7: Copy here / rename / mkdir in target\n"
             "Ctrl+A: Select all items in file list\n"
+            "Ctrl+D: Open bookmarks hotlist\n"
+            "Ctrl+U / Ctrl+I: Exchange pane paths / sync target path\n"
             "Ctrl+P: Copy selected item path or active pane path\n"
             "Ctrl+Shift+T: Reopen last closed tab\n"
             "Ctrl+, : Open settings\n"

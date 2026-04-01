@@ -628,6 +628,20 @@ class PanelWidget(QWidget):
             return
         self.state_coordinator.close_tab_at(index)
 
+    def focus_relative_tab(self, step: int) -> bool:
+        """Move to a sibling tab inside the active group and focus its file list."""
+
+        count = self.tabs.count()
+        if count <= 1:
+            return False
+        current_index = self.tabs.currentIndex()
+        if current_index < 0:
+            current_index = 0
+        next_index = (current_index + step) % count
+        self.tabs.setCurrentIndex(next_index)
+        self._focus_current_view()
+        return True
+
     def duplicate_current_tab(self) -> ExplorerTab | None:
         """Duplicate the active tab into a newly selected tab."""
 

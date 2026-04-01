@@ -180,6 +180,20 @@ class WindowPanelsCoordinator:
         if panel is not None:
             panel.focus_relative_group(-1)
 
+    def focus_next_tab(self) -> None:
+        """Move focus to the next tab in the active panel."""
+
+        panel = self.active_panel()
+        if panel is not None:
+            panel.focus_relative_tab(1)
+
+    def focus_previous_tab(self) -> None:
+        """Move focus to the previous tab in the active panel."""
+
+        panel = self.active_panel()
+        if panel is not None:
+            panel.focus_relative_tab(-1)
+
     def move_current_tab_to_group(self) -> None:
         """Prompt for a target tab group and move the current tab there."""
 
@@ -296,6 +310,39 @@ class WindowPanelsCoordinator:
 
         for panel in self.window.panel_widgets.values():
             panel.navigation_coordinator.refresh_current_path()
+
+    def sync_target_panel_to_active_path(self) -> None:
+        """Mirror the active path into the resolved target panel."""
+
+        source_panel = self.active_panel()
+        target_panel = self.target_panel()
+        if source_panel is None or target_panel is None:
+            self._show_missing_target_panel_message()
+            return
+        source_tab = source_panel.current_tab()
+        target_tab = target_panel.current_tab()
+        if source_tab is None or target_tab is None:
+            return
+        target_tab.navigation.set_path(source_tab.navigation.path)
+        source_tab.view.setFocus()
+
+    def exchange_active_and_target_paths(self) -> None:
+        """Swap the current directories between the active and target panels."""
+
+        source_panel = self.active_panel()
+        target_panel = self.target_panel()
+        if source_panel is None or target_panel is None:
+            self._show_missing_target_panel_message()
+            return
+        source_tab = source_panel.current_tab()
+        target_tab = target_panel.current_tab()
+        if source_tab is None or target_tab is None:
+            return
+        source_path = Path(source_tab.navigation.path)
+        target_path = Path(target_tab.navigation.path)
+        source_tab.navigation.set_path(target_path)
+        target_tab.navigation.set_path(source_path)
+        source_tab.view.setFocus()
 
     def set_active_panel_tab_position_mode(self, mode: str) -> None:
         """Persist and apply a tab-position mode for the active panel."""
@@ -578,6 +625,14 @@ class WindowPanelsCoordinator:
         else:
             next_index = 0
         _activate_panel_and_focus(self, ordered[next_index])
+
+    def _show_missing_target_panel_message(self) -> None:
+        """Report that a cross-panel shortcut needs another pane."""
+
+        self.window.statusBar().showMessage(
+            "No target pane is available. Create another pane first.",
+            2400,
+        )
 
     def _panel_activated_callback(self, panel_id: int) -> Callable[[], None]:
         """Build the callback used when a panel becomes active."""
