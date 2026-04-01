@@ -319,6 +319,9 @@ def load_operations_preferences(
         preferences.double_commander_source_target_args_template
     )
     dialog.everything_executable_edit.setText(preferences.everything_executable)
+    dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(
+        preferences.use_everything_sdk_for_folder_sizes
+    )
     dialog.seven_zip_executable_edit.setText(preferences.seven_zip_executable)
     dialog.seven_zip_pack_args_edit.setText(preferences.seven_zip_pack_args_template)
     dialog.seven_zip_extract_args_edit.setText(
@@ -659,6 +662,9 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
             dialog.double_commander_source_target_args_edit.text().strip()
         ),
         everything_executable=dialog.everything_executable_edit.text().strip(),
+        use_everything_sdk_for_folder_sizes=(
+            dialog.use_everything_sdk_for_folder_sizes_checkbox.isChecked()
+        ),
         seven_zip_executable=dialog.seven_zip_executable_edit.text().strip(),
         seven_zip_pack_args_template=dialog.seven_zip_pack_args_edit.text().strip(),
         seven_zip_extract_args_template=(

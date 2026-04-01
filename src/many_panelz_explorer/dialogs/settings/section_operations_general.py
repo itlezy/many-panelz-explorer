@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QHeaderView,
     QLabel,
@@ -525,6 +526,29 @@ def build_shortcut_external_tool_rows(
         description="Executable used by Alt+F7 to search from the active path.",
         terms="everything launcher alt+f7 search active path executable",
         controls=[everything_controls],
+    )
+
+    dialog.use_everything_sdk_for_folder_sizes_checkbox = QCheckBox(dialog)
+    dialog.use_everything_sdk_for_folder_sizes_checkbox.setText(
+        "Prefer Everything64.dll"
+    )
+    dialog.use_everything_sdk_for_folder_sizes_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="everything_sdk_folder_sizes",
+        title="Folder Sizes via Everything SDK",
+        description=(
+            "Use the local Everything64.dll for Ctrl+L and Alt+Shift+Enter "
+            "when it is installed; otherwise fall back to native recursive sizing."
+        ),
+        terms=(
+            "everything sdk folder sizes ctrl+l alt+shift+enter "
+            "everything64.dll size calculation"
+        ),
+        controls=[dialog.use_everything_sdk_for_folder_sizes_checkbox],
     )
 
     dialog.seven_zip_executable_edit = QLineEdit(dialog)

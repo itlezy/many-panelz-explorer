@@ -9,7 +9,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -23,7 +23,9 @@ from PySide6.QtCore import (
 from threep_commons.fs_paths import path_key
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+
+    from .folder_sizes import FolderSizeCalculator
 
 _HIDDEN_ATTRIBUTE_MASK = 0x2
 _SYSTEM_ATTRIBUTE_MASK = 0x4
@@ -39,6 +41,13 @@ class _DirEntry:
     modified_ts: float
     is_hidden: bool
     is_system: bool
+
+
+@dataclass(slots=True, frozen=True)
+class _FolderSizeState:
+    path: Path
+    status: Literal["calculating", "ready", "failed"]
+    bytes_value: int = 0
 
 
 def _scan_directory(path: Path) -> list[_DirEntry]:
@@ -84,6 +93,7 @@ def _scan_directory(path: Path) -> list[_DirEntry]:
 
 class _ModelSignals(QObject):
     listing_ready = Signal(int, str, object, object)
+    folder_size_ready = Signal(int, str, object, object)
 
 
 class FastDirModel(QAbstractTableModel):
@@ -115,8 +125,10 @@ class FastDirModel(QAbstractTableModel):
         self._sort_order = Qt.SortOrder.AscendingOrder
         self._request_id = 0
         self._size_formatter = size_formatter or self._default_size_formatter
+        self._folder_size_states: dict[str, _FolderSizeState] = {}
         self._signals = _ModelSignals(self)
         self._signals.listing_ready.connect(self._on_listing_ready)
+        self._signals.folder_size_ready.connect(self._on_folder_size_ready)
         self._refresh_filter_flags()
 
     def rowCount(
@@ -187,7 +199,11 @@ class FastDirModel(QAbstractTableModel):
         if col == 1:
             return "" if entry.is_dir else entry.extension
         if col == 2:
-            return "" if entry.is_dir else self._format_size(entry.size)
+            return (
+                self._format_directory_size(entry)
+                if entry.is_dir
+                else self._format_size(entry.size)
+            )
         if col == 3:
             return datetime.fromtimestamp(entry.modified_ts).strftime("%Y-%m-%d %H:%M")
         return ""
@@ -227,6 +243,7 @@ class FastDirModel(QAbstractTableModel):
         self.beginResetModel()
         self._all_entries = []
         self._visible_entries = []
+        self._folder_size_states = {}
         self.endResetModel()
 
         model_ref = weakref.ref(self)
@@ -319,6 +336,61 @@ class FastDirModel(QAbstractTableModel):
                 [int(Qt.ItemDataRole.DisplayRole)],
             )
 
+    def request_folder_sizes(
+        self,
+        paths: Sequence[Path],
+        *,
+        calculator: FolderSizeCalculator,
+    ) -> int:
+        """Queue one folder-size calculation batch for current visible rows.
+
+        Args:
+            paths: Folder paths that should be calculated.
+            calculator: Folder-size backend chosen for this request batch.
+
+        Returns:
+            Number of newly queued folder calculations.
+        """
+
+        queued = 0
+        generation = self._request_id
+        current_root_key = self._path_key(self._current_path)
+        unique_paths: dict[str, Path] = {}
+        for path in paths:
+            candidate = Path(path)
+            if (
+                not candidate.is_dir()
+                or self._path_key(candidate.parent) != current_root_key
+            ):
+                continue
+            unique_paths[self._path_key(candidate)] = candidate
+        for folder_key, folder_path in unique_paths.items():
+            existing_state = self._folder_size_states.get(folder_key)
+            if existing_state is not None and existing_state.status in {
+                "calculating",
+                "ready",
+            }:
+                continue
+            self._folder_size_states[folder_key] = _FolderSizeState(
+                path=folder_path,
+                status="calculating",
+            )
+            self._emit_size_changed_for_path(folder_path)
+            queued += 1
+            future = self._executor.submit(calculator.calculate, folder_path)
+            future.add_done_callback(
+                self._folder_size_done_callback(
+                    request_id=generation,
+                    folder_path=folder_path,
+                )
+            )
+        return queued
+
+    def visible_directory_paths(self) -> list[Path]:
+        """Return all currently visible directory rows in display order."""
+
+        return [entry.path for entry in self._visible_entries if entry.is_dir]
+
     def _on_listing_ready(
         self,
         request_id: int,
@@ -342,6 +414,34 @@ class FastDirModel(QAbstractTableModel):
         )
         self.endResetModel()
         self.directory_loaded.emit(str(self._current_path))
+
+    def _on_folder_size_ready(
+        self,
+        request_id: int,
+        path: str,
+        bytes_value: object,
+        error: object,
+    ) -> None:
+        if request_id != self._request_id:
+            return
+        folder_path = Path(path)
+        folder_key = self._path_key(folder_path)
+        if self._path_key(folder_path.parent) != self._path_key(self._current_path):
+            return
+        if error is None:
+            self._folder_size_states[folder_key] = _FolderSizeState(
+                path=folder_path,
+                status="ready",
+                bytes_value=int(cast("int", bytes_value)),
+            )
+        else:
+            self._folder_size_states[folder_key] = _FolderSizeState(
+                path=folder_path,
+                status="failed",
+            )
+        if self._sort_column == 2:
+            self._rebuild_visible(reset=True)
+        self._emit_size_changed_for_path(folder_path)
 
     def _refresh_filter_flags(self) -> None:
         self._show_hidden = bool(
@@ -415,6 +515,16 @@ class FastDirModel(QAbstractTableModel):
         except Exception:  # pragma: no cover - defensive
             return self._default_size_formatter(int(value))
 
+    def _format_directory_size(self, entry: _DirEntry) -> str:
+        state = self._folder_size_states.get(self._path_key(entry.path))
+        if state is None:
+            return ""
+        if state.status == "calculating":
+            return "Calculating..."
+        if state.status == "failed":
+            return "Error"
+        return self._format_size(state.bytes_value)
+
     def _coerce_filter_flags(self, flags: object) -> QDir.Filter:
         if isinstance(flags, QDir.Filter):
             return flags
@@ -428,8 +538,16 @@ class FastDirModel(QAbstractTableModel):
         )
 
     def _size_sort_key(self, item: _DirEntry) -> tuple[int, int, str]:
+        if item.is_dir:
+            folder_state = self._folder_size_states.get(self._path_key(item.path))
+            size_value = folder_state.bytes_value if folder_state is not None else -1
+            return (
+                0,
+                size_value,
+                item.name.casefold(),
+            )
         return (
-            0 if item.is_dir else 1,
+            1,
             item.size,
             item.name.casefold(),
         )
@@ -446,3 +564,41 @@ class FastDirModel(QAbstractTableModel):
 
     def _path_key(self, path: Path) -> str:
         return path_key(path)
+
+    def _emit_size_changed_for_path(self, path: Path) -> None:
+        index = self.index_for_path(path)
+        if not index.isValid():
+            return
+        size_index = index.siblingAtColumn(2)
+        self.dataChanged.emit(
+            size_index,
+            size_index,
+            [int(Qt.ItemDataRole.DisplayRole)],
+        )
+
+    def _folder_size_done_callback(
+        self,
+        *,
+        request_id: int,
+        folder_path: Path,
+    ) -> Callable[[Future[int]], None]:
+        model_ref = weakref.ref(self)
+
+        def _done_callback(future: Future[int]) -> None:
+            model = model_ref()
+            if model is None:
+                return
+            try:
+                result = int(future.result())
+                error: str | None = None
+            except Exception as exc:  # pragma: no cover - defensive
+                result = 0
+                error = str(exc)
+            model._signals.folder_size_ready.emit(
+                request_id,
+                str(folder_path),
+                result,
+                error,
+            )
+
+        return _done_callback

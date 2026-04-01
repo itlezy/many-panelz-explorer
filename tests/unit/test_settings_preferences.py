@@ -117,6 +117,7 @@ def _tracked_keys() -> list[str]:
         SettingsManager.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY,
         SettingsManager.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
         SettingsManager.EVERYTHING_EXECUTABLE_KEY,
+        SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY,
         SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY,
         SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
         SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
@@ -273,6 +274,7 @@ def test_ui_preferences_round_trip() -> None:
                 "--client -L {source} -R {target}"
             ),
             everything_executable=r"C:\tools\Everything.exe",
+            use_everything_sdk_for_folder_sizes=False,
             seven_zip_executable=r"C:\tools\7z.exe",
             seven_zip_pack_args_template=(
                 "a -y {archive} {sources} {recurse_mode} {compression_level} "
@@ -538,6 +540,8 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         settings.set_value(SettingsManager.TARGET_PANEL_TINT_INTENSITY_KEY, "nope")
         settings.set_value(SettingsManager.DEFAULT_COPY_MOVE_BACKEND_KEY, "invalid")
         settings.set_value(SettingsManager.DEFAULT_DELETE_BACKEND_KEY, "invalid")
+        settings.remove(SettingsManager.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY)
+        settings.remove(SettingsManager.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY)
         settings.set_value(
             SettingsManager.DEFAULT_OPERATION_DISPATCH_MODE_KEY, "invalid"
         )
@@ -601,9 +605,12 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             SettingsManager.DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE_KEY
         )
         settings.remove(SettingsManager.EVERYTHING_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY)
         settings.remove(SettingsManager.WINRAR_EXECUTABLE_KEY)
+        settings.remove(SettingsManager.WINRAR_PACK_ARGS_TEMPLATE_KEY)
         settings.remove(SettingsManager.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY)
         settings.set_value(SettingsManager.USE_EXTENDED_PATHS_ROBOCOPY_KEY, "")
         settings.set_value(SettingsManager.USE_EXTENDED_PATHS_TERACOPY_KEY, "")
@@ -923,6 +930,10 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             == DEFAULT_DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE
         )
         assert loaded.everything_executable == DEFAULT_EVERYTHING_EXECUTABLE
+        assert (
+            loaded.use_everything_sdk_for_folder_sizes
+            is SettingsManager.DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES
+        )
         assert loaded.seven_zip_executable == DEFAULT_SEVEN_ZIP_EXECUTABLE
         assert (
             loaded.seven_zip_pack_args_template

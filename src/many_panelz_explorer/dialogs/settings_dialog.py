@@ -256,6 +256,7 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         file_list_use_app_font_checkbox: QCheckBox
         file_open_overrides_table: QTableWidget
         everything_executable_edit: QLineEdit
+        use_everything_sdk_for_folder_sizes_checkbox: QCheckBox
         generic_copymove_executable_edit: QLineEdit
         generic_copymove_test_btn: QPushButton
         generic_delete_args_edit: QLineEdit

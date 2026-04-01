@@ -379,6 +379,8 @@ class ExplorerWindow(QMainWindow):
             "Alt+F7: Search active path in Everything\n"
             "Alt+F9: Open archive unpack dialog\n"
             "Alt+Shift+F9: Test selected archives\n"
+            "Ctrl+L: Calculate size for selected/current folder\n"
+            "Alt+Shift+Enter: Calculate size for all visible folders\n"
             "Insert: Toggle selection and move down\n"
             "Space: Toggle selection\n"
             "Alt+F1: Open root picker for active tab\n"

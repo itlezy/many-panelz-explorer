@@ -172,6 +172,15 @@ def _visible_row_names(tab: ExplorerTab) -> list[str]:
     return names
 
 
+def _size_cell_text(tab: ExplorerTab, path: Path) -> str:
+    """Return the displayed size text for one file-list row."""
+
+    index = tab.model.index(str(path))
+    assert index.isValid()
+    value = tab.model.data(index.siblingAtColumn(2), int(Qt.ItemDataRole.DisplayRole))
+    return str(value or "")
+
+
 class _ControllerCloneStub(_ControllerStub):
     def __init__(
         self,
@@ -541,6 +550,128 @@ def test_tc_exchange_and_sync_target_panel_shortcuts(qtbot, tmp_path: Path) -> N
     QTest.keyClick(source_tab.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
     qtbot.waitUntil(lambda: target_panel.current_path() == source_root)
     assert source_panel.current_path() == source_root
+
+
+def test_ctrl_l_calculates_selected_folder_size(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="folder-size-selected",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+
+    root = tmp_path / "folder-size-root"
+    nested = root / "alpha" / "nested"
+    nested.mkdir(parents=True)
+    (root / "alpha" / "one.bin").write_bytes(b"abcd")
+    (nested / "two.bin").write_bytes(b"12345")
+
+    target_folder = root / "alpha"
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(target_folder)).isValid())
+    _select_paths(tab, [target_folder])
+    tab.view.setFocus()
+
+    QTest.keyClick(tab.view, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+
+    qtbot.waitUntil(lambda: _size_cell_text(tab, target_folder) == "9")
+
+
+def test_alt_shift_enter_calculates_visible_folder_sizes_and_refresh_clears_them(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="folder-size-visible",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+
+    root = tmp_path / "folder-size-visible-root"
+    first = root / "first"
+    second = root / "second"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    (first / "one.bin").write_bytes(b"123")
+    (second / "two.bin").write_bytes(b"1234567")
+
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(first)).isValid())
+    qtbot.waitUntil(lambda: tab.model.index(str(second)).isValid())
+    tab.view.setFocus()
+
+    QTest.keyClick(
+        tab.view,
+        Qt.Key.Key_Return,
+        Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+
+    qtbot.waitUntil(lambda: _size_cell_text(tab, first) == "3")
+    qtbot.waitUntil(lambda: _size_cell_text(tab, second) == "7")
+
+    tab.navigation.refresh()
+    qtbot.waitUntil(lambda: tab.model.index(str(first)).isValid())
+    assert _size_cell_text(tab, first) == ""
+    assert _size_cell_text(tab, second) == ""
+
+
+def test_calculate_size_action_uses_current_folder_when_nothing_is_selected(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="folder-size-current-row",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+
+    root = tmp_path / "folder-size-current-root"
+    folder = root / "beta"
+    folder.mkdir(parents=True)
+    (folder / "item.bin").write_bytes(b"123456")
+
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(folder)).isValid())
+    current_index = tab.model.index(str(folder))
+    tab.view.selectionModel().clearSelection()
+    tab.view.selectionModel().setCurrentIndex(
+        current_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+
+    tab.calculate_selected_or_current_folder_sizes()
+
+    qtbot.waitUntil(lambda: _size_cell_text(tab, folder) == "6")
 
 
 def test_show_widget_map_toggle_updates_existing_and_new_panels(

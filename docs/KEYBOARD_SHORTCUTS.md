@@ -69,7 +69,7 @@ It serves two purposes:
 | `Shift+Tab` | Switch between file list and separate tree | `Shift+Tab` | Switch to previous pane | `Keep` | Similar focus movement; no separate tree mode exists. |
 | `Enter` | Open dir or run item | `Enter` | Activate current item in file list | `Keep` | Standard tree activation is wired through item activation. |
 | `Shift+Enter` | Shell open / alternate enter behaviors | None | No equivalent | `Not implemented` | No dedicated shifted-enter variant. |
-| `Alt+Shift+Enter` | Count all subdirectory sizes | None | No equivalent | `Not implemented` | No bulk folder-size calculation shortcut. |
+| `Alt+Shift+Enter` | Count all subdirectory sizes | `Alt+Shift+Enter` | Calculate sizes for all visible folders | `Keep` | Uses Everything SDK when enabled and a local `Everything64.dll` is available, otherwise falls back to native recursive sizing. |
 | `Alt+Enter` | Show property sheet | `Alt+Enter` | Show properties dialog | `Keep` | Opens the app properties dialog for the selected or current item. |
 
 ### Selection And Context
@@ -152,7 +152,7 @@ It serves two purposes:
 | `Ctrl+D` | Open directory hotlist | `Ctrl+D` | Open bookmarks hotlist popup | `Keep` | Uses the existing bookmarks menu tree as the hotlist surface. |
 | `Ctrl+F` | Connect to FTP server | `Ctrl+F` | Open inline filter | `Not implemented` | Key is already used differently in the app. |
 | `Ctrl+Shift+F` | Disconnect FTP | None | No equivalent | `Not implemented` | No FTP layer. |
-| `Ctrl+L` | Calculate occupied space | None | No equivalent | `Not implemented` | No shortcut for size calculation. |
+| `Ctrl+L` | Calculate occupied space | `Ctrl+L` | Calculate sizes for selected folders or current folder | `Keep` | Uses Everything SDK when enabled and a local `Everything64.dll` is available, otherwise falls back to native recursive sizing. |
 | `Ctrl+M` | Multi-Rename-Tool | None | No equivalent | `Not implemented` | No multi-rename tool shortcut. |
 | `Ctrl+Shift+M` | Change FTP transfer mode | None | No equivalent | `Not implemented` | No FTP layer. |
 | `Ctrl+N` | New FTP connection | `Ctrl+N` | New window | `Not implemented` | Key is already used differently in the app. |

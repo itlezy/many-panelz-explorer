@@ -188,6 +188,7 @@ class UiPreferences:
         DEFAULT_DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE
     )
     everything_executable: str = DEFAULT_EVERYTHING_EXECUTABLE
+    use_everything_sdk_for_folder_sizes: bool = True
     seven_zip_executable: str = DEFAULT_SEVEN_ZIP_EXECUTABLE
     seven_zip_pack_args_template: str = DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
     seven_zip_extract_args_template: str = DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE

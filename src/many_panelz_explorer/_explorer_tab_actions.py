@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from . import external_tools, file_ops
+from . import external_tools, file_ops, folder_sizes
 from .dialogs.properties_dialog import PropertiesDialog
 from .terminal_launchers import available_terminal_launchers
 
@@ -227,6 +227,30 @@ class ExplorerTabActions(QObject):
 
         self._zip_create()
 
+    def calculate_selected_or_current_folder_sizes(self) -> None:
+        """Calculate folder sizes for selected folders or the current folder."""
+
+        targets = [path for path in self._selected_or_current_paths() if path.is_dir()]
+        if not targets:
+            self._show_status_message(
+                "Select one folder, or place the cursor on a folder, first.",
+                2600,
+            )
+            return
+        self._start_folder_size_calculation(targets)
+
+    def calculate_visible_folder_sizes(self) -> None:
+        """Calculate folder sizes for every visible folder in the current file list."""
+
+        targets = self._tab.model.visible_directory_paths()
+        if not targets:
+            self._show_status_message(
+                "No visible folders are available for size calculation.",
+                2600,
+            )
+            return
+        self._start_folder_size_calculation(targets)
+
     def open_terminal_here(self) -> None:
         """Open the configured terminal at the current tab path."""
 
@@ -421,6 +445,7 @@ class ExplorerTabActions(QObject):
             ("Move...", self._move_selected),
             ("Delete", self._delete_selected),
             (None, self._open_selected),
+            ("Calculate Size", self.calculate_selected_or_current_folder_sizes),
             ("Properties", self._show_properties),
             ("Pack Files...", self._zip_create),
             ("Unpack Files...", self._zip_extract),
@@ -698,6 +723,37 @@ class ExplorerTabActions(QObject):
     def _run_and_refresh(self, action: Callable[[], object]) -> None:
         self._run_action(action)
         self._tab.navigation.refresh()
+
+    def _start_folder_size_calculation(self, paths: list[Path]) -> None:
+        """Start one folder-size batch with the configured preferred backend."""
+
+        settings = self._window_settings()
+        if settings is None:
+            return
+        calculator = folder_sizes.build_folder_size_calculator(
+            use_everything_sdk=settings.use_everything_sdk_for_folder_sizes,
+            everything_executable=settings.everything_executable,
+        )
+        queued = self._tab.model.request_folder_sizes(paths, calculator=calculator)
+        if queued <= 0:
+            self._show_status_message(
+                "Folder sizes are already calculated or in progress.",
+                2400,
+            )
+            return
+        if calculator.uses_everything_sdk:
+            self._show_status_message(
+                (
+                    f"Calculating {queued} folder size(s) with "
+                    "Everything SDK when available."
+                ),
+                2600,
+            )
+            return
+        self._show_status_message(
+            f"Calculating {queued} folder size(s) with native recursive scanning.",
+            2600,
+        )
 
     def _run_external_tool_action(
         self,

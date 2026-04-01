@@ -249,6 +249,9 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         "ops", "double_commander_source_target_args_template"
     )
     everything_executable = delegate_domain_property("ops", "everything_executable")
+    use_everything_sdk_for_folder_sizes = delegate_domain_property(
+        "ops", "use_everything_sdk_for_folder_sizes"
+    )
     seven_zip_executable = delegate_domain_property("ops", "seven_zip_executable")
     seven_zip_pack_args_template = delegate_domain_property(
         "ops", "seven_zip_pack_args_template"
@@ -441,6 +444,9 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
                 self.double_commander_source_target_args_template
             ),
             everything_executable=self.everything_executable,
+            use_everything_sdk_for_folder_sizes=(
+                self.use_everything_sdk_for_folder_sizes
+            ),
             seven_zip_executable=self.seven_zip_executable,
             seven_zip_pack_args_template=self.seven_zip_pack_args_template,
             seven_zip_extract_args_template=self.seven_zip_extract_args_template,
@@ -628,6 +634,9 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             preferences.double_commander_source_target_args_template
         )
         self.everything_executable = preferences.everything_executable
+        self.use_everything_sdk_for_folder_sizes = (
+            preferences.use_everything_sdk_for_folder_sizes
+        )
         self.seven_zip_executable = preferences.seven_zip_executable
         self.seven_zip_pack_args_template = preferences.seven_zip_pack_args_template
         self.seven_zip_extract_args_template = (

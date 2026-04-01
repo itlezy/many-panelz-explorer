@@ -173,6 +173,16 @@ class ExplorerTab(QWidget):
 
         self._actions.create_zip_from_selection()
 
+    def calculate_selected_or_current_folder_sizes(self) -> None:
+        """Calculate folder sizes for selected folders or the current folder."""
+
+        self._actions.calculate_selected_or_current_folder_sizes()
+
+    def calculate_visible_folder_sizes(self) -> None:
+        """Calculate folder sizes for every visible folder in the active path."""
+
+        self._actions.calculate_visible_folder_sizes()
+
     def launch_everything_search(self) -> None:
         """Launch Everything scoped to the active tab path."""
 
@@ -323,6 +333,19 @@ class ExplorerTab(QWidget):
             Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
         ) and key == int(Qt.Key.Key_F9):
             self.test_supported_archives()
+            return True
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
+            Qt.Key.Key_L
+        ):
+            self.calculate_selected_or_current_folder_sizes()
+            return True
+        if modifiers == (
+            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ) and key in {
+            int(Qt.Key.Key_Return),
+            int(Qt.Key.Key_Enter),
+        }:
+            self.calculate_visible_folder_sizes()
             return True
         if modifiers == Qt.KeyboardModifier.AltModifier and key in {
             int(Qt.Key.Key_Return),

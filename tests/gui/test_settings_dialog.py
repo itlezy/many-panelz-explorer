@@ -319,6 +319,16 @@ def _tracked_keys() -> list[str]:
         SettingsManager.DOUBLE_COMMANDER_EXECUTABLE_KEY,
         SettingsManager.DOUBLE_COMMANDER_SOURCE_ARGS_TEMPLATE_KEY,
         SettingsManager.DOUBLE_COMMANDER_SOURCE_TARGET_ARGS_TEMPLATE_KEY,
+        SettingsManager.DEFAULT_ARCHIVE_PACKER_BACKEND_KEY,
+        SettingsManager.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
+        SettingsManager.EVERYTHING_EXECUTABLE_KEY,
+        SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY,
+        SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY,
+        SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
+        SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINRAR_EXECUTABLE_KEY,
+        SettingsManager.WINRAR_PACK_ARGS_TEMPLATE_KEY,
+        SettingsManager.WINRAR_EXTRACT_ARGS_TEMPLATE_KEY,
         SettingsManager.USE_EXTENDED_PATHS_ROBOCOPY_KEY,
         SettingsManager.USE_EXTENDED_PATHS_TERACOPY_KEY,
         SettingsManager.USE_EXTENDED_PATHS_UNSTOPPABLE_KEY,
@@ -1484,6 +1494,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
         "--client -L {source} -R {target}"
     )
     dialog.everything_executable_edit.setText(r"C:\tools\Everything.exe")
+    dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(False)
     dialog.seven_zip_executable_edit.setText(r"C:\tools\7z.exe")
     dialog.seven_zip_pack_args_edit.setText(
         "a -y {archive} {sources} {recurse_mode} {compression_level} "
@@ -1594,6 +1605,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
         == "--client -L {source} -R {target}"
     )
     assert persisted.everything_executable == r"C:\tools\Everything.exe"
+    assert persisted.use_everything_sdk_for_folder_sizes is False
     assert persisted.seven_zip_executable == r"C:\tools\7z.exe"
     assert (
         persisted.seven_zip_pack_args_template

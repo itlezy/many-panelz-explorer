@@ -850,6 +850,22 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         )
 
     @property
+    def use_everything_sdk_for_folder_sizes(self) -> bool:
+        return bool(
+            self._storage.value(
+                self.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY,
+                self.DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES,
+            )
+        )
+
+    @use_everything_sdk_for_folder_sizes.setter
+    def use_everything_sdk_for_folder_sizes(self, value: bool) -> None:
+        self._storage.set_value(
+            self.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY,
+            bool(value),
+        )
+
+    @property
     def seven_zip_executable(self) -> str:
         return normalize.normalize_windows_path_text(
             self._storage.value(
