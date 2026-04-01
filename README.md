@@ -182,39 +182,21 @@ Runtime settings are stored via QSettings:
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| **Window/Panel Management** | |
-| Ctrl+T | New tab in active panel |
-| Ctrl+P | New vertical panel (active row only) |
-| Ctrl+H | New horizontal panel (new full-width row) |
-| Ctrl+N | New window |
-| Ctrl+W | Close tab |
-| Ctrl+Shift+W | Close panel |
-| Alt+W | Close window |
-| Ctrl+Q / Alt+X | Exit application |
-| F5 | Copy selected to target pane |
-| F6 | Move selected to target pane |
-| F8 | Delete selected |
-| F9 | Open terminal here |
-| Tab / Shift+Tab | Cycle active pane |
-| Ctrl+R | Refresh active pane |
-| Ctrl+, | Open Settings dialog |
-| Alt / F10 | Focus File menu |
-| F1 | Show help |
-| **Navigation** | |
-| Alt+Left | Back |
-| Alt+Right | Forward |
-| Alt+Up | Up to parent directory |
-| Backspace | Up to parent directory |
-| Left | Up to parent (tree view) |
-| Right | Open selected item (tree view) |
+See [docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md) for the authoritative
+shortcut inventory and Total Commander parity tracking.
+
+Current highlights:
+
+- Commander-style file actions use `F3`, `F4`, `F5`, `F6`, `F7`, `F8`, and `F9`.
+- Pane and window management includes `Ctrl+T`, `Ctrl+Shift+P`, `Ctrl+H`, and `Tab` / `Shift+Tab`.
+- Navigation includes `Alt+Left`, `Alt+Right`, `Alt+Up`, `Alt+F1`, `Backspace`, `Left`, and `Right`.
+- File-list selection includes `Insert`, `Space`, `Ctrl+A`, and `Shift+F10`.
 
 ## Menus
 
 **File**:
 - New Tab (Ctrl+T)
-- New Vertical Panel (Ctrl+P)
+- New Vertical Panel (Ctrl+Shift+P)
 - New Horizontal Panel (Ctrl+H)
 - Clone Current Panel (Vertical)
 - Clone Current Panel (Horizontal)
