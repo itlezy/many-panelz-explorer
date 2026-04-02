@@ -79,10 +79,10 @@ It serves two purposes:
 | `Insert` | Select file or directory | `Insert` | Toggle current row and advance | `Keep` | Direct commander-style selection flow. |
 | `Space` | Select file or directory | `Space` | Toggle current row selection | `Keep` | Direct commander-style selection flow. |
 | `Shift+F10` | Show context menu | `Shift+F10` | Open context menu from keyboard | `Keep` | Direct match. |
-| `Num +` | Expand selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
-| `Num -` | Shrink selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
-| `Num *` | Invert selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
-| `Num /` | Restore selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
+| `Num +` | Expand selection | `Num +` | Bulk mark visible rows | `Keep` | Honors the configured files-only vs files-and-directories scope. |
+| `Num -` | Shrink selection | `Num -` | Bulk unmark visible rows | `Keep` | Honors the configured files-only vs files-and-directories scope. |
+| `Num *` | Invert selection | `Num *` | Invert visible marks | `Keep` | Inverts marks within the configured keypad scope. |
+| `Num /` | Restore selection | `Num /` | Restore previous bulk marks | `Keep` | Restores the last bulk-mark snapshot for the current folder view. |
 | `Shift+Num +` | Alternate expand selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
 | `Shift+Num -` | Alternate shrink selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
 | `Shift+Num *` | Alternate invert selection | None | No equivalent | `Not implemented` | Numeric keypad selection tools are absent. |
@@ -90,8 +90,8 @@ It serves two purposes:
 | `Ctrl+Shift+Num +` | Select all files and folders | None | No equivalent | `Not implemented` | No dedicated variant. |
 | `Ctrl+Num -` | Deselect all | None | No equivalent | `Not implemented` | No dedicated deselect-all shortcut. |
 | `Ctrl+Shift+Num -` | Deselect all files only | None | No equivalent | `Not implemented` | No dedicated deselect-all variant. |
-| `Alt+Num +` | Select same extension | None | No equivalent | `Not implemented` | No extension-based selection shortcut. |
-| `Alt+Num -` | Deselect same extension | None | No equivalent | `Not implemented` | No extension-based deselection shortcut. |
+| `Alt+Num +` | Select same extension | `Alt+Num +` | Mark visible files with the same extension | `Keep` | Operates on files only and ignores directories or extensionless rows. |
+| `Alt+Num -` | Deselect same extension | `Alt+Num -` | Unmark visible files with the same extension | `Keep` | Operates on files only and ignores directories or extensionless rows. |
 
 ### View, Sort, And Display Modes
 

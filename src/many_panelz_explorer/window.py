@@ -386,6 +386,8 @@ class ExplorerWindow(QMainWindow):
             "Alt+Shift+Enter: Calculate size for all visible folders\n"
             "Insert: Toggle selection and move down\n"
             "Space: Toggle selection\n"
+            "Num+ / Num- / Num* / Num/: Bulk mark / unmark / invert / restore\n"
+            "Alt+Num+ / Alt+Num-: Mark / unmark same-extension files\n"
             "Alt+F1: Open root picker for active tab\n"
             "Alt+F5: Open archive pack dialog\n"
             "Tab / Shift+Tab: Switch active pane\n"

@@ -51,6 +51,10 @@ from many_panelz_explorer._operations.types import (
     QUEUE_VIEW_DOCK,
     SHORTCUT_BEHAVIOR_DIRECT,
 )
+from many_panelz_explorer.color_schemes import (
+    ALLOWED_COLOR_SCHEME_IDS,
+    COLOR_SCHEME_COMMANDER_CLASSIC,
+)
 from many_panelz_explorer.external_file_managers import (
     DEFAULT_DOUBLE_COMMANDER_EXECUTABLE,
     DEFAULT_DOUBLE_COMMANDER_SOURCE_ARGS_TEMPLATE,
@@ -139,6 +143,8 @@ class SettingsRegistry:
     )
     CONTEXT_TOOL_GIT_GUI_EXE_PATH_KEY = "context/tools/git_gui/exe_path"
     CONTEXT_TOOL_GIT_GUI_ARGS_TEMPLATE_KEY = "context/tools/git_gui/args_template"
+    COLOR_SCHEME_ID_KEY = "ui/colors/scheme_id"
+    COLOR_SCHEME_OVERRIDES_JSON_KEY = "ui/colors/overrides_json"
     ACTIVE_PANEL_TINT_COLOR_KEY = "ui/panel_tint/active_color_hex"
     ACTIVE_PANEL_TINT_INTENSITY_KEY = "ui/panel_tint/active_intensity_percent"
     TARGET_PANEL_TINT_COLOR_KEY = "ui/panel_tint/target_color_hex"
@@ -226,6 +232,7 @@ class SettingsRegistry:
     ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY = (
         "ops/file_list/enable_right_click_row_selection"
     )
+    KEYPAD_MARK_SCOPE_KEY = "ops/file_list/keypad_mark_scope"
     AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY = "ops/file_list/auto_sizes_on_space"
     AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY = (
         "ops/file_list/auto_sizes_before_copy_move"
@@ -335,6 +342,8 @@ class SettingsRegistry:
     DEFAULT_CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE = "{folder}"
     DEFAULT_CONTEXT_TOOL_GIT_GUI_EXE_PATH = ""
     DEFAULT_CONTEXT_TOOL_GIT_GUI_ARGS_TEMPLATE = "{folder}"
+    DEFAULT_COLOR_SCHEME_ID = COLOR_SCHEME_COMMANDER_CLASSIC
+    DEFAULT_COLOR_SCHEME_OVERRIDES_JSON = "{}"
     DEFAULT_COPY_MOVE_BACKEND = BACKEND_PYTHON
     DEFAULT_DELETE_BACKEND = BACKEND_RECYCLE_BIN
     DEFAULT_OPERATION_DISPATCH_MODE = DISPATCH_MODE_QUEUE
@@ -410,6 +419,7 @@ class SettingsRegistry:
     DEFAULT_EVERYTHING_EXECUTABLE = DEFAULT_EVERYTHING_EXECUTABLE
     DEFAULT_USE_EVERYTHING_SDK_FOR_FOLDER_SIZES = True
     DEFAULT_ENABLE_RIGHT_CLICK_ROW_SELECTION = True
+    DEFAULT_KEYPAD_MARK_SCOPE = "files_only"
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE = False
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE = False
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE = False
@@ -487,6 +497,7 @@ class SettingsRegistry:
         "custom",
     }
     ALLOWED_FILE_ICON_MODES: ClassVar[set[str]] = ALLOWED_FILE_ICON_MODES
+    ALLOWED_COLOR_SCHEME_IDS: ClassVar[set[str]] = ALLOWED_COLOR_SCHEME_IDS
     ALLOWED_TERMINAL_STARTUP_POSITIONS: ClassVar[set[str]] = {
         "normal",
         "maximized",

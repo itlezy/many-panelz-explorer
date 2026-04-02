@@ -49,6 +49,7 @@ _ALLOWED_NAME_SORT_METHODS = {
     _NAME_SORT_METHOD_NATURAL_CODEPOINT,
     _NAME_SORT_METHOD_NATURAL_LOCALE,
 }
+type _CodepointSortChunk = tuple[int, int | str, int | str]
 
 
 @dataclass(slots=True)
@@ -68,6 +69,17 @@ class _FolderSizeState:
     path: Path
     status: Literal["calculating", "ready", "failed"]
     bytes_value: int = 0
+
+
+@dataclass(slots=True, frozen=True)
+class FileListAggregate:
+    """Summarize visible file-list entries for footer and status rendering."""
+
+    entry_count: int
+    file_count: int
+    dir_count: int
+    known_bytes: int
+    pending_dirs: int
 
 
 def _scan_directory(path: Path) -> list[_DirEntry]:
@@ -528,13 +540,13 @@ class FastDirModel(QAbstractTableModel):
 
         return len(self._visible_entries)
 
-    def visible_summary(self) -> tuple[int, int, int]:
-        """Return `(count, known_bytes, pending_dirs)` for visible entries."""
+    def visible_summary(self) -> FileListAggregate:
+        """Return aggregate counts and bytes for visible entries."""
 
         return self._summary_for_entries(self._visible_entries)
 
-    def summary_for_paths(self, paths: Sequence[Path]) -> tuple[int, int, int]:
-        """Return `(count, known_bytes, pending_dirs)` for visible matching paths."""
+    def summary_for_paths(self, paths: Sequence[Path]) -> FileListAggregate:
+        """Return aggregate counts and bytes for visible matching paths."""
 
         entries_by_key = {
             self._path_key(entry.path): entry for entry in self._visible_entries
@@ -788,14 +800,12 @@ class FastDirModel(QAbstractTableModel):
             return 1
         return 0
 
-    def _strict_codepoint_key(self, value: str) -> tuple[str, str]:
-        return value.upper(), value
+    def _strict_codepoint_key(self, value: str) -> tuple[_CodepointSortChunk, ...]:
+        return ((1, value.upper(), value),)
 
-    def _natural_codepoint_key(
-        self, value: str
-    ) -> tuple[tuple[int, object, object], ...]:
+    def _natural_codepoint_key(self, value: str) -> tuple[_CodepointSortChunk, ...]:
         parts = re.split(r"(\d+)", value)
-        key: list[tuple[int, object, object]] = []
+        key: list[_CodepointSortChunk] = []
         for part in parts:
             if not part:
                 continue
@@ -854,25 +864,33 @@ class FastDirModel(QAbstractTableModel):
     def _path_key(self, path: Path) -> str:
         return path_key(path)
 
-    def _summary_for_entries(
-        self, entries: Sequence[_DirEntry]
-    ) -> tuple[int, int, int]:
-        """Return `(count, known_bytes, pending_dirs)` for directory entries."""
+    def _summary_for_entries(self, entries: Sequence[_DirEntry]) -> FileListAggregate:
+        """Return aggregate counts and bytes for a visible-entry snapshot."""
 
-        count = 0
+        entry_count = 0
+        file_count = 0
+        dir_count = 0
         known_bytes = 0
         pending_dirs = 0
         for entry in entries:
-            count += 1
+            entry_count += 1
             if not entry.is_dir:
+                file_count += 1
                 known_bytes += int(entry.size)
                 continue
+            dir_count += 1
             folder_state = self._folder_size_states.get(self._path_key(entry.path))
             if folder_state is not None and folder_state.status == "ready":
                 known_bytes += int(folder_state.bytes_value)
                 continue
             pending_dirs += 1
-        return count, known_bytes, pending_dirs
+        return FileListAggregate(
+            entry_count=entry_count,
+            file_count=file_count,
+            dir_count=dir_count,
+            known_bytes=known_bytes,
+            pending_dirs=pending_dirs,
+        )
 
     def _emit_size_changed_for_path(self, path: Path) -> None:
         index = self.index_for_path(path)

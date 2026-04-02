@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..._settings.registry import SettingsRegistry
+from ...color_schemes import color_scheme_ids, color_scheme_label
 from . import control_builders
 from .section_models import FontSizeSpinBox, SubsectionEntry
 from .section_structure import add_row
@@ -63,7 +64,69 @@ def build_panel_tint_rows(
     *,
     panel_tint_group: SubsectionEntry,
 ) -> None:
-    """Build panel tint color and intensity rows."""
+    """Build color-scheme, tint, and override rows."""
+
+    dialog.color_scheme_preset_combo = QComboBox(dialog)
+    for scheme_id in color_scheme_ids():
+        dialog.color_scheme_preset_combo.addItem(
+            color_scheme_label(scheme_id),
+            scheme_id,
+        )
+    dialog.color_scheme_preset_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=panel_tint_group,
+        key="color_scheme_preset",
+        title="Color Scheme Preset",
+        description="Choose the base preset for file list and panel state colors.",
+        terms="color scheme preset theme commander classic low glare legacy",
+        controls=[dialog.color_scheme_preset_combo],
+    )
+
+    dialog.clear_color_scheme_overrides_button = QPushButton(
+        "Clear Color Overrides",
+        dialog,
+    )
+    dialog.clear_color_scheme_overrides_button.clicked.connect(
+        dialog.clear_color_scheme_overrides
+    )
+    add_row(
+        dialog,
+        section=panel_tint_group,
+        key="color_scheme_clear",
+        title="Color Overrides",
+        description="Reset custom per-state colors back to the selected preset.",
+        terms="clear color overrides reset custom colors",
+        controls=[dialog.clear_color_scheme_overrides_button],
+    )
+
+    for key, title, description, terms in _color_scheme_override_rows():
+        chooser = QPushButton("Choose Color", dialog)
+
+        def _choose_override(
+            _checked: bool = False,
+            *,
+            token_key: str = key,
+            token_title: str = title,
+        ) -> None:
+            dialog.choose_color_scheme_override(token_key, token_title)
+
+        chooser.clicked.connect(_choose_override)
+        preview = QLabel(dialog)
+        preview.setFixedWidth(44)
+        preview.setMinimumHeight(22)
+        dialog.color_scheme_override_previews[key] = preview
+        add_row(
+            dialog,
+            section=panel_tint_group,
+            key=f"color_scheme_override/{key}",
+            title=title,
+            description=description,
+            terms=terms,
+            controls=[chooser, preview],
+        )
 
     dialog.active_color_button = QPushButton("Choose Color", dialog)
     dialog.active_color_button.clicked.connect(dialog.choose_active_color)
@@ -123,6 +186,115 @@ def build_panel_tint_rows(
         description="Opacity percentage for the target panel tint.",
         terms="target panel tint intensity opacity slider",
         controls=[dialog.target_intensity_slider, dialog.target_intensity_value],
+    )
+
+
+def _color_scheme_override_rows() -> tuple[tuple[str, str, str, str], ...]:
+    """Return the override rows shown in the color-scheme subsection."""
+
+    return (
+        (
+            "file_list_current_focused_background_hex",
+            "Current Row Background",
+            "Focused current-row background color.",
+            "current row focused background file list",
+        ),
+        (
+            "file_list_current_inactive_background_hex",
+            "Inactive Current Row",
+            "Dimmed background color for the current row in inactive panels.",
+            "inactive current row background file list",
+        ),
+        (
+            "file_list_marked_background_hex",
+            "Marked Row Background",
+            "Background color for marked rows.",
+            "marked row background selection",
+        ),
+        (
+            "file_list_marked_text_hex",
+            "Marked Row Text",
+            "Text color used for marked rows.",
+            "marked row text color selection",
+        ),
+        (
+            "file_list_current_marked_focused_background_hex",
+            "Current+Marked Background",
+            "Focused background color when the current row is also marked.",
+            "current marked focused background",
+        ),
+        (
+            "file_list_current_marked_inactive_background_hex",
+            "Inactive Current+Marked",
+            "Inactive-panel background color when the current row is also marked.",
+            "current marked inactive background",
+        ),
+        (
+            "file_list_current_marked_text_hex",
+            "Current+Marked Text",
+            "Text color used when the current row is also marked.",
+            "current marked text color",
+        ),
+        (
+            "file_list_hidden_text_hex",
+            "Hidden Item Text",
+            "Dimmed text color for hidden or system rows.",
+            "hidden system dimmed text color",
+        ),
+        (
+            "panel_surface_background_hex",
+            "Panel Surface",
+            "Base background color for panel surfaces.",
+            "panel surface background",
+        ),
+        (
+            "toolbar_background_hex",
+            "Toolbar Background",
+            "Background color for panel toolbar controls.",
+            "toolbar background color",
+        ),
+        (
+            "toolbar_text_hex",
+            "Toolbar Text",
+            "Text color for panel toolbar controls.",
+            "toolbar text color",
+        ),
+        (
+            "footer_background_hex",
+            "Footer Background",
+            "Background color for the per-panel footer strip.",
+            "footer background status strip",
+        ),
+        (
+            "footer_text_hex",
+            "Footer Text",
+            "Text color for the per-panel footer strip.",
+            "footer text status strip",
+        ),
+        (
+            "tab_active_background_hex",
+            "Active Tab Background",
+            "Background color for the active tab.",
+            "active tab background color",
+        ),
+        (
+            "tab_active_text_hex",
+            "Active Tab Text",
+            "Text color for the active tab.",
+            "active tab text color",
+        ),
+        (
+            "tab_inactive_background_hex",
+            "Inactive Tab Background",
+            "Background color for inactive tabs.",
+            "inactive tab background color",
+        ),
+        (
+            "tab_inactive_text_hex",
+            "Inactive Tab Text",
+            "Text color for inactive tabs.",
+            "inactive tab text color",
+        ),
     )
 
 

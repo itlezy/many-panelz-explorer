@@ -8,6 +8,11 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QTabWidget
 from threep_commons.fs_paths import display_path_text
 
+from ...color_schemes import (
+    ResolvedColorScheme,
+    blended_color_hex,
+    default_color_scheme,
+)
 from ...panel_tab_positions import (
     TAB_POSITION_MODE_BOTTOM,
     TAB_POSITION_MODE_LEFT,
@@ -31,6 +36,7 @@ class PanelPresentationCoordinator:
 
     def __init__(self, panel: PanelWidget) -> None:
         self.panel = panel
+        self._resolved_color_scheme = default_color_scheme()
 
     def apply_toolbar_visibility(
         self,
@@ -287,26 +293,64 @@ class PanelPresentationCoordinator:
             tab.set_file_size_formatter(self.panel.file_list_size_formatter)
             tab.set_properties_size_formatter(self.panel.properties_size_formatter)
 
+    def apply_color_scheme(self, scheme: ResolvedColorScheme) -> None:
+        """Apply the resolved color scheme to panel chrome widgets."""
+
+        self._resolved_color_scheme = scheme
+        self._apply_visual_role()
+        for tab in self.panel.iter_all_tabs():
+            tab.apply_color_scheme(scheme)
+
     def _apply_visual_role(self) -> None:
+        scheme = self._resolved_color_scheme
         if self.panel.pane_role == "active":
-            color = self.panel.active_role_color
-            alpha = self._alpha_from_percent(self.panel.active_role_intensity_percent)
-            background_color = (
-                f"rgba({color.red()}, {color.green()}, {color.blue()}, {alpha})"
+            background_color = blended_color_hex(
+                scheme.panel_surface_background_hex,
+                scheme.active_panel_tint_color_hex,
+                overlay_percent=scheme.active_panel_tint_intensity_percent,
             )
         elif self.panel.pane_role == "target":
-            color = self.panel.target_role_color
-            alpha = self._alpha_from_percent(self.panel.target_role_intensity_percent)
-            background_color = (
-                f"rgba({color.red()}, {color.green()}, {color.blue()}, {alpha})"
+            background_color = blended_color_hex(
+                scheme.panel_surface_background_hex,
+                scheme.target_panel_tint_color_hex,
+                overlay_percent=scheme.target_panel_tint_intensity_percent,
             )
         else:
-            background_color = "rgba(0, 0, 0, 0)"
+            background_color = scheme.panel_surface_background_hex
         panel_object_name = self.panel.objectName()
         style_sheet = (
             f"QWidget#{panel_object_name} {{ "
             f"border: none; "
             f"background-color: {background_color}; "
+            f"}} "
+            f"QWidget#{panel_object_name} QPushButton {{ "
+            f"background-color: {scheme.toolbar_background_hex}; "
+            f"color: {scheme.toolbar_text_hex}; "
+            f"border: 1px solid {scheme.tab_inactive_background_hex}; "
+            f"}} "
+            f"QWidget#{panel_object_name} QComboBox {{ "
+            f"background-color: {scheme.toolbar_background_hex}; "
+            f"color: {scheme.toolbar_text_hex}; "
+            f"border: 1px solid {scheme.tab_inactive_background_hex}; "
+            f"}} "
+            f"QWidget#{panel_object_name} QLineEdit {{ "
+            f"background-color: {scheme.toolbar_background_hex}; "
+            f"color: {scheme.toolbar_text_hex}; "
+            f"border: 1px solid {scheme.tab_inactive_background_hex}; "
+            f"}} "
+            f"QWidget#{panel_object_name} QTabWidget::pane {{ "
+            f"background-color: {scheme.panel_surface_background_hex}; "
+            f"border: 1px solid {scheme.tab_inactive_background_hex}; "
+            f"}} "
+            f"QWidget#{panel_object_name} QTabBar::tab {{ "
+            f"background-color: {scheme.tab_inactive_background_hex}; "
+            f"color: {scheme.tab_inactive_text_hex}; "
+            f"border: 1px solid {scheme.toolbar_background_hex}; "
+            f"padding: 4px 8px; "
+            f"}} "
+            f"QWidget#{panel_object_name} QTabBar::tab:selected {{ "
+            f"background-color: {scheme.tab_active_background_hex}; "
+            f"color: {scheme.tab_active_text_hex}; "
             f"}}"
         )
         if style_sheet == self.panel.styleSheet():

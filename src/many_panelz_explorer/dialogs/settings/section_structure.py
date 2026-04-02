@@ -106,8 +106,8 @@ def build_appearance_subsections(
         dialog,
         section_key="appearance",
         key="appearance/panel_tint",
-        title="Panel Tint",
-        terms="panel tint color intensity opacity active target",
+        title="Color Scheme",
+        terms="color scheme panel tint current row marked footer tabs toolbar",
     )
     appearance_typography_group = add_subsection(
         dialog,

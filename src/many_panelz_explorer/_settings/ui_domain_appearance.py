@@ -4,12 +4,64 @@ from __future__ import annotations
 
 from threep_commons.settings import SettingsDomainBase
 
+from ..color_schemes import (
+    normalize_color_scheme_id,
+    normalize_color_scheme_overrides_json,
+)
 from . import normalize
 from .registry import SettingsRegistry
 
 
 class UiAppearanceSettingsMixin(SettingsDomainBase, SettingsRegistry):
     """Persist fonts and panel tint appearance preferences."""
+
+    @property
+    def color_scheme_id(self) -> str:
+        """Return the selected built-in color scheme identifier."""
+
+        return normalize_color_scheme_id(
+            self._storage.value(
+                self.COLOR_SCHEME_ID_KEY,
+                self.DEFAULT_COLOR_SCHEME_ID,
+            ),
+            fallback=self.DEFAULT_COLOR_SCHEME_ID,
+        )
+
+    @color_scheme_id.setter
+    def color_scheme_id(self, scheme_id: str) -> None:
+        """Persist the selected built-in color scheme identifier."""
+
+        self._storage.set_value(
+            self.COLOR_SCHEME_ID_KEY,
+            normalize_color_scheme_id(
+                scheme_id,
+                fallback=self.DEFAULT_COLOR_SCHEME_ID,
+            ),
+        )
+
+    @property
+    def color_scheme_overrides_json(self) -> str:
+        """Return the canonical color-scheme override mapping JSON."""
+
+        return normalize_color_scheme_overrides_json(
+            self._storage.value(
+                self.COLOR_SCHEME_OVERRIDES_JSON_KEY,
+                self.DEFAULT_COLOR_SCHEME_OVERRIDES_JSON,
+            ),
+            fallback=self.DEFAULT_COLOR_SCHEME_OVERRIDES_JSON,
+        )
+
+    @color_scheme_overrides_json.setter
+    def color_scheme_overrides_json(self, overrides_json: str) -> None:
+        """Persist color-scheme overrides as canonical JSON."""
+
+        self._storage.set_value(
+            self.COLOR_SCHEME_OVERRIDES_JSON_KEY,
+            normalize_color_scheme_overrides_json(
+                overrides_json,
+                fallback=self.DEFAULT_COLOR_SCHEME_OVERRIDES_JSON,
+            ),
+        )
 
     @property
     def app_font_family(self) -> str:

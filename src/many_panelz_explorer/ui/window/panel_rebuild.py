@@ -178,6 +178,9 @@ class WindowPanelRebuildCoordinator:
         panel.enable_right_click_row_selection = (
             self.window.preferences_coordinator.enable_right_click_row_selection
         )
+        panel.set_keypad_mark_scope(
+            self.window.preferences_coordinator.keypad_mark_scope
+        )
         self._connect_panel_signals(
             panel_id,
             panel,
@@ -253,6 +256,9 @@ class WindowPanelRebuildCoordinator:
             standard_tab_width_mode,
             standard_tab_fixed_width_px,
         ) = self.window.preferences_coordinator.panel_tab_width_preferences()
+        panel.presentation_coordinator.apply_color_scheme(
+            self.window.preferences_coordinator.resolved_color_scheme
+        )
         panel.presentation_coordinator.set_role_visual_preferences(
             active_color_hex=active_color_hex,
             active_intensity_percent=active_intensity_percent,
@@ -292,6 +298,9 @@ class WindowPanelRebuildCoordinator:
         panel.enable_right_click_row_selection = (
             self.window.preferences_coordinator.enable_right_click_row_selection
         )
+        panel.set_keypad_mark_scope(
+            self.window.preferences_coordinator.keypad_mark_scope
+        )
         panel.set_show_system_files(
             self.window.preferences_coordinator.show_system_files_enabled
         )
@@ -327,6 +336,12 @@ class WindowPanelRebuildCoordinator:
             if isinstance(tab, ExplorerTab):
                 tab.set_enable_right_click_row_selection(
                     self.window.preferences_coordinator.enable_right_click_row_selection
+                )
+                tab.set_keypad_mark_scope(
+                    self.window.preferences_coordinator.keypad_mark_scope
+                )
+                tab.apply_color_scheme(
+                    self.window.preferences_coordinator.resolved_color_scheme
                 )
         panel.widget_map_coordinator.set_enabled(
             self.window.preferences_coordinator.show_widget_map_enabled

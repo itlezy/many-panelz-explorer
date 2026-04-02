@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
+from ...color_schemes import resolve_color_scheme
 from . import (
     backend_state,
     open_overrides_state,
@@ -43,6 +44,9 @@ class SettingsDialogRuntimeMixin:
         teracopy_struct_close_checkbox: QCheckBox
         teracopy_struct_keep_open_checkbox: QCheckBox
         active_intensity_slider: QSlider
+        color_scheme_override_previews: dict[str, QLabel]
+        color_scheme_override_values: dict[str, str]
+        color_scheme_preset_combo: QComboBox
         target_intensity_slider: QSlider
         active_color_preview: QLabel
         target_color_preview: QLabel
@@ -351,6 +355,18 @@ class SettingsDialogRuntimeMixin:
             self._target_color_hex,
         )
 
+    def _load_color_scheme_preferences(self, preferences: UiPreferences) -> None:
+        """Load color-scheme preset and override previews into controls."""
+
+        self.set_combo_value(
+            self.color_scheme_preset_combo,
+            preferences.color_scheme_id,
+        )
+        self.color_scheme_override_values = (
+            preferences_sync.load_color_scheme_override_values(preferences)
+        )
+        preferences_sync.sync_color_scheme_override_previews(self._dialog)
+
     def _load_preferences_into_controls(self, preferences: UiPreferences) -> None:
         """Populate dialog controls from the current UI preferences."""
 
@@ -359,6 +375,7 @@ class SettingsDialogRuntimeMixin:
         try:
             self._working_preferences = replace(preferences)
             self._load_panel_tint_preferences(preferences)
+            self._load_color_scheme_preferences(preferences)
             preferences_sync.load_panel_preferences(dialog, preferences)
             preferences_sync.load_operations_preferences(dialog, preferences)
             preferences_sync.load_typography_preferences(dialog, preferences)
@@ -388,6 +405,7 @@ class SettingsDialogRuntimeMixin:
             return
         dialog = self._dialog
         preferences_sync.sync_slider_value_labels(dialog)
+        preferences_sync.sync_color_scheme_override_previews(dialog)
         self._working_preferences = preferences_sync.collect_preferences_from_controls(
             dialog
         )
@@ -419,6 +437,7 @@ class SettingsDialogRuntimeMixin:
             self.active_color_preview,
             self._active_color_hex,
         )
+        preferences_sync.sync_color_scheme_override_previews(self._dialog)
         self._on_controls_changed()
 
     def choose_target_color(self) -> None:
@@ -436,6 +455,46 @@ class SettingsDialogRuntimeMixin:
             self.target_color_preview,
             self._target_color_hex,
         )
+        preferences_sync.sync_color_scheme_override_previews(self._dialog)
+        self._on_controls_changed()
+
+    def choose_color_scheme_override(self, token_key: str, token_title: str) -> None:
+        """Choose one override color for the current scheme token."""
+
+        resolved_scheme = resolve_color_scheme(
+            scheme_id=str(self.color_scheme_preset_combo.currentData() or ""),
+            overrides_json=preferences_sync.collect_color_scheme_overrides_json(
+                self._dialog
+            ),
+            active_panel_tint_color_hex=self._active_color_hex,
+            active_panel_tint_intensity_percent=self.active_intensity_slider.value(),
+            target_panel_tint_color_hex=self._target_color_hex,
+            target_panel_tint_intensity_percent=self.target_intensity_slider.value(),
+        )
+        initial_hex = self.color_scheme_override_values.get(
+            token_key,
+            str(getattr(resolved_scheme, token_key)),
+        )
+        selected = QColorDialog.getColor(
+            QColor(initial_hex),
+            self._dialog,
+            f"{token_title} Override",
+        )
+        if not selected.isValid():
+            return
+        self.color_scheme_override_values[token_key] = selected.name(
+            QColor.NameFormat.HexRgb
+        ).upper()
+        preferences_sync.sync_color_scheme_override_previews(self._dialog)
+        self._on_controls_changed()
+
+    def clear_color_scheme_overrides(self) -> None:
+        """Clear all staged color-scheme overrides from the dialog."""
+
+        if not self.color_scheme_override_values:
+            return
+        self.color_scheme_override_values = {}
+        preferences_sync.sync_color_scheme_override_previews(self._dialog)
         self._on_controls_changed()
 
     def _accept_with_apply(self) -> None:

@@ -42,7 +42,7 @@ The product lens is always:
 | `ITEM_014` | CommanderStyle Keyboard and Target-Pane Baseline | 1 | interaction model | `DONE` |
 | `ITEM_015` | Function Key Bar Adapted to Many Panels | 1 | operational chrome | `PLANNED` |
 | `ITEM_016` | Rich Per-Panel Footer and Status Strip | 1 | status visibility | `PLANNED` |
-| `ITEM_017` | Numeric Keypad Marking Suite | 1 | selection operations | `PLANNED` |
+| `ITEM_017` | Numeric Keypad Marking Suite | 1 | selection operations | `DONE` |
 | `ITEM_018` | Dense Panel Chrome Mode | 1 | UI density | `PLANNED` |
 | `ITEM_019` | Multi-Panel Source and Target Affordance Upgrade | 1 | many-panel identity | `PLANNED` |
 | `ITEM_020` | Hotlist Expansion for Many Panels | 1 | bookmarks | `PLANNED` |
@@ -282,15 +282,15 @@ the window contains more than two panels.
 
 ### ITEM_017 — Numeric Keypad Marking Suite
 
-- Status: `PLANNED`
+- Status: `DONE`
 - Phase: `1`
 - Theme: selection operations
 - CommanderStyle inspiration: numeric keypad marking, invert, restore, and same-extension actions
 - many-panelz direction: extend mark operations without reintroducing ambiguous Qt selection semantics
 - Notes:
-- Include `Num +`, `Num -`, `Num *`, and `Num /`.
-- Include configurable files-only vs files-and-directories behavior.
-- Extension-based marking should remain fast and file-list local.
+- `Num +`, `Num -`, `Num *`, and `Num /` now drive bulk mark, unmark, invert, and restore.
+- Scope is configurable as files only or files plus directories.
+- `Alt+Num +` and `Alt+Num -` now mark or unmark same-extension files from the current row.
 
 ### ITEM_018 — Dense Panel Chrome Mode
 

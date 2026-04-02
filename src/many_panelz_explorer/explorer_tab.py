@@ -3,23 +3,28 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QSize, Qt
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QSignalBlocker, QSize, Qt
 from PySide6.QtGui import QKeyEvent, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
-from threep_commons.fs_paths import path_key
+from threep_commons.fs_paths import is_path_under_root, path_key
 
+from . import mounts
 from ._explorer_tab_actions import ExplorerTabActions
 from ._explorer_tab_columns import ExplorerTabColumns
 from ._explorer_tab_navigation import ExplorerTabNavigation
+from .color_schemes import ResolvedColorScheme, default_color_scheme
 from .explorer_file_list_view import ExplorerFileListView
 from .fast_dir_model import FastDirModel
 
@@ -27,6 +32,21 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .ui.window.state_types import TabState
+
+
+@dataclass(slots=True, frozen=True)
+class FileListFooterSummary:
+    """Describe one panel-local file-list footer snapshot."""
+
+    marked_count: int
+    visible_count: int
+    visible_file_count: int
+    visible_dir_count: int
+    marked_known_bytes: int
+    visible_known_bytes: int
+    marked_pending_dirs: int
+    visible_pending_dirs: int
+    free_bytes: int | None
 
 
 class ExplorerTab(QWidget):
@@ -45,6 +65,7 @@ class ExplorerTab(QWidget):
         file_icon_mode: str = "all_associated",
         dim_hidden_entries: bool = True,
         enable_right_click_row_selection: bool = True,
+        keypad_mark_scope: str = "files_only",
         mouse_selection_mode: str | None = None,
         file_list_size_formatter: Callable[[int], str] | None = None,
         properties_size_formatter: Callable[[int], str] | None = None,
@@ -59,6 +80,12 @@ class ExplorerTab(QWidget):
             properties_size_formatter or self._default_properties_size_formatter
         )
         self._pending_mark_restore_paths: list[Path] | None = None
+        self._previous_bulk_mark_paths: list[Path] | None = None
+        self._pending_previous_bulk_mark_paths: list[Path] | None = None
+        self._keypad_mark_scope = "files_only"
+        self._file_icon_padding_horizontal_px = 2
+        self._file_icon_padding_vertical_px = 1
+        self._resolved_color_scheme = default_color_scheme()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -98,12 +125,35 @@ class ExplorerTab(QWidget):
         self.view.installEventFilter(self)
         root.addWidget(self.view)
 
+        self.status_footer = QWidget(self)
+        self.status_footer.setObjectName("explorer_tab_footer")
+        footer_layout = QHBoxLayout(self.status_footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setSpacing(8)
+        self.footer_marks_label = self._create_footer_label("explorer_tab_footer_marks")
+        self.footer_kinds_label = self._create_footer_label("explorer_tab_footer_kinds")
+        self.footer_size_label = self._create_footer_label("explorer_tab_footer_size")
+        self.footer_pending_label = self._create_footer_label(
+            "explorer_tab_footer_pending"
+        )
+        self.footer_free_label = self._create_footer_label("explorer_tab_footer_free")
+        self.footer_free_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        footer_layout.addWidget(self.footer_marks_label)
+        footer_layout.addWidget(self.footer_kinds_label)
+        footer_layout.addWidget(self.footer_size_label)
+        footer_layout.addWidget(self.footer_pending_label)
+        footer_layout.addWidget(self.footer_free_label, 1)
+        root.addWidget(self.status_footer)
+
         self.status_label = QLabel(self)
         self.status_label.setObjectName("explorer_tab_status")
         self.status_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.NoTextInteraction
         )
-        root.addWidget(self.status_label)
+        self.status_label.hide()
 
         self.columns = ExplorerTabColumns(
             model=self.model,
@@ -153,6 +203,8 @@ class ExplorerTab(QWidget):
 
         self.navigation.set_path(initial_path)
         self.view.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self.set_keypad_mark_scope(keypad_mark_scope)
+        self.apply_color_scheme(self._resolved_color_scheme)
         self.refresh_status_summary()
 
     @property
@@ -171,6 +223,7 @@ class ExplorerTab(QWidget):
             formatter or self._default_file_list_size_formatter
         )
         self.model.set_size_formatter(self._file_list_size_formatter)
+        self.refresh_status_summary()
 
     def set_properties_size_formatter(
         self,
@@ -192,6 +245,15 @@ class ExplorerTab(QWidget):
         """Apply the configured file-list mouse selection mode."""
 
         self.view.set_mouse_selection_mode(mode)
+
+    def set_keypad_mark_scope(self, scope: str) -> None:
+        """Apply the configured keypad bulk-mark scope."""
+
+        self._keypad_mark_scope = (
+            "files_and_directories"
+            if str(scope).strip().lower() == "files_and_directories"
+            else "files_only"
+        )
 
     def set_directories_sort_mode(self, mode: str) -> None:
         """Apply one directory-sorting mode to the tab model."""
@@ -234,14 +296,17 @@ class ExplorerTab(QWidget):
         """Apply icon size and row padding to the file-list view."""
 
         self.view.setIconSize(QSize(int(icon_size_px), int(icon_size_px)))
-        self.view.setStyleSheet(
-            "QTreeView::item { "
-            f"padding-top: {int(padding_vertical_px)}px; "
-            f"padding-bottom: {int(padding_vertical_px)}px; "
-            f"padding-left: {int(padding_horizontal_px)}px; "
-            f"padding-right: {int(padding_horizontal_px)}px; "
-            "}"
-        )
+        self._file_icon_padding_horizontal_px = int(padding_horizontal_px)
+        self._file_icon_padding_vertical_px = int(padding_vertical_px)
+        self._sync_file_list_style_sheet()
+
+    def apply_color_scheme(self, scheme: ResolvedColorScheme) -> None:
+        """Apply one resolved color scheme to the file list and footer."""
+
+        self._resolved_color_scheme = scheme
+        self.view.apply_color_scheme(scheme)
+        self._sync_file_list_style_sheet()
+        self._sync_footer_style_sheet()
 
     def queue_folder_size_calculation(
         self,
@@ -295,6 +360,90 @@ class ExplorerTab(QWidget):
         """Clear all currently marked rows."""
 
         self.view.selectionModel().clearSelection()
+
+    def mark_all_visible(self, *, include_directories: bool) -> int:
+        """Mark every visible row within the requested bulk-mark scope."""
+
+        candidate_paths = self._bulk_scope_candidate_paths(
+            include_directories=include_directories
+        )
+        self._snapshot_previous_marks_for_bulk_action()
+        target_paths = self.marked_paths() + candidate_paths
+        return self._apply_mark_paths(target_paths)
+
+    def unmark_all_visible(self, *, include_directories: bool) -> int:
+        """Unmark every visible row within the requested bulk-mark scope."""
+
+        candidate_keys = {
+            path_key(path)
+            for path in self._bulk_scope_candidate_paths(
+                include_directories=include_directories
+            )
+        }
+        self._snapshot_previous_marks_for_bulk_action()
+        target_paths = [
+            path for path in self.marked_paths() if path_key(path) not in candidate_keys
+        ]
+        return self._apply_mark_paths(target_paths)
+
+    def invert_marks_visible(self, *, include_directories: bool) -> int:
+        """Invert marks for visible rows within the requested bulk-mark scope."""
+
+        candidate_paths = self._bulk_scope_candidate_paths(
+            include_directories=include_directories
+        )
+        candidate_keys = {path_key(path) for path in candidate_paths}
+        current_marked = self.marked_paths()
+        marked_keys = {path_key(path) for path in current_marked}
+        self._snapshot_previous_marks_for_bulk_action()
+        target_paths = [
+            path for path in current_marked if path_key(path) not in candidate_keys
+        ]
+        target_paths.extend(
+            path for path in candidate_paths if path_key(path) not in marked_keys
+        )
+        return self._apply_mark_paths(target_paths)
+
+    def restore_previous_marks(self) -> int:
+        """Restore the last bulk-mark snapshot for the current folder view."""
+
+        if self._previous_bulk_mark_paths is None:
+            return 0
+        return self._apply_mark_paths(self._previous_bulk_mark_paths)
+
+    def mark_same_extension_as_current(self, *, mark: bool) -> int:
+        """Mark or unmark visible files sharing the current file extension."""
+
+        current_path = self.current_path_or_none()
+        if current_path is None:
+            return 0
+        current_path_key = path_key(current_path)
+        directory_keys = {
+            path_key(path) for path in self.model.visible_directory_paths()
+        }
+        if current_path_key in directory_keys:
+            return 0
+        suffix = current_path.suffix.casefold()
+        if not suffix:
+            return 0
+        candidate_paths = [
+            path
+            for path in self.model.visible_paths()
+            if path_key(path) not in directory_keys and path.suffix.casefold() == suffix
+        ]
+        if not candidate_paths:
+            return 0
+        self._snapshot_previous_marks_for_bulk_action()
+        candidate_keys = {path_key(path) for path in candidate_paths}
+        if mark:
+            target_paths = self.marked_paths() + candidate_paths
+        else:
+            target_paths = [
+                path
+                for path in self.marked_paths()
+                if path_key(path) not in candidate_keys
+            ]
+        return self._apply_mark_paths(target_paths)
 
     def is_path_marked(self, path: Path) -> bool:
         """Return whether the given path is currently marked."""
@@ -372,30 +521,81 @@ class ExplorerTab(QWidget):
 
         if previous_path is None:
             self._pending_mark_restore_paths = None
+            self._pending_previous_bulk_mark_paths = None
             return
         if path_key(previous_path) == path_key(target_path):
             if self._pending_mark_restore_paths is None:
                 self._pending_mark_restore_paths = self.marked_paths()
+            if self._pending_previous_bulk_mark_paths is None:
+                self._pending_previous_bulk_mark_paths = self._previous_bulk_mark_paths
             return
         self._pending_mark_restore_paths = None
+        self._pending_previous_bulk_mark_paths = None
+        self._previous_bulk_mark_paths = None
         self.clear_marks()
 
     def refresh_status_summary(self) -> None:
-        """Refresh the per-tab marked-vs-total summary strip."""
+        """Refresh the per-tab marked-vs-total summary footer."""
 
-        marked_count, marked_bytes, marked_pending = self.model.summary_for_paths(
-            self.marked_paths()
+        summary = self.build_footer_summary()
+        marks_text = f"Mk {summary.marked_count}/{summary.visible_count}"
+        kinds_text = f"F {summary.visible_file_count} D {summary.visible_dir_count}"
+        size_text = (
+            f"Sz {self.model.format_size_value(summary.marked_known_bytes)}"
+            f"/{self.model.format_size_value(summary.visible_known_bytes)}"
         )
-        total_count, total_bytes, total_pending = self.model.visible_summary()
-        size_summary = (
-            f"Size {self.model.format_size_value(marked_bytes)}"
-            f"/{self.model.format_size_value(total_bytes)}"
+        pending_visible = (
+            summary.marked_pending_dirs > 0 or summary.visible_pending_dirs > 0
         )
-        pending_summary = ""
-        if marked_pending > 0 or total_pending > 0:
-            pending_summary = f" | Pending {marked_pending}/{total_pending}"
-        self.status_label.setText(
-            f"Marked {marked_count}/{total_count} | {size_summary}{pending_summary}"
+        pending_text = (
+            f"P {summary.marked_pending_dirs}/{summary.visible_pending_dirs}"
+            if pending_visible
+            else ""
+        )
+        free_visible = summary.free_bytes is not None
+        free_text = (
+            f"Free {self.model.format_size_value(summary.free_bytes or 0)}"
+            if free_visible
+            else ""
+        )
+
+        self.footer_marks_label.setText(marks_text)
+        self.footer_marks_label.setToolTip(marks_text)
+        self.footer_kinds_label.setText(kinds_text)
+        self.footer_kinds_label.setToolTip(kinds_text)
+        self.footer_size_label.setText(size_text)
+        self.footer_size_label.setToolTip(size_text)
+        self.footer_pending_label.setVisible(pending_visible)
+        self.footer_pending_label.setText(pending_text)
+        self.footer_pending_label.setToolTip(pending_text if pending_visible else "")
+        self.footer_free_label.setVisible(free_visible)
+        self.footer_free_label.setText(free_text)
+        self.footer_free_label.setToolTip(free_text if free_visible else "")
+        compatibility_parts = [
+            marks_text,
+            kinds_text,
+            size_text,
+            pending_text,
+            free_text,
+        ]
+        compatibility_text = " | ".join(part for part in compatibility_parts if part)
+        self.status_label.setText(compatibility_text)
+
+    def build_footer_summary(self) -> FileListFooterSummary:
+        """Return the current panel-local footer summary snapshot."""
+
+        marked_summary = self.model.summary_for_paths(self.marked_paths())
+        visible_summary = self.model.visible_summary()
+        return FileListFooterSummary(
+            marked_count=marked_summary.entry_count,
+            visible_count=visible_summary.entry_count,
+            visible_file_count=visible_summary.file_count,
+            visible_dir_count=visible_summary.dir_count,
+            marked_known_bytes=marked_summary.known_bytes,
+            visible_known_bytes=visible_summary.known_bytes,
+            marked_pending_dirs=marked_summary.pending_dirs,
+            visible_pending_dirs=visible_summary.pending_dirs,
+            free_bytes=self._current_path_free_bytes(),
         )
 
     def open_selected_or_current(self) -> None:
@@ -532,10 +732,151 @@ class ExplorerTab(QWidget):
             for marked_path in self._pending_mark_restore_paths:
                 self.set_path_marked(marked_path, True)
             self._pending_mark_restore_paths = None
+        if self._pending_previous_bulk_mark_paths is not None:
+            self._previous_bulk_mark_paths = self._visible_ordered_paths(
+                self._pending_previous_bulk_mark_paths
+            )
+            self._pending_previous_bulk_mark_paths = None
         self.refresh_status_summary()
 
     def _on_folder_size_changed(self, *_args: object) -> None:
         self.refresh_status_summary()
+
+    def _create_footer_label(self, object_name: str) -> QLabel:
+        """Create one compact footer label with stable defaults."""
+
+        label = QLabel(self.status_footer)
+        label.setObjectName(object_name)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        return label
+
+    def _sync_file_list_style_sheet(self) -> None:
+        """Rebuild the file-list stylesheet from padding and scheme values."""
+
+        tokens = self.view.file_list_color_tokens()
+        alternate = tokens.background.darker(103)
+        self.view.setStyleSheet(
+            "QTreeView { "
+            f"background-color: {tokens.background.name()}; "
+            f"alternate-background-color: {alternate.name()}; "
+            f"color: {self.palette().color(self.foregroundRole()).name()}; "
+            "} "
+            "QTreeView::item { "
+            f"padding-top: {self._file_icon_padding_vertical_px}px; "
+            f"padding-bottom: {self._file_icon_padding_vertical_px}px; "
+            f"padding-left: {self._file_icon_padding_horizontal_px}px; "
+            f"padding-right: {self._file_icon_padding_horizontal_px}px; "
+            "} "
+            f"QTreeView::item {{ selection-color: {tokens.marked_text.name()}; }}"
+        )
+
+    def _sync_footer_style_sheet(self) -> None:
+        """Apply footer colors from the current resolved scheme."""
+
+        self.status_footer.setStyleSheet(
+            "#explorer_tab_footer { "
+            f"background-color: {self._resolved_color_scheme.footer_background_hex}; "
+            "} "
+            "#explorer_tab_footer QLabel { "
+            f"color: {self._resolved_color_scheme.footer_text_hex}; "
+            "}"
+        )
+
+    def _current_path_free_bytes(self) -> int | None:
+        """Return free bytes for the current tab path when storage data is known."""
+
+        current_path = self.navigation.path
+        entries = mounts.list_storage_usage_entries(current_path=current_path)
+        best_root_length = -1
+        best_free_bytes: int | None = None
+        for entry in entries:
+            if not is_path_under_root(current_path, entry.root_path):
+                continue
+            root_length = len(path_key(entry.root_path))
+            if root_length <= best_root_length:
+                continue
+            best_root_length = root_length
+            best_free_bytes = max(0, int(entry.bytes_total) - int(entry.bytes_used))
+        return best_free_bytes
+
+    def _handle_keypad_mark_shortcut(self, key_event: QKeyEvent) -> bool:
+        """Handle keypad-only bulk mark shortcuts for the active file list."""
+
+        modifiers = key_event.modifiers()
+        key = key_event.key()
+        keypad_only = Qt.KeyboardModifier.KeypadModifier
+        alt_keypad = Qt.KeyboardModifier.AltModifier | keypad_only
+        include_directories = self._keypad_mark_scope == "files_and_directories"
+
+        if modifiers == keypad_only and key == int(Qt.Key.Key_Plus):
+            self.mark_all_visible(include_directories=include_directories)
+            return True
+        if modifiers == keypad_only and key == int(Qt.Key.Key_Minus):
+            self.unmark_all_visible(include_directories=include_directories)
+            return True
+        if modifiers == keypad_only and key == int(Qt.Key.Key_Asterisk):
+            self.invert_marks_visible(include_directories=include_directories)
+            return True
+        if modifiers == keypad_only and key == int(Qt.Key.Key_Slash):
+            self.restore_previous_marks()
+            return True
+        if modifiers == alt_keypad and key == int(Qt.Key.Key_Plus):
+            self.mark_same_extension_as_current(mark=True)
+            return True
+        if modifiers == alt_keypad and key == int(Qt.Key.Key_Minus):
+            self.mark_same_extension_as_current(mark=False)
+            return True
+        return False
+
+    def _snapshot_previous_marks_for_bulk_action(self) -> None:
+        """Store the current mark set for one later keypad restore operation."""
+
+        self._previous_bulk_mark_paths = self.marked_paths()
+
+    def _bulk_scope_candidate_paths(self, *, include_directories: bool) -> list[Path]:
+        """Return visible candidate paths for one keypad bulk-mark action."""
+
+        visible_paths = self.model.visible_paths()
+        if include_directories:
+            return visible_paths
+        directory_keys = {
+            path_key(path) for path in self.model.visible_directory_paths()
+        }
+        return [path for path in visible_paths if path_key(path) not in directory_keys]
+
+    def _visible_ordered_paths(self, paths: list[Path] | None) -> list[Path]:
+        """Return unique visible paths in current display order."""
+
+        if not paths:
+            return []
+        target_keys = {path_key(path) for path in paths}
+        return [
+            path for path in self.model.visible_paths() if path_key(path) in target_keys
+        ]
+
+    def _apply_mark_paths(self, paths: list[Path]) -> int:
+        """Replace the current mark set with the given visible paths."""
+
+        target_paths = self._visible_ordered_paths(paths)
+        before_keys = {path_key(path) for path in self.marked_paths()}
+        after_keys = {path_key(path) for path in target_paths}
+        changed_count = len(before_keys.symmetric_difference(after_keys))
+
+        selection_model = self.view.selectionModel()
+        with QSignalBlocker(selection_model):
+            selection_model.clearSelection()
+            for path in target_paths:
+                index = self.model.index_for_path(path)
+                if not index.isValid() or self.model.is_parent_index(index):
+                    continue
+                selection_model.select(
+                    index,
+                    selection_model.SelectionFlag.Select
+                    | selection_model.SelectionFlag.Rows,
+                )
+        self.refresh_status_summary()
+        return changed_count
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self.view and event.type() == QEvent.Type.KeyPress:
@@ -590,6 +931,8 @@ class ExplorerTab(QWidget):
             return True
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_Space):
             self._actions.toggle_current_item_selection()
+            return True
+        if self._handle_keypad_mark_shortcut(key_event):
             return True
         if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_F3):
             return self._trigger_window_shortcut("list_files_shortcut")

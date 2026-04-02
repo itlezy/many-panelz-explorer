@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidgetItem
@@ -12,6 +13,10 @@ from ..._operations.discovery import (
     resolve_terminal_launcher_paths,
 )
 from ..._settings.models import UiPreferences
+from ...color_schemes import (
+    normalize_color_scheme_overrides_json,
+    resolve_color_scheme,
+)
 from ...folder_sizes import everything_sdk_diagnostics_text
 from . import backend_state, open_overrides_state
 
@@ -147,6 +152,27 @@ def load_panel_preferences(dialog: SettingsDialog, preferences: UiPreferences) -
     dialog.properties_byte_custom_template_edit.setText(
         preferences.properties_byte_custom_template
     )
+
+
+def load_color_scheme_override_values(
+    preferences: UiPreferences,
+) -> dict[str, str]:
+    """Return persisted color-scheme override values for dialog editing."""
+
+    try:
+        payload = json.loads(preferences.color_scheme_overrides_json)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    raw_mapping = cast("dict[object, object]", payload)
+    overrides: dict[str, str] = {}
+    for key, value in raw_mapping.items():
+        normalized_key = str(key).strip()
+        if not normalized_key or not isinstance(value, str):
+            continue
+        overrides[normalized_key] = value
+    return overrides
 
 
 def load_operations_preferences(
@@ -340,6 +366,10 @@ def load_operations_preferences(
     dialog.enable_right_click_row_selection_checkbox.setChecked(
         preferences.enable_right_click_row_selection
     )
+    dialog.set_combo_value(
+        dialog.keypad_mark_scope_combo,
+        preferences.keypad_mark_scope,
+    )
     dialog.auto_calculate_dir_sizes_on_space_checkbox.setChecked(
         preferences.auto_calculate_dir_sizes_on_space
     )
@@ -451,6 +481,31 @@ def sync_color_preview(target: QLabel, color_hex: str) -> None:
     target.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
+def collect_color_scheme_overrides_json(dialog: SettingsDialog) -> str:
+    """Serialize dialog color overrides into canonical settings JSON."""
+
+    payload = json.dumps(dialog.color_scheme_override_values, sort_keys=True)
+    return normalize_color_scheme_overrides_json(payload, fallback="{}")
+
+
+def sync_color_scheme_override_previews(dialog: SettingsDialog) -> None:
+    """Refresh override previews against the currently selected preset."""
+
+    resolved_scheme = resolve_color_scheme(
+        scheme_id=str(dialog.color_scheme_preset_combo.currentData() or ""),
+        overrides_json=collect_color_scheme_overrides_json(dialog),
+        active_panel_tint_color_hex=dialog.active_color_hex,
+        active_panel_tint_intensity_percent=dialog.active_intensity_slider.value(),
+        target_panel_tint_color_hex=dialog.target_color_hex,
+        target_panel_tint_intensity_percent=dialog.target_intensity_slider.value(),
+    )
+    for key, preview in dialog.color_scheme_override_previews.items():
+        sync_color_preview(preview, str(getattr(resolved_scheme, key)))
+    dialog.clear_color_scheme_overrides_button.setEnabled(
+        bool(dialog.color_scheme_override_values)
+    )
+
+
 def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
     """Refresh read-only diagnostics for terminals and core shell tools."""
 
@@ -502,10 +557,13 @@ def sync_operation_diagnostics(dialog: SettingsDialog) -> None:
 def _preferred_terminal_executable_text(*, configured: str, resolved: str) -> str:
     """Return the terminal executable text shown in editable settings controls."""
 
+    configured_text = str(configured).strip()
+    if configured_text:
+        return configured_text
     resolved_text = str(resolved).strip()
     if resolved_text:
         return resolved_text
-    return str(configured).strip()
+    return configured_text
 
 
 def _populate_diagnostics_table(
@@ -709,6 +767,7 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
         enable_right_click_row_selection=(
             dialog.enable_right_click_row_selection_checkbox.isChecked()
         ),
+        keypad_mark_scope=str(dialog.keypad_mark_scope_combo.currentData() or ""),
         auto_calculate_dir_sizes_on_space=(
             dialog.auto_calculate_dir_sizes_on_space_checkbox.isChecked()
         ),
@@ -786,6 +845,8 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
             dialog.navigation_font_family_combo.currentData() or ""
         ),
         navigation_font_size_pt=dialog.navigation_font_size_spin.value(),
+        color_scheme_id=str(dialog.color_scheme_preset_combo.currentData() or ""),
+        color_scheme_overrides_json=collect_color_scheme_overrides_json(dialog),
         active_panel_tint_color_hex=dialog.active_color_hex,
         active_panel_tint_intensity_percent=dialog.active_intensity_slider.value(),
         target_panel_tint_color_hex=dialog.target_color_hex,

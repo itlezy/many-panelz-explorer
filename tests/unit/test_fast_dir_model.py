@@ -10,7 +10,12 @@ pytest.importorskip("pytestqt")
 from PySide6.QtCore import QDir, Qt
 from PySide6.QtGui import QBrush
 
-from many_panelz_explorer.fast_dir_model import FastDirModel, _DirEntry
+from many_panelz_explorer.fast_dir_model import (
+    FastDirModel,
+    FileListAggregate,
+    _DirEntry,
+    _FolderSizeState,
+)
 
 
 def _entry(
@@ -221,3 +226,52 @@ def test_icon_and_hidden_rendering_roles_follow_preferences(
     model.set_file_icon_mode("none", dim_hidden_entries=False)
     assert model.data(hidden_index, Qt.ItemDataRole.DecorationRole) is None
     assert model.data(hidden_index, Qt.ItemDataRole.ForegroundRole) is None
+
+
+def test_visible_summary_reports_file_dir_counts_and_pending_sizes(
+    tmp_path: Path, qapp
+) -> None:
+    model = FastDirModel()
+    model.setFilter(QDir.Filter.AllEntries | QDir.Filter.AllDirs | QDir.Filter.NoDotDot)
+    ready_dir = _entry(tmp_path / "ready", is_dir=True)
+    pending_dir = _entry(tmp_path / "pending", is_dir=True)
+    file_entry = _entry(tmp_path / "alpha.txt", is_dir=False)
+    _load_entries(model, [ready_dir, pending_dir, file_entry])
+    model._folder_size_states[model._path_key(ready_dir.path)] = _FolderSizeState(
+        path=ready_dir.path,
+        status="ready",
+        bytes_value=40,
+    )
+
+    assert model.visible_summary() == FileListAggregate(
+        entry_count=3,
+        file_count=1,
+        dir_count=2,
+        known_bytes=50,
+        pending_dirs=1,
+    )
+
+
+def test_summary_for_paths_deduplicates_paths_and_ignores_missing_entries(
+    tmp_path: Path, qapp
+) -> None:
+    model = FastDirModel()
+    model.setFilter(QDir.Filter.AllEntries | QDir.Filter.AllDirs | QDir.Filter.NoDotDot)
+    ready_dir = _entry(tmp_path / "ready", is_dir=True)
+    file_entry = _entry(tmp_path / "alpha.txt", is_dir=False)
+    _load_entries(model, [ready_dir, file_entry])
+    model._folder_size_states[model._path_key(ready_dir.path)] = _FolderSizeState(
+        path=ready_dir.path,
+        status="ready",
+        bytes_value=40,
+    )
+
+    assert model.summary_for_paths(
+        [file_entry.path, ready_dir.path, file_entry.path, tmp_path / "missing.txt"]
+    ) == FileListAggregate(
+        entry_count=2,
+        file_count=1,
+        dir_count=1,
+        known_bytes=50,
+        pending_dirs=0,
+    )

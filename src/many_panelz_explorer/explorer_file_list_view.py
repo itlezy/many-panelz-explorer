@@ -3,26 +3,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, override
+from typing import TYPE_CHECKING, Literal, cast, override
 
 from PySide6.QtCore import (
+    QEvent,
     QItemSelectionModel,
     QModelIndex,
+    QPersistentModelIndex,
     QPoint,
     QRect,
     Qt,
     QTimer,
     Signal,
 )
-from PySide6.QtWidgets import QApplication, QRubberBand, QTreeView, QWidget
+from PySide6.QtGui import QColor, QContextMenuEvent, QPainter, QPalette
+from PySide6.QtWidgets import (
+    QApplication,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTreeView,
+    QWidget,
+)
+
+from .color_schemes import ResolvedColorScheme, default_color_scheme
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QContextMenuEvent, QFocusEvent, QMouseEvent
+    from PySide6.QtGui import QFocusEvent, QMouseEvent
 
 
 RIGHT_CLICK_CONTEXT_MENU_DELAY_MS = 1000
 type MouseSelectionMode = Literal["right_button", "left_button"]
-type HitRegion = Literal["icon", "row", "behind_name", "background"]
+type HitRegion = Literal["icon", "row", "background"]
+type RightDragAction = Literal["mark", "unmark"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -31,6 +44,42 @@ class _RowHit:
 
     index: QModelIndex
     region: HitRegion
+
+
+@dataclass(slots=True, frozen=True)
+class FileListColorTokens:
+    """Store reusable file-list colors for cursor and mark rendering."""
+
+    background: QColor
+    marked_background: QColor
+    marked_text: QColor
+    focused_current_row_background: QColor
+    inactive_current_row_background: QColor
+    focused_current_marked_background: QColor
+    inactive_current_marked_background: QColor
+    current_marked_text: QColor
+    hidden_text: QColor
+
+
+class _ExplorerFileListItemDelegate(QStyledItemDelegate):
+    """Paint file-list rows without the default dotted focus rectangle."""
+
+    def __init__(self, owner: ExplorerFileListView) -> None:
+        """Initialize the delegate for one explorer file list."""
+
+        super().__init__(owner)
+        self._owner = owner
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        """Paint one row with explicit current-row styling."""
+
+        styled_option = self._owner.styled_option_for_index(option, index)
+        super().paint(painter, styled_option, index)
 
 
 class ExplorerFileListView(QTreeView):
@@ -44,29 +93,23 @@ class ExplorerFileListView(QTreeView):
         super().__init__(parent)
         self._enable_right_click_row_selection = True
         self._mouse_selection_mode: MouseSelectionMode = "right_button"
+        self._color_tokens = self._build_color_tokens()
         self._pending_right_click_pos = QPoint()
         self._pending_right_click_index = QModelIndex()
         self._pending_right_click_rect = QRect()
         self._right_button_pressed = False
         self._consume_right_button_release = False
         self._right_drag_marked_rows: set[int] = set()
+        self._right_drag_action: RightDragAction | None = None
         self._pending_left_mode_context_pos = QPoint()
         self._pending_left_mode_context = False
-        self._pending_band_origin: QPoint | None = None
-        self._pending_band_button = Qt.MouseButton.NoButton
-        self._pending_band_additive = False
-        self._rubber_band_anchor_index = QModelIndex()
-        self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
-        self._rubber_band.hide()
-        self._rubber_band_active = False
-        self._rubber_band_button = Qt.MouseButton.NoButton
-        self._rubber_band_additive = False
         self._delayed_context_menu_timer = QTimer(self)
         self._delayed_context_menu_timer.setSingleShot(True)
         self._delayed_context_menu_timer.setInterval(RIGHT_CLICK_CONTEXT_MENU_DELAY_MS)
         self._delayed_context_menu_timer.timeout.connect(
             self._emit_delayed_context_menu_request
         )
+        self.setItemDelegate(_ExplorerFileListItemDelegate(self))
 
     @property
     def enable_right_click_row_selection(self) -> bool:
@@ -99,8 +142,86 @@ class ExplorerFileListView(QTreeView):
         self._mouse_selection_mode = normalized_mode
         self._enable_right_click_row_selection = normalized_mode == "right_button"
         self._cancel_pending_right_click()
-        self._cancel_rubber_band()
         self._consume_right_button_release = False
+
+    def file_list_color_tokens(self) -> FileListColorTokens:
+        """Return the current file-list state colors."""
+
+        return self._color_tokens
+
+    def apply_color_scheme(self, scheme: ResolvedColorScheme) -> None:
+        """Apply one resolved color scheme to the file-list renderer."""
+
+        self._color_tokens = self._build_color_tokens(scheme)
+        self.viewport().update()
+
+    def styled_option_for_index(
+        self,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QStyleOptionViewItem:
+        """Return the delegate style option for one index."""
+
+        styled_option = QStyleOptionViewItem(option)
+        model_index = cast("QModelIndex", index)
+        delegate = self.itemDelegate()
+        if isinstance(delegate, QStyledItemDelegate):
+            delegate.initStyleOption(styled_option, model_index)
+        row_index = model_index.siblingAtColumn(0)
+        current_row_index = self.currentIndex().siblingAtColumn(0)
+        styled_option.state &= ~QStyle.StateFlag.State_HasFocus
+        marked = self.is_row_marked(row_index)
+        current = row_index.isValid() and row_index == current_row_index
+        if not current and not marked:
+            return styled_option
+        background_color, text_color = self._row_state_colors(
+            marked=marked,
+            current=current,
+        )
+        styled_option.state |= QStyle.StateFlag.State_Selected
+        for group in (
+            QPalette.ColorGroup.Active,
+            QPalette.ColorGroup.Inactive,
+            QPalette.ColorGroup.Normal,
+        ):
+            styled_option.palette.setColor(
+                group,
+                QPalette.ColorRole.Highlight,
+                background_color,
+            )
+            styled_option.palette.setColor(
+                group,
+                QPalette.ColorRole.HighlightedText,
+                text_color,
+            )
+        return styled_option
+
+    def is_row_marked(self, index: QModelIndex) -> bool:
+        """Return whether the given row is marked."""
+
+        row_index = index.siblingAtColumn(0)
+        if not row_index.isValid():
+            return False
+        selection_model = self.selectionModel()
+        return bool(selection_model.isSelected(row_index))
+
+    def has_active_file_list_focus(self) -> bool:
+        """Return whether this file list currently owns focus."""
+
+        return bool(self.hasFocus() or self.viewport().hasFocus())
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        """Refresh cached colors when the palette or style changes."""
+
+        if event.type() in {
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.StyleChange,
+        }:
+            self._color_tokens = self._build_color_tokens()
+            self.viewport().update()
+        super().changeEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Interpret file-list press gestures before falling back to Qt defaults."""
@@ -125,16 +246,9 @@ class ExplorerFileListView(QTreeView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Handle drag marking, rubberbanding, and delayed-menu cancellation."""
+        """Handle drag marking and delayed-menu cancellation."""
 
         pos = event.position().toPoint()
-        if self._maybe_start_pending_rubber_band(pos, event):
-            event.accept()
-            return
-        if self._rubber_band_active:
-            self._update_rubber_band(pos)
-            event.accept()
-            return
         if (
             self._mouse_selection_mode == "right_button"
             and bool(event.buttons() & Qt.MouseButton.RightButton)
@@ -149,14 +263,6 @@ class ExplorerFileListView(QTreeView):
         """Finalize custom mark gestures and suppress unwanted default menus."""
 
         button = event.button()
-        if self._rubber_band_active and button == self._rubber_band_button:
-            self._cancel_rubber_band()
-            event.accept()
-            return
-        if self._pending_band_button == button:
-            self._clear_pending_band()
-            event.accept()
-            return
         if (
             self._mouse_selection_mode == "right_button"
             and button == Qt.MouseButton.RightButton
@@ -184,24 +290,64 @@ class ExplorerFileListView(QTreeView):
         super().mouseReleaseEvent(event)
 
     @override
-    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        """Suppress Qt's immediate right-click menu in commander mouse mode."""
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """Refresh current-row styling when the file list gains focus."""
 
-        if self._mouse_selection_mode == "right_button":
+        super().focusInEvent(event)
+        self.viewport().update()
+
+    @override
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        """Activate the clicked item explicitly when the user double clicks."""
+
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mouseDoubleClickEvent(event)
+            return
+        index = self.indexAt(event.position().toPoint()).siblingAtColumn(0)
+        if not index.isValid():
+            event.accept()
+            return
+        self._set_current_row(index)
+        self.scrollTo(index)
+        self.activated.emit(index)
+        event.accept()
+
+    @override
+    def viewportEvent(self, event: QEvent) -> bool:
+        """Suppress mouse-originated context menus in commander mode."""
+
+        if (
+            self._mouse_selection_mode == "right_button"
+            and event.type() == QEvent.Type.ContextMenu
+            and isinstance(event, QContextMenuEvent)
+            and event.reason() == QContextMenuEvent.Reason.Mouse
+        ):
+            event.accept()
+            return True
+        return super().viewportEvent(event)
+
+    @override
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        """Suppress only mouse-originated Qt context menus in commander mode."""
+
+        if (
+            self._mouse_selection_mode == "right_button"
+            and event.reason() == event.Reason.Mouse
+        ):
             event.accept()
             return
         super().contextMenuEvent(event)
 
     @override
     def focusOutEvent(self, event: QFocusEvent) -> None:
-        """Clear pending right-click and rubberband state on focus loss."""
+        """Clear pending right-click state on focus loss."""
 
         self._cancel_pending_right_click()
-        self._cancel_rubber_band()
         self._consume_right_button_release = False
         self._pending_left_mode_context = False
         self._pending_left_mode_context_pos = QPoint()
         super().focusOutEvent(event)
+        self.viewport().update()
 
     def _handle_right_button_mode_left_press(
         self,
@@ -245,7 +391,7 @@ class ExplorerFileListView(QTreeView):
         pos: QPoint,
         event: QMouseEvent,
     ) -> bool:
-        """Handle icon toggle and rubberband start for left-button mode."""
+        """Handle icon toggle for left-button mode."""
 
         hit = self._hit_test(pos)
         if hit.region == "background":
@@ -255,16 +401,6 @@ class ExplorerFileListView(QTreeView):
             self._set_current_row(hit.index)
             self._toggle_mark(hit.index)
             self.scrollTo(hit.index)
-            event.accept()
-            return True
-        if hit.region == "behind_name" and hit.index.isValid():
-            self._set_current_row(hit.index)
-            self._prepare_pending_band(
-                origin=pos,
-                button=Qt.MouseButton.LeftButton,
-                anchor_index=hit.index,
-                additive=False,
-            )
             event.accept()
             return True
         return False
@@ -278,9 +414,14 @@ class ExplorerFileListView(QTreeView):
 
         hit = self._hit_test(pos)
         if not hit.index.isValid():
-            return False
+            self._cancel_pending_right_click()
+            self._consume_right_button_release = True
+            event.accept()
+            return True
+        was_marked = self._is_marked(hit.index)
+        self._right_drag_action = "unmark" if was_marked else "mark"
         self._set_current_row(hit.index)
-        self._toggle_mark(hit.index)
+        self._set_mark(hit.index, marked=not was_marked)
         self.scrollTo(hit.index)
         self._pending_right_click_pos = QPoint(pos)
         self._pending_right_click_index = QModelIndex(hit.index)
@@ -289,13 +430,6 @@ class ExplorerFileListView(QTreeView):
         self._consume_right_button_release = True
         self._right_drag_marked_rows = {hit.index.row()}
         self._delayed_context_menu_timer.start()
-        if hit.region == "behind_name":
-            self._prepare_pending_band(
-                origin=pos,
-                button=Qt.MouseButton.RightButton,
-                anchor_index=hit.index,
-                additive=True,
-            )
         event.accept()
         return True
 
@@ -337,7 +471,7 @@ class ExplorerFileListView(QTreeView):
         text_width = self.fontMetrics().horizontalAdvance(display_text)
         text_end = min(cell_rect.right(), text_start + text_width)
         if pos.x() > text_end:
-            return _RowHit(row_index, "behind_name")
+            return _RowHit(row_index, "row")
         return _RowHit(row_index, "row")
 
     def _real_row_index_at(self, pos: QPoint) -> QModelIndex:
@@ -355,86 +489,8 @@ class ExplorerFileListView(QTreeView):
             return QModelIndex()
         return row_index
 
-    def _prepare_pending_band(
-        self,
-        *,
-        origin: QPoint,
-        button: Qt.MouseButton,
-        anchor_index: QModelIndex,
-        additive: bool,
-    ) -> None:
-        """Store a possible rubberband start until drag threshold is reached."""
-
-        self._pending_band_origin = QPoint(origin)
-        self._pending_band_button = button
-        self._pending_band_additive = bool(additive)
-        self._rubber_band_anchor_index = QModelIndex(anchor_index)
-
-    def _maybe_start_pending_rubber_band(
-        self,
-        pos: QPoint,
-        event: QMouseEvent,
-    ) -> bool:
-        """Start the pending rubberband once the drag threshold is exceeded."""
-
-        origin = self._pending_band_origin
-        if origin is None:
-            return False
-        if not bool(event.buttons() & self._pending_band_button):
-            self._clear_pending_band()
-            return False
-        if (pos - origin).manhattanLength() < QApplication.startDragDistance():
-            return False
-        self._cancel_pending_right_click()
-        self._rubber_band_active = True
-        self._rubber_band_button = self._pending_band_button
-        self._rubber_band_additive = self._pending_band_additive
-        rubber_rect = QRect(origin, pos).normalized()
-        self._rubber_band.setGeometry(rubber_rect)
-        self._rubber_band.show()
-        self._update_rubber_band(pos)
-        self._clear_pending_band()
-        return True
-
-    def _update_rubber_band(self, pos: QPoint) -> None:
-        """Refresh rubberband geometry and mark rows intersecting it."""
-
-        origin = self._rubber_band.geometry().topLeft()
-        rubber_rect = QRect(origin, pos).normalized()
-        self._rubber_band.setGeometry(rubber_rect)
-        intersected = self._intersected_real_rows(rubber_rect)
-        selection_model = self.selectionModel()
-        if not self._rubber_band_additive:
-            selection_model.clearSelection()
-        for row_index in intersected:
-            selection_model.select(
-                row_index,
-                QItemSelectionModel.SelectionFlag.Select
-                | QItemSelectionModel.SelectionFlag.Rows,
-            )
-        if self._rubber_band_anchor_index.isValid():
-            self._set_current_row(self._rubber_band_anchor_index)
-
-    def _intersected_real_rows(self, rubber_rect: QRect) -> list[QModelIndex]:
-        """Return real row indexes whose visual rects intersect the band."""
-
-        rows: list[QModelIndex] = []
-        root_index = self.rootIndex()
-        for row in range(self.model().rowCount(root_index)):
-            candidate = self.model().index(row, 0, root_index)
-            if not candidate.isValid():
-                continue
-            row_index = candidate.siblingAtColumn(0)
-            if not row_index.isValid():
-                continue
-            if self._is_parent_index(row_index):
-                continue
-            if self.visualRect(row_index).intersects(rubber_rect):
-                rows.append(row_index)
-        return rows
-
     def _handle_right_button_drag(self, pos: QPoint) -> None:
-        """Additively mark rows crossed by the right mouse button."""
+        """Propagate the starting mark action across rows crossed by the drag."""
 
         if self._delayed_context_menu_timer.isActive() and (
             not self._pending_right_click_rect.contains(pos)
@@ -446,12 +502,11 @@ class ExplorerFileListView(QTreeView):
         if not hit.index.isValid():
             return
         self._set_current_row(hit.index)
-        if hit.index.row() not in self._right_drag_marked_rows:
-            self.selectionModel().select(
-                hit.index,
-                QItemSelectionModel.SelectionFlag.Select
-                | QItemSelectionModel.SelectionFlag.Rows,
-            )
+        if (
+            hit.index.row() not in self._right_drag_marked_rows
+            and self._right_drag_action is not None
+        ):
+            self._set_mark(hit.index, marked=self._right_drag_action == "mark")
             self._right_drag_marked_rows.add(hit.index.row())
         self.scrollTo(hit.index)
 
@@ -477,6 +532,31 @@ class ExplorerFileListView(QTreeView):
             QItemSelectionModel.SelectionFlag.Toggle
             | QItemSelectionModel.SelectionFlag.Rows,
         )
+        return self.selectionModel().isSelected(row_index)
+
+    def _set_mark(self, index: QModelIndex, *, marked: bool) -> bool:
+        """Set one row mark explicitly and return whether it is marked afterwards."""
+
+        row_index = index.siblingAtColumn(0)
+        if not row_index.isValid():
+            return False
+        selection_flag = (
+            QItemSelectionModel.SelectionFlag.Select
+            if marked
+            else QItemSelectionModel.SelectionFlag.Deselect
+        )
+        self.selectionModel().select(
+            row_index,
+            selection_flag | QItemSelectionModel.SelectionFlag.Rows,
+        )
+        return self.selectionModel().isSelected(row_index)
+
+    def _is_marked(self, index: QModelIndex) -> bool:
+        """Return whether one row is currently marked."""
+
+        row_index = index.siblingAtColumn(0)
+        if not row_index.isValid():
+            return False
         return self.selectionModel().isSelected(row_index)
 
     def _mark_range_from_current(self, end_index: QModelIndex) -> None:
@@ -532,20 +612,62 @@ class ExplorerFileListView(QTreeView):
         self._pending_right_click_rect = QRect()
         self._right_button_pressed = False
         self._right_drag_marked_rows = set()
+        self._right_drag_action = None
 
-    def _clear_pending_band(self) -> None:
-        """Drop a not-yet-started rubberband candidate."""
+    def _build_color_tokens(
+        self,
+        scheme: ResolvedColorScheme | None = None,
+    ) -> FileListColorTokens:
+        """Build file-list colors from the current palette."""
 
-        self._pending_band_origin = None
-        self._pending_band_button = Qt.MouseButton.NoButton
-        self._pending_band_additive = False
+        resolved = scheme or default_color_scheme()
+        return FileListColorTokens(
+            background=QColor(resolved.file_list_background_hex),
+            marked_background=QColor(resolved.file_list_marked_background_hex),
+            marked_text=QColor(resolved.file_list_marked_text_hex),
+            focused_current_row_background=QColor(
+                resolved.file_list_current_focused_background_hex
+            ),
+            inactive_current_row_background=QColor(
+                resolved.file_list_current_inactive_background_hex
+            ),
+            focused_current_marked_background=QColor(
+                resolved.file_list_current_marked_focused_background_hex
+            ),
+            inactive_current_marked_background=QColor(
+                resolved.file_list_current_marked_inactive_background_hex
+            ),
+            current_marked_text=QColor(resolved.file_list_current_marked_text_hex),
+            hidden_text=QColor(resolved.file_list_hidden_text_hex),
+        )
 
-    def _cancel_rubber_band(self) -> None:
-        """Hide and reset the active rubberband selection."""
+    def _row_state_colors(
+        self,
+        *,
+        marked: bool,
+        current: bool,
+    ) -> tuple[QColor, QColor]:
+        """Return background and text colors for one row state."""
 
-        self._rubber_band.hide()
-        self._rubber_band_active = False
-        self._rubber_band_button = Qt.MouseButton.NoButton
-        self._rubber_band_additive = False
-        self._rubber_band_anchor_index = QModelIndex()
-        self._clear_pending_band()
+        tokens = self._color_tokens
+        palette = self.palette()
+        default_text = palette.color(QPalette.ColorRole.Text)
+        if marked and current:
+            return (
+                (
+                    tokens.focused_current_marked_background
+                    if self.has_active_file_list_focus()
+                    else tokens.inactive_current_marked_background
+                ),
+                tokens.current_marked_text,
+            )
+        if marked:
+            return (tokens.marked_background, tokens.marked_text)
+        return (
+            (
+                tokens.focused_current_row_background
+                if self.has_active_file_list_focus()
+                else tokens.inactive_current_row_background
+            ),
+            default_text,
+        )

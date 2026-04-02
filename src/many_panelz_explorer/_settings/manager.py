@@ -137,6 +137,10 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     context_tool_git_gui_args_template = delegate_domain_property(
         "ui", "context_tool_git_gui_args_template"
     )
+    color_scheme_id = delegate_domain_property("ui", "color_scheme_id")
+    color_scheme_overrides_json = delegate_domain_property(
+        "ui", "color_scheme_overrides_json"
+    )
     active_panel_tint_color_hex = delegate_domain_property(
         "ui", "active_panel_tint_color_hex"
     )
@@ -281,6 +285,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     enable_right_click_row_selection = delegate_domain_property(
         "ops", "enable_right_click_row_selection"
     )
+    keypad_mark_scope = delegate_domain_property("ops", "keypad_mark_scope")
     auto_calculate_dir_sizes_on_space = delegate_domain_property(
         "ops", "auto_calculate_dir_sizes_on_space"
     )
@@ -423,6 +428,8 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             context_tool_code_editor_args_template=self.context_tool_code_editor_args_template,
             context_tool_git_gui_exe_path=self.context_tool_git_gui_exe_path,
             context_tool_git_gui_args_template=self.context_tool_git_gui_args_template,
+            color_scheme_id=self.color_scheme_id,
+            color_scheme_overrides_json=self.color_scheme_overrides_json,
             active_panel_tint_color_hex=self.active_panel_tint_color_hex,
             active_panel_tint_intensity_percent=self.active_panel_tint_intensity_percent,
             target_panel_tint_color_hex=self.target_panel_tint_color_hex,
@@ -504,6 +511,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
                 self.use_everything_sdk_for_folder_sizes
             ),
             enable_right_click_row_selection=self.enable_right_click_row_selection,
+            keypad_mark_scope=self.keypad_mark_scope,
             auto_calculate_dir_sizes_on_space=(self.auto_calculate_dir_sizes_on_space),
             auto_calculate_dir_sizes_before_copy_move=(
                 self.auto_calculate_dir_sizes_before_copy_move
@@ -615,6 +623,8 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.context_tool_git_gui_args_template = (
             preferences.context_tool_git_gui_args_template
         )
+        self.color_scheme_id = preferences.color_scheme_id
+        self.color_scheme_overrides_json = preferences.color_scheme_overrides_json
         self.active_panel_tint_color_hex = preferences.active_panel_tint_color_hex
         self.active_panel_tint_intensity_percent = (
             preferences.active_panel_tint_intensity_percent
@@ -722,6 +732,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.enable_right_click_row_selection = (
             preferences.enable_right_click_row_selection
         )
+        self.keypad_mark_scope = preferences.keypad_mark_scope
         self.auto_calculate_dir_sizes_on_space = (
             preferences.auto_calculate_dir_sizes_on_space
         )

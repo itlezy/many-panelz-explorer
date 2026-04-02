@@ -9,9 +9,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
+from PySide6.QtCore import QEvent, QItemSelectionModel, QPoint, QPointF, Qt
+from PySide6.QtGui import QColor, QMouseEvent, QPixmap
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox, QTabWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QInputDialog,
+    QMessageBox,
+    QStyle,
+    QStyleOptionViewItem,
+    QTabWidget,
+)
 
 from many_panelz_explorer import mounts
 from many_panelz_explorer._operations.queue_manager import OperationQueueManager
@@ -24,6 +32,7 @@ from many_panelz_explorer.bookmarks import (
     BookmarkFolder,
     BookmarkStore,
 )
+from many_panelz_explorer.color_schemes import blended_color_hex, resolve_color_scheme
 from many_panelz_explorer.explorer_tab import ExplorerTab
 from many_panelz_explorer.operation_queue_widgets import OperationQueueTableModel
 from many_panelz_explorer.panel_widget import PanelWidget
@@ -93,6 +102,46 @@ def _test_roots_provider(tmp_path: Path) -> Callable[[Path | None], list[Path]]:
 def _visible_storage_labels(window: ExplorerWindow) -> list[object]:
     labels = list(getattr(window, "storage_overview_labels", []))
     return [label for label in labels if label.isVisible()]
+
+
+def _footer_texts(tab: ExplorerTab) -> dict[str, str]:
+    return {
+        "marks": tab.footer_marks_label.text(),
+        "kinds": tab.footer_kinds_label.text(),
+        "size": tab.footer_size_label.text(),
+        "pending": tab.footer_pending_label.text(),
+        "free": tab.footer_free_label.text(),
+    }
+
+
+def _panel_role_background(preferences: UiPreferences, *, role: str) -> str:
+    """Return the expected panel background for one resolved role."""
+
+    scheme = resolve_color_scheme(
+        scheme_id=preferences.color_scheme_id,
+        overrides_json=preferences.color_scheme_overrides_json,
+        active_panel_tint_color_hex=preferences.active_panel_tint_color_hex,
+        active_panel_tint_intensity_percent=(
+            preferences.active_panel_tint_intensity_percent
+        ),
+        target_panel_tint_color_hex=preferences.target_panel_tint_color_hex,
+        target_panel_tint_intensity_percent=(
+            preferences.target_panel_tint_intensity_percent
+        ),
+    )
+    if role == "active":
+        return blended_color_hex(
+            scheme.panel_surface_background_hex,
+            scheme.active_panel_tint_color_hex,
+            overlay_percent=scheme.active_panel_tint_intensity_percent,
+        )
+    if role == "target":
+        return blended_color_hex(
+            scheme.panel_surface_background_hex,
+            scheme.target_panel_tint_color_hex,
+            overlay_percent=scheme.target_panel_tint_intensity_percent,
+        )
+    return scheme.panel_surface_background_hex
 
 
 def _ordered_panels(window: ExplorerWindow) -> list[PanelWidget]:
@@ -199,6 +248,76 @@ def _row_icon_center(tab: ExplorerTab, path: Path) -> QPoint:
     return QPoint(rect.left() + icon_half_width, rect.center().y())
 
 
+def _background_point(tab: ExplorerTab) -> QPoint:
+    """Return one viewport point outside real rows but inside the view."""
+
+    viewport_rect = tab.view.viewport().rect()
+    root_index = tab.view.rootIndex()
+    last_bottom = viewport_rect.top()
+    for row in range(tab.model.rowCount(root_index)):
+        index = tab.model.index(row, 0, root_index)
+        if not index.isValid():
+            continue
+        last_bottom = max(last_bottom, tab.view.visualRect(index).bottom())
+    y = min(viewport_rect.bottom() - 2, last_bottom + 12)
+    x = max(viewport_rect.left() + 12, viewport_rect.width() // 2)
+    return QPoint(x, y)
+
+
+def _send_mouse_event(
+    widget,
+    event_type: QEvent.Type,
+    pos: QPoint,
+    *,
+    button: Qt.MouseButton,
+    buttons: Qt.MouseButton,
+    modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier,
+) -> None:
+    """Send one synthetic mouse event to the target widget."""
+
+    global_pos = widget.mapToGlobal(pos)
+    event = QMouseEvent(
+        event_type,
+        QPointF(pos),
+        QPointF(global_pos),
+        button,
+        buttons,
+        modifiers,
+    )
+    QApplication.sendEvent(widget, event)
+    QApplication.processEvents()
+
+
+def _right_drag_rows(tab: ExplorerTab, *paths: Path) -> None:
+    """Drag the right mouse button across the given row centers in order."""
+
+    assert len(paths) >= 2
+    viewport = tab.view.viewport()
+    start = _row_center(tab, paths[0])
+    _send_mouse_event(
+        viewport,
+        QEvent.Type.MouseButtonPress,
+        start,
+        button=Qt.MouseButton.RightButton,
+        buttons=Qt.MouseButton.RightButton,
+    )
+    for path in paths[1:]:
+        _send_mouse_event(
+            viewport,
+            QEvent.Type.MouseMove,
+            _row_center(tab, path),
+            button=Qt.MouseButton.NoButton,
+            buttons=Qt.MouseButton.RightButton,
+        )
+    _send_mouse_event(
+        viewport,
+        QEvent.Type.MouseButtonRelease,
+        _row_center(tab, paths[-1]),
+        button=Qt.MouseButton.RightButton,
+        buttons=Qt.MouseButton.NoButton,
+    )
+
+
 def _current_real_path(tab: ExplorerTab) -> Path | None:
     """Return the current real filesystem path in the active file list."""
 
@@ -206,6 +325,34 @@ def _current_real_path(tab: ExplorerTab) -> Path | None:
     if not current_index.isValid() or tab.model.is_parent_index(current_index):
         return None
     return Path(tab.model.filePath(current_index))
+
+
+def _row_background_color(tab: ExplorerTab, path: Path) -> QColor:
+    """Return one rendered background sample color from the given row."""
+
+    index = tab.model.index(str(path))
+    assert index.isValid()
+    rect = tab.view.visualRect(index)
+    assert rect.isValid()
+    sample_x = max(rect.left() + 12, rect.right() - 12)
+    sample_y = rect.center().y()
+    pixmap = QPixmap(tab.view.viewport().size())
+    tab.view.viewport().render(pixmap)
+    image = pixmap.toImage()
+    return image.pixelColor(sample_x, sample_y)
+
+
+def _assert_color_close(
+    actual: QColor,
+    expected: QColor,
+    *,
+    tolerance: int = 8,
+) -> None:
+    """Assert that two colors are close enough for deterministic GUI checks."""
+
+    assert abs(actual.red() - expected.red()) <= tolerance
+    assert abs(actual.green() - expected.green()) <= tolerance
+    assert abs(actual.blue() - expected.blue()) <= tolerance
 
 
 class _ControllerCloneStub(_ControllerStub):
@@ -1287,6 +1434,125 @@ def test_tc_selection_shortcuts_toggle_current_row_and_advance(
     assert tab.view.currentIndex() == parent_index
 
 
+def test_keypad_bulk_mark_shortcuts_follow_scope_and_restore(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    settings.keypad_mark_scope = "files_only"
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="keypad-mark-scope",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "keypad-mark-scope-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.py"
+    delta_dir = root / "delta"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+    gamma_file.write_text("gamma", encoding="utf-8")
+    delta_dir.mkdir()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+    tab.view.setFocus()
+    tab.view.selectionModel().setCurrentIndex(
+        tab.model.index(str(alpha_file)),
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+
+    QTest.keyClick(tab.view, Qt.Key_Plus, Qt.KeyboardModifier.KeypadModifier)
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file, gamma_file}
+    assert _footer_texts(tab)["marks"] == "Mk 3/4"
+
+    QTest.keyClick(tab.view, Qt.Key_Asterisk, Qt.KeyboardModifier.KeypadModifier)
+    assert _selected_real_paths(tab) == []
+    assert _footer_texts(tab)["marks"] == "Mk 0/4"
+
+    QTest.keyClick(tab.view, Qt.Key_Slash, Qt.KeyboardModifier.KeypadModifier)
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file, gamma_file}
+    assert _footer_texts(tab)["marks"] == "Mk 3/4"
+
+
+def test_keypad_same_extension_shortcuts_only_affect_matching_files(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    settings.keypad_mark_scope = "files_and_directories"
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="keypad-same-extension",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "keypad-same-extension-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.py"
+    delta_dir = root / "delta"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+    gamma_file.write_text("gamma", encoding="utf-8")
+    delta_dir.mkdir()
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+    tab.view.setFocus()
+    tab.view.selectionModel().setCurrentIndex(
+        tab.model.index(str(alpha_file)),
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+
+    QTest.keyClick(tab.view, Qt.Key_Plus, Qt.KeyboardModifier.KeypadModifier)
+    assert set(_selected_real_paths(tab)) == {
+        alpha_file,
+        beta_file,
+        gamma_file,
+        delta_dir,
+    }
+
+    QTest.keyClick(
+        tab.view,
+        Qt.Key_Minus,
+        Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.KeypadModifier,
+    )
+    assert set(_selected_real_paths(tab)) == {delta_dir, gamma_file}
+    assert _footer_texts(tab)["marks"] == "Mk 2/4"
+
+    tab.view.selectionModel().setCurrentIndex(
+        tab.model.index(str(delta_dir)),
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    QTest.keyClick(
+        tab.view,
+        Qt.Key_Plus,
+        Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.KeypadModifier,
+    )
+    assert set(_selected_real_paths(tab)) == {delta_dir, gamma_file}
+
+
 def test_right_button_mouse_mode_moves_cursor_and_marks_explicitly(
     qtbot, tmp_path: Path
 ) -> None:
@@ -1328,7 +1594,8 @@ def test_right_button_mouse_mode_moves_cursor_and_marks_explicitly(
     )
     assert _selected_real_paths(tab) == []
     assert _current_real_path(tab) == alpha_file
-    assert tab.status_label.text().startswith("Marked 0/3 | ")
+    assert _footer_texts(tab)["marks"] == "Mk 0/3"
+    assert _footer_texts(tab)["kinds"] == "F 3 D 0"
 
     QTest.mouseClick(
         tab.view.viewport(),
@@ -1338,7 +1605,8 @@ def test_right_button_mouse_mode_moves_cursor_and_marks_explicitly(
     )
     assert _selected_real_paths(tab) == [beta_file]
     assert _current_real_path(tab) == beta_file
-    assert "Marked 1/3" in tab.status_label.text()
+    assert _footer_texts(tab)["marks"] == "Mk 1/3"
+    assert _footer_texts(tab)["size"].startswith("Sz ")
 
     delayed_calls: list[tuple[int, int]] = []
     immediate_calls: list[tuple[int, int]] = []
@@ -1388,6 +1656,53 @@ def test_right_button_mouse_mode_moves_cursor_and_marks_explicitly(
         Qt.KeyboardModifier.NoModifier,
         hold_point,
     )
+
+    background_point = _background_point(tab)
+    QTest.mousePress(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        background_point,
+    )
+    qtbot.wait(150)
+    assert immediate_calls == []
+    assert delayed_calls == [(hold_point.x(), hold_point.y())]
+    QTest.mouseRelease(
+        tab.view.viewport(),
+        Qt.MouseButton.RightButton,
+        Qt.KeyboardModifier.NoModifier,
+        background_point,
+    )
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file, gamma_file}
+
+
+def test_explorer_tab_footer_shows_free_space_for_current_root(
+    qtbot, tmp_path: Path, monkeypatch
+) -> None:
+    root = tmp_path / "footer-free-space"
+    root.mkdir()
+    (root / "alpha.txt").write_text("alpha", encoding="utf-8")
+    monkeypatch.setattr(
+        "many_panelz_explorer.explorer_tab.mounts.list_storage_usage_entries",
+        lambda current_path=None: [
+            mounts.StorageUsageEntry(
+                root_path=tmp_path,
+                display_root=str(tmp_path),
+                volume_label="Temp",
+                bytes_used=200,
+                bytes_total=1_000,
+                usage_ratio=0.2,
+            )
+        ],
+    )
+
+    tab = ExplorerTab(initial_path=root)
+    qtbot.addWidget(tab)
+    tab.show()
+
+    qtbot.waitUntil(lambda: tab.model.index(str(root / "alpha.txt")).isValid())
+    assert tab.footer_free_label.isVisible() is True
+    assert tab.footer_free_label.text() == "Free 800"
 
 
 def test_left_button_mouse_mode_keeps_explorer_like_left_click_behavior(
@@ -1457,6 +1772,274 @@ def test_left_button_mouse_mode_keeps_explorer_like_left_click_behavior(
 
     assert _selected_real_paths(tab) == [alpha_file]
     assert len(context_calls) == 1
+
+
+def test_double_click_directory_activates_navigation(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    settings.enable_right_click_row_selection = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="mouse-double-click-directory",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-double-click-directory-root"
+    child_dir = root / "child"
+    child_file = child_dir / "inside.txt"
+    child_dir.mkdir(parents=True)
+    child_file.write_text("inside", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(child_dir)).isValid())
+
+    QTest.mouseDClick(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, child_dir),
+    )
+    qtbot.waitUntil(lambda: tab.navigation.path == child_dir)
+
+
+def test_double_click_file_activates_current_item(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = SettingsManager()
+    settings.enable_right_click_row_selection = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="mouse-double-click-file",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-double-click-file-root"
+    root.mkdir()
+    target_file = root / "alpha.txt"
+    target_file.write_text("alpha", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(target_file)).isValid())
+
+    activated_paths: list[Path] = []
+    monkeypatch.setattr(tab._actions, "open_path", activated_paths.append)
+
+    QTest.mouseDClick(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, target_file),
+    )
+    qtbot.waitUntil(lambda: activated_paths == [target_file])
+
+
+def test_current_row_uses_light_background_and_no_focus_rect(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="current-row-highlight",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "current-row-highlight-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    alpha_file.write_text("alpha", encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(alpha_file)).isValid())
+
+    current_index = tab.model.index(str(alpha_file))
+    tab.view.selectionModel().clearSelection()
+    tab.view.selectionModel().setCurrentIndex(
+        current_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    tab.view.setFocus()
+    qtbot.waitUntil(lambda: tab.view.has_active_file_list_focus())
+
+    style_option = tab.view.styled_option_for_index(
+        QStyleOptionViewItem(), current_index
+    )
+    assert not (style_option.state & QStyle.StateFlag.State_HasFocus)
+
+    actual_color = _row_background_color(tab, alpha_file)
+    expected_color = tab.view.file_list_color_tokens().focused_current_row_background
+    _assert_color_close(actual_color, expected_color)
+
+
+def test_current_row_dims_when_inactive_and_combines_with_mark(
+    qtbot, tmp_path: Path
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="current-row-inactive-highlight",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    left_panel, right_panel = _ordered_panels(window)[:2]
+    left_tab = left_panel.current_tab()
+    right_tab = right_panel.current_tab()
+    assert left_tab is not None
+    assert right_tab is not None
+
+    root = tmp_path / "current-row-inactive-highlight-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    alpha_file.write_text("alpha", encoding="utf-8")
+    beta_file.write_text("beta", encoding="utf-8")
+
+    left_tab.navigation.set_path(root)
+    right_tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: left_tab.model.index(str(beta_file)).isValid())
+    qtbot.waitUntil(lambda: right_tab.model.index(str(beta_file)).isValid())
+
+    current_index = left_tab.model.index(str(alpha_file))
+    left_tab.view.selectionModel().clearSelection()
+    left_tab.view.selectionModel().select(
+        current_index,
+        QItemSelectionModel.SelectionFlag.Select
+        | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    left_tab.view.selectionModel().setCurrentIndex(
+        current_index,
+        QItemSelectionModel.SelectionFlag.Current,
+    )
+    left_tab.view.setFocus()
+    qtbot.waitUntil(lambda: left_tab.view.has_active_file_list_focus())
+
+    focused_color = _row_background_color(left_tab, alpha_file)
+    expected_focused = (
+        left_tab.view.file_list_color_tokens().focused_current_marked_background
+    )
+    _assert_color_close(focused_color, expected_focused)
+
+    right_tab.view.setFocus()
+    qtbot.waitUntil(lambda: right_tab.view.has_active_file_list_focus())
+    qtbot.waitUntil(lambda: not left_tab.view.has_active_file_list_focus())
+
+    inactive_color = _row_background_color(left_tab, alpha_file)
+    expected_inactive = (
+        left_tab.view.file_list_color_tokens().inactive_current_marked_background
+    )
+    _assert_color_close(inactive_color, expected_inactive)
+    assert inactive_color != focused_color
+
+
+def test_right_drag_from_unmarked_row_marks_crossed_rows(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    settings.enable_right_click_row_selection = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="mouse-right-drag-mark",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-right-drag-mark-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.txt"
+    for file_path, text in (
+        (alpha_file, "alpha"),
+        (beta_file, "beta"),
+        (gamma_file, "gamma"),
+    ):
+        file_path.write_text(text, encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+
+    _right_drag_rows(tab, alpha_file, beta_file, gamma_file, beta_file)
+
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file, gamma_file}
+    assert _current_real_path(tab) == beta_file
+
+
+def test_right_drag_from_marked_row_unmarks_crossed_rows(qtbot, tmp_path: Path) -> None:
+    settings = SettingsManager()
+    settings.enable_right_click_row_selection = True
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="mouse-right-drag-unmark",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    root = tmp_path / "mouse-right-drag-unmark-root"
+    root.mkdir()
+    alpha_file = root / "alpha.txt"
+    beta_file = root / "beta.txt"
+    gamma_file = root / "gamma.txt"
+    for file_path, text in (
+        (alpha_file, "alpha"),
+        (beta_file, "beta"),
+        (gamma_file, "gamma"),
+    ):
+        file_path.write_text(text, encoding="utf-8")
+
+    panel = window.panels_coordinator.active_panel()
+    assert panel is not None
+    tab = panel.current_tab()
+    assert tab is not None
+    tab.navigation.set_path(root)
+    qtbot.waitUntil(lambda: tab.model.index(str(gamma_file)).isValid())
+
+    _select_paths(tab, [alpha_file, beta_file])
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file}
+
+    _right_drag_rows(tab, beta_file, gamma_file, beta_file)
+
+    assert _selected_real_paths(tab) == [alpha_file]
+    assert _current_real_path(tab) == beta_file
 
 
 def test_space_auto_calculates_selected_directory_size_when_enabled(
@@ -2602,10 +3185,23 @@ def test_copy_to_target_uses_last_active_non_source_panel(
     assert captured == [dst_dir]
     assert source_panel.pane_role == "active"
     assert target_panel.pane_role == "target"
+    expected_preferences = settings.ui_preferences()
+    expected_active_background = _panel_role_background(
+        expected_preferences,
+        role="active",
+    )
+    expected_target_background = _panel_role_background(
+        expected_preferences,
+        role="target",
+    )
     assert "border: none" in source_panel.styleSheet()
-    assert "background-color: rgba(168, 182, 196, 61)" in source_panel.styleSheet()
+    assert (
+        f"background-color: {expected_active_background}" in source_panel.styleSheet()
+    )
     assert "border: none" in target_panel.styleSheet()
-    assert "background-color: rgba(210, 204, 170, 71)" in target_panel.styleSheet()
+    assert (
+        f"background-color: {expected_target_background}" in target_panel.styleSheet()
+    )
 
 
 def test_status_bar_persistent_source_target_paths_update_with_context_changes(

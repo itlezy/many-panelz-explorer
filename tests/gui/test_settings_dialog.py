@@ -24,6 +24,7 @@ from many_panelz_explorer._operations.types import (
 )
 from many_panelz_explorer._settings.manager import SettingsManager
 from many_panelz_explorer._settings.models import UiPreferences
+from many_panelz_explorer.color_schemes import blended_color_hex, resolve_color_scheme
 from many_panelz_explorer.dialogs.settings_dialog import SettingsDialog
 from many_panelz_explorer.explorer_tab import ExplorerTab
 from many_panelz_explorer.operation_queue_widgets import OperationQueueTableModel
@@ -229,6 +230,36 @@ def _table_path_value(table: QTableWidget, row_index: int) -> str:
     return path_item.text()
 
 
+def _panel_role_background(preferences: UiPreferences, *, role: str) -> str:
+    """Return the expected panel background for one resolved role."""
+
+    scheme = resolve_color_scheme(
+        scheme_id=preferences.color_scheme_id,
+        overrides_json=preferences.color_scheme_overrides_json,
+        active_panel_tint_color_hex=preferences.active_panel_tint_color_hex,
+        active_panel_tint_intensity_percent=(
+            preferences.active_panel_tint_intensity_percent
+        ),
+        target_panel_tint_color_hex=preferences.target_panel_tint_color_hex,
+        target_panel_tint_intensity_percent=(
+            preferences.target_panel_tint_intensity_percent
+        ),
+    )
+    if role == "active":
+        return blended_color_hex(
+            scheme.panel_surface_background_hex,
+            scheme.active_panel_tint_color_hex,
+            overlay_percent=scheme.active_panel_tint_intensity_percent,
+        )
+    if role == "target":
+        return blended_color_hex(
+            scheme.panel_surface_background_hex,
+            scheme.target_panel_tint_color_hex,
+            overlay_percent=scheme.target_panel_tint_intensity_percent,
+        )
+    return scheme.panel_surface_background_hex
+
+
 def _test_roots_provider(tmp_path: Path):
     root = tmp_path / "roots"
     root.mkdir(parents=True, exist_ok=True)
@@ -275,6 +306,8 @@ def _tracked_keys() -> list[str]:
         SettingsManager.CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE_KEY,
         SettingsManager.CONTEXT_TOOL_GIT_GUI_EXE_PATH_KEY,
         SettingsManager.CONTEXT_TOOL_GIT_GUI_ARGS_TEMPLATE_KEY,
+        SettingsManager.COLOR_SCHEME_ID_KEY,
+        SettingsManager.COLOR_SCHEME_OVERRIDES_JSON_KEY,
         SettingsManager.ACTIVE_PANEL_TINT_COLOR_KEY,
         SettingsManager.ACTIVE_PANEL_TINT_INTENSITY_KEY,
         SettingsManager.TARGET_PANEL_TINT_COLOR_KEY,
@@ -680,16 +713,33 @@ def test_settings_live_preview_all_windows_and_cancel_revert(
     second_active = second.panels_coordinator.active_panel()
     assert first_active is not None
     assert second_active is not None
-    assert "rgba(168, 182, 196, 61)" in first_active.styleSheet()
-    assert "rgba(168, 182, 196, 61)" in second_active.styleSheet()
+    initial_active_background = _panel_role_background(
+        isolated_settings.ui_preferences(),
+        role="active",
+    )
+    assert f"background-color: {initial_active_background}" in first_active.styleSheet()
+    assert (
+        f"background-color: {initial_active_background}" in second_active.styleSheet()
+    )
 
     dialog = SettingsDialog(controller=controller, parent=first)
     qtbot.addWidget(dialog)
     dialog.show()
 
     dialog.active_intensity_slider.setValue(60)
-    qtbot.waitUntil(lambda: "rgba(168, 182, 196, 153)" in first_active.styleSheet())
-    assert "rgba(168, 182, 196, 153)" in second_active.styleSheet()
+    preview_active_background = _panel_role_background(
+        dialog.working_preferences,
+        role="active",
+    )
+    qtbot.waitUntil(
+        lambda: (
+            f"background-color: {preview_active_background}"
+            in first_active.styleSheet()
+        )
+    )
+    assert (
+        f"background-color: {preview_active_background}" in second_active.styleSheet()
+    )
     dialog.show_root_dropdown_checkbox.setChecked(True)
     dialog.show_refresh_button_checkbox.setChecked(False)
     dialog.show_tab_close_buttons_checkbox.setChecked(False)
@@ -701,8 +751,19 @@ def test_settings_live_preview_all_windows_and_cancel_revert(
     assert second_active.tabs.tabsClosable() is False
 
     dialog.reject()
-    qtbot.waitUntil(lambda: "rgba(168, 182, 196, 61)" in first_active.styleSheet())
-    assert "rgba(168, 182, 196, 61)" in second_active.styleSheet()
+    reverted_active_background = _panel_role_background(
+        isolated_settings.ui_preferences(),
+        role="active",
+    )
+    qtbot.waitUntil(
+        lambda: (
+            f"background-color: {reverted_active_background}"
+            in first_active.styleSheet()
+        )
+    )
+    assert (
+        f"background-color: {reverted_active_background}" in second_active.styleSheet()
+    )
     assert first_active.root_combo.isVisible() is False
     assert second_active.root_combo.isVisible() is False
     assert first_active.refresh_btn.isVisible() is True
@@ -805,7 +866,10 @@ def test_settings_apply_persists_and_new_window_uses_values(
     assert reopened.storage_overview_row.isVisible() is False
     assert reopened_panel.current_tab().view.font().pointSize() == 14
     assert reopened_panel.address_edit.font().pointSize() == 13
-    assert "rgba(168, 182, 196, 127)" in reopened_panel.styleSheet()
+    expected_active_background = _panel_role_background(persisted, role="active")
+    assert (
+        f"background-color: {expected_active_background}" in reopened_panel.styleSheet()
+    )
 
 
 def test_settings_checkbox_changes_sync_existing_windows(
@@ -955,9 +1019,7 @@ def test_settings_dialog_shows_resolved_system_command_diagnostics(
     monkeypatch.setattr(
         "many_panelz_explorer.dialogs.settings.preferences_sync.everything_sdk_diagnostics_text",
         lambda *, enabled, everything_executable: (
-            f"Enabled: {sdk_path}"
-            if enabled
-            else f"Disabled in settings: {sdk_path}"
+            f"Enabled: {sdk_path}" if enabled else f"Disabled in settings: {sdk_path}"
         ),
     )
     roots_provider = _test_roots_provider(tmp_path)
@@ -988,7 +1050,7 @@ def test_settings_dialog_shows_resolved_system_command_diagnostics(
     )
 
 
-def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
+def test_settings_dialog_keeps_configured_terminal_values_and_shows_resolved_paths(
     qtbot,
     tmp_path: Path,
     isolated_settings: SettingsManager,
@@ -1046,12 +1108,42 @@ def test_settings_dialog_populates_terminal_executables_with_resolved_paths(
     qtbot.addWidget(dialog)
     dialog.show()
 
-    assert dialog.comspec_terminal_executable_edit.text() == str(cmd_path)
-    assert dialog.pwsh_terminal_executable_edit.text() == str(pwsh_path)
-    assert dialog.powershell5_terminal_executable_edit.text() == str(powershell5_path)
-    assert dialog.windows_terminal_executable_edit.text() == str(wt_path)
-    assert dialog.alacritty_terminal_executable_edit.text() == str(alacritty_path)
-    assert dialog.wezterm_terminal_executable_edit.text() == str(wezterm_path)
+    assert (
+        dialog.comspec_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().comspec_terminal_executable
+    )
+    assert (
+        dialog.pwsh_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().pwsh_terminal_executable
+    )
+    assert (
+        dialog.powershell5_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().powershell5_terminal_executable
+    )
+    assert (
+        dialog.windows_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().windows_terminal_executable
+    )
+    assert (
+        dialog.alacritty_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().alacritty_terminal_executable
+    )
+    assert (
+        dialog.wezterm_terminal_executable_edit.text()
+        == isolated_settings.ui_preferences().wezterm_terminal_executable
+    )
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 0) == str(cmd_path)
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 1) == str(pwsh_path)
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 2) == str(
+        powershell5_path
+    )
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 3) == str(wt_path)
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 4) == str(
+        alacritty_path
+    )
+    assert _table_path_value(dialog.resolved_terminal_paths_table, 5) == str(
+        wezterm_path
+    )
 
 
 def test_settings_dialog_embeds_terminal_startup_position_in_launcher_group(
@@ -1510,6 +1602,10 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     dialog.everything_executable_edit.setText(r"C:\tools\Everything.exe")
     dialog.use_everything_sdk_for_folder_sizes_checkbox.setChecked(False)
     dialog.enable_right_click_row_selection_checkbox.setChecked(False)
+    dialog.set_combo_value(
+        dialog.keypad_mark_scope_combo,
+        "files_and_directories",
+    )
     dialog.auto_calculate_dir_sizes_on_space_checkbox.setChecked(True)
     dialog.auto_calculate_dir_sizes_before_copy_move_checkbox.setChecked(True)
     dialog.auto_calculate_dir_sizes_before_archive_checkbox.setChecked(True)
@@ -1625,6 +1721,7 @@ def test_settings_dialog_open_with_and_extended_path_settings_persist(
     assert persisted.everything_executable == r"C:\tools\Everything.exe"
     assert persisted.use_everything_sdk_for_folder_sizes is False
     assert persisted.enable_right_click_row_selection is False
+    assert persisted.keypad_mark_scope == "files_and_directories"
     assert persisted.auto_calculate_dir_sizes_on_space is True
     assert persisted.auto_calculate_dir_sizes_before_copy_move is True
     assert persisted.auto_calculate_dir_sizes_before_archive is True

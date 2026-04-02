@@ -47,6 +47,7 @@ from many_panelz_explorer._operations.types import (
     QUEUE_VIEW_DOCK,
     SHORTCUT_BEHAVIOR_DIRECT,
 )
+from many_panelz_explorer.color_schemes import COLOR_SCHEME_COMMANDER_CLASSIC
 from many_panelz_explorer.external_file_managers import (
     DEFAULT_DOUBLE_COMMANDER_EXECUTABLE,
     DEFAULT_DOUBLE_COMMANDER_SOURCE_ARGS_TEMPLATE,
@@ -128,6 +129,8 @@ class UiPreferences:
     context_tool_code_editor_args_template: str = "{folder}"
     context_tool_git_gui_exe_path: str = ""
     context_tool_git_gui_args_template: str = "{folder}"
+    color_scheme_id: str = COLOR_SCHEME_COMMANDER_CLASSIC
+    color_scheme_overrides_json: str = "{}"
     active_panel_tint_color_hex: str = "#A8B6C4"
     active_panel_tint_intensity_percent: int = 24
     target_panel_tint_color_hex: str = "#D2CCAA"
@@ -207,6 +210,7 @@ class UiPreferences:
     everything_executable: str = DEFAULT_EVERYTHING_EXECUTABLE
     use_everything_sdk_for_folder_sizes: bool = True
     enable_right_click_row_selection: bool = True
+    keypad_mark_scope: str = "files_only"
     auto_calculate_dir_sizes_on_space: bool = False
     auto_calculate_dir_sizes_before_copy_move: bool = False
     auto_calculate_dir_sizes_before_archive: bool = False

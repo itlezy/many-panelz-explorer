@@ -14,6 +14,7 @@ from ...byte_formatting import (
     ByteFormatScopeConfig,
     format_bytes,
 )
+from ...color_schemes import ResolvedColorScheme, resolve_color_scheme
 from ...panel_tab_positions import normalize_default_tab_position
 
 if TYPE_CHECKING:
@@ -230,6 +231,12 @@ class WindowPreferencesCoordinator:
         return bool(self._enable_right_click_row_selection)
 
     @property
+    def keypad_mark_scope(self) -> str:
+        """Return the configured keypad bulk-mark scope."""
+
+        return self._keypad_mark_scope
+
+    @property
     def file_icon_mode(self) -> str:
         """Return the configured file-icon display mode."""
 
@@ -259,11 +266,17 @@ class WindowPreferencesCoordinator:
     def panel_role_visual_preferences(self) -> tuple[str, int, str, int]:
         """Return active/target panel tint preferences."""
         return (
-            self._active_panel_tint_color_hex,
-            self._active_panel_tint_intensity_percent,
-            self._target_panel_tint_color_hex,
-            self._target_panel_tint_intensity_percent,
+            self._resolved_color_scheme.active_panel_tint_color_hex,
+            self._resolved_color_scheme.active_panel_tint_intensity_percent,
+            self._resolved_color_scheme.target_panel_tint_color_hex,
+            self._resolved_color_scheme.target_panel_tint_intensity_percent,
         )
+
+    @property
+    def resolved_color_scheme(self) -> ResolvedColorScheme:
+        """Return the fully resolved runtime color scheme."""
+
+        return self._resolved_color_scheme
 
     def panel_toolbar_visibility_preferences(
         self,
@@ -306,6 +319,7 @@ class WindowPreferencesCoordinator:
             panel.enable_right_click_row_selection = (
                 self._enable_right_click_row_selection
             )
+            panel.set_keypad_mark_scope(self._keypad_mark_scope)
             panel.presentation_coordinator.apply_toolbar_visibility(
                 show_refresh_button=self._show_refresh_button,
                 show_root_buttons=self._show_root_buttons,
@@ -355,11 +369,18 @@ class WindowPreferencesCoordinator:
                 file_list_size_formatter=self.format_file_list_bytes,
                 properties_size_formatter=self.format_properties_bytes,
             )
+            panel.presentation_coordinator.apply_color_scheme(
+                self._resolved_color_scheme
+            )
             panel.presentation_coordinator.set_role_visual_preferences(
-                active_color_hex=self._active_panel_tint_color_hex,
-                active_intensity_percent=self._active_panel_tint_intensity_percent,
-                target_color_hex=self._target_panel_tint_color_hex,
-                target_intensity_percent=self._target_panel_tint_intensity_percent,
+                active_color_hex=self._resolved_color_scheme.active_panel_tint_color_hex,
+                active_intensity_percent=(
+                    self._resolved_color_scheme.active_panel_tint_intensity_percent
+                ),
+                target_color_hex=self._resolved_color_scheme.target_panel_tint_color_hex,
+                target_intensity_percent=(
+                    self._resolved_color_scheme.target_panel_tint_intensity_percent
+                ),
             )
             for tab_index in range(panel.tabs.count()):
                 tab_widget = panel.tabs.widget(tab_index)
@@ -367,6 +388,8 @@ class WindowPreferencesCoordinator:
                     tab_widget.set_enable_right_click_row_selection(
                         self._enable_right_click_row_selection
                     )
+                    tab_widget.set_keypad_mark_scope(self._keypad_mark_scope)
+                    tab_widget.apply_color_scheme(self._resolved_color_scheme)
 
         self.window.ui_composer.apply_operation_queue_visibility()
         self.window.status_coordinator.set_storage_bytes_formatter(
@@ -507,6 +530,8 @@ class WindowPreferencesCoordinator:
             preferences.file_icon_padding_horizontal
         )
         self._file_icon_padding_vertical = int(preferences.file_icon_padding_vertical)
+        self._color_scheme_id = preferences.color_scheme_id
+        self._color_scheme_overrides_json = preferences.color_scheme_overrides_json
         self._active_panel_tint_color_hex = preferences.active_panel_tint_color_hex
         self._active_panel_tint_intensity_percent = (
             preferences.active_panel_tint_intensity_percent
@@ -514,6 +539,18 @@ class WindowPreferencesCoordinator:
         self._target_panel_tint_color_hex = preferences.target_panel_tint_color_hex
         self._target_panel_tint_intensity_percent = (
             preferences.target_panel_tint_intensity_percent
+        )
+        self._resolved_color_scheme = resolve_color_scheme(
+            scheme_id=self._color_scheme_id,
+            overrides_json=self._color_scheme_overrides_json,
+            active_panel_tint_color_hex=self._active_panel_tint_color_hex,
+            active_panel_tint_intensity_percent=(
+                self._active_panel_tint_intensity_percent
+            ),
+            target_panel_tint_color_hex=self._target_panel_tint_color_hex,
+            target_panel_tint_intensity_percent=(
+                self._target_panel_tint_intensity_percent
+            ),
         )
         self._default_copy_move_backend = preferences.default_copy_move_backend
         self._default_delete_backend = preferences.default_delete_backend
@@ -527,6 +564,12 @@ class WindowPreferencesCoordinator:
         self._operation_queue_view_mode = preferences.operation_queue_view_mode
         self._enable_right_click_row_selection = bool(
             preferences.enable_right_click_row_selection
+        )
+        self._keypad_mark_scope = (
+            "files_and_directories"
+            if str(preferences.keypad_mark_scope).strip().lower()
+            == "files_and_directories"
+            else "files_only"
         )
 
     def _build_byte_format_preferences(

@@ -575,6 +575,31 @@ def build_shortcut_external_tool_rows(
         controls=[dialog.enable_right_click_row_selection_checkbox],
     )
 
+    dialog.keypad_mark_scope_combo = QComboBox(dialog)
+    dialog.keypad_mark_scope_combo.addItem("Files only", "files_only")
+    dialog.keypad_mark_scope_combo.addItem(
+        "Files and directories",
+        "files_and_directories",
+    )
+    dialog.keypad_mark_scope_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=open_tools_group,
+        key="keypad_mark_scope",
+        title="Keypad Bulk Mark Scope",
+        description=(
+            "Choose whether keypad bulk mark shortcuts affect only files or "
+            "both files and directories."
+        ),
+        terms=(
+            "keypad bulk mark scope num plus minus star slash files "
+            "directories same extension selection"
+        ),
+        controls=[dialog.keypad_mark_scope_combo],
+    )
+
     dialog.auto_calculate_dir_sizes_on_space_checkbox = QCheckBox(dialog)
     dialog.auto_calculate_dir_sizes_on_space_checkbox.setText(
         "Auto-calculate selected folder sizes on Space"

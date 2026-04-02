@@ -22,6 +22,17 @@ from .registry import SettingsRegistry
 class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
     """Persist operation defaults and file-open tool preferences."""
 
+    def _normalize_keypad_mark_scope(self, value: str) -> str:
+        """Return one supported keypad bulk-mark scope."""
+
+        normalized = normalize.normalize_text(
+            value,
+            fallback=self.DEFAULT_KEYPAD_MARK_SCOPE,
+        )
+        if normalized in {"files_only", "files_and_directories"}:
+            return normalized
+        return self.DEFAULT_KEYPAD_MARK_SCOPE
+
     @property
     def default_copy_move_backend(self) -> str:
         return normalize_copy_move_backend(
@@ -879,6 +890,22 @@ class OpsDefaultSettingsMixin(SettingsDomainBase, SettingsRegistry):
         self._storage.set_value(
             self.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY,
             bool(value),
+        )
+
+    @property
+    def keypad_mark_scope(self) -> str:
+        return self._normalize_keypad_mark_scope(
+            self._storage.value(
+                self.KEYPAD_MARK_SCOPE_KEY,
+                self.DEFAULT_KEYPAD_MARK_SCOPE,
+            )
+        )
+
+    @keypad_mark_scope.setter
+    def keypad_mark_scope(self, value: str) -> None:
+        self._storage.set_value(
+            self.KEYPAD_MARK_SCOPE_KEY,
+            self._normalize_keypad_mark_scope(value),
         )
 
     @property

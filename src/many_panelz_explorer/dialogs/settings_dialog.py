@@ -87,6 +87,8 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
     WINDOW_ID: ClassVar[str] = "settings_dialog"
     RESETTABLE_FIELDS_BY_SECTION: ClassVar[dict[str, tuple[str, ...]]] = {
         "appearance": (
+            "color_scheme_id",
+            "color_scheme_overrides_json",
             "active_panel_tint_color_hex",
             "active_panel_tint_intensity_percent",
             "target_panel_tint_color_hex",
@@ -218,6 +220,10 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         active_color_preview: QLabel
         active_intensity_slider: QSlider
         active_intensity_value: QLabel
+        clear_color_scheme_overrides_button: QPushButton
+        color_scheme_preset_combo: QComboBox
+        color_scheme_override_previews: dict[str, QLabel]
+        color_scheme_override_values: dict[str, str]
         autofit_columns_checkbox: QCheckBox
         app_font_family_combo: QComboBox
         app_font_size_spin: FontSizeSpinBox
@@ -262,6 +268,7 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         everything_executable_edit: QLineEdit
         use_everything_sdk_for_folder_sizes_checkbox: QCheckBox
         enable_right_click_row_selection_checkbox: QCheckBox
+        keypad_mark_scope_combo: QComboBox
         auto_calculate_dir_sizes_on_space_checkbox: QCheckBox
         auto_calculate_dir_sizes_before_copy_move_checkbox: QCheckBox
         auto_calculate_dir_sizes_before_archive_checkbox: QCheckBox
@@ -327,12 +334,17 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         robocopy_test_btn: QPushButton
         show_address_bar_checkbox: QCheckBox
         show_hidden_checkbox: QCheckBox
+        show_system_files_checkbox: QCheckBox
         show_navigation_buttons_checkbox: QCheckBox
+        show_parent_dir_at_drive_root_checkbox: QCheckBox
         show_refresh_button_checkbox: QCheckBox
         show_root_buttons_checkbox: QCheckBox
         show_root_dropdown_checkbox: QCheckBox
+        show_square_brackets_around_directories_checkbox: QCheckBox
         show_tab_close_buttons_checkbox: QCheckBox
         show_storage_overview_status_row_checkbox: QCheckBox
+        append_directory_backslash_checkbox: QCheckBox
+        name_sort_method_combo: QComboBox
         status_bar_byte_custom_template_edit: QLineEdit
         status_bar_byte_format_mode_combo: QComboBox
         status_bar_storage_label_template_edit: QLineEdit
@@ -439,6 +451,8 @@ class SettingsDialog(SettingsDialogRuntimeMixin, QDialog):
         self._tree_sync_in_progress = False
         self._pending_full_store_reset = False
         self._did_restore_window_geometry = False
+        self.color_scheme_override_values = {}
+        self.color_scheme_override_previews = {}
 
     def _configure_dialog_window(self) -> None:
         """Apply the top-level dialog window configuration."""

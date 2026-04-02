@@ -242,6 +242,7 @@ class PanelWidget(QWidget):
             properties_size_formatter or self.default_properties_size_formatter
         )
         self.enable_right_click_row_selection = True
+        self.keypad_mark_scope = "files_only"
         self.navigation_coordinator = PanelNavigationCoordinator(
             self,
             entry_hidden_system_flags=_entry_hidden_system_flags,
@@ -778,6 +779,17 @@ class PanelWidget(QWidget):
                 self.address_edit.text()
             )
 
+    def set_keypad_mark_scope(self, scope: str) -> None:
+        """Apply keypad bulk-mark scope to all tabs in this panel."""
+
+        self.keypad_mark_scope = (
+            "files_and_directories"
+            if str(scope).strip().lower() == "files_and_directories"
+            else "files_only"
+        )
+        for tab in self.iter_all_tabs():
+            tab.set_keypad_mark_scope(self.keypad_mark_scope)
+
     def set_show_root_dropdown(self, enabled: bool) -> None:
         self.presentation_coordinator.apply_toolbar_visibility(
             show_refresh_button=self.show_refresh_button,
@@ -1019,6 +1031,7 @@ class PanelWidget(QWidget):
             file_icon_mode=self._file_icon_mode,
             dim_hidden_entries=self._dim_hidden_entries,
             enable_right_click_row_selection=self.enable_right_click_row_selection,
+            keypad_mark_scope=self.keypad_mark_scope,
             file_list_size_formatter=self.file_list_size_formatter,
             properties_size_formatter=self.properties_size_formatter,
             parent=self,

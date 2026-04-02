@@ -11,6 +11,10 @@ from many_panelz_explorer._operations.backend_options import (
 from many_panelz_explorer._settings import normalize as settings_normalize
 from many_panelz_explorer._settings.manager import SettingsManager
 from many_panelz_explorer._settings.models import UiPreferences
+from many_panelz_explorer.color_schemes import (
+    COLOR_SCHEME_LOW_GLARE,
+    default_color_scheme,
+)
 from many_panelz_explorer.external_file_managers import (
     DEFAULT_DOUBLE_COMMANDER_EXECUTABLE,
     DEFAULT_DOUBLE_COMMANDER_SOURCE_ARGS_TEMPLATE,
@@ -86,6 +90,8 @@ def _tracked_keys() -> list[str]:
         SettingsManager.CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE_KEY,
         SettingsManager.CONTEXT_TOOL_GIT_GUI_EXE_PATH_KEY,
         SettingsManager.CONTEXT_TOOL_GIT_GUI_ARGS_TEMPLATE_KEY,
+        SettingsManager.COLOR_SCHEME_ID_KEY,
+        SettingsManager.COLOR_SCHEME_OVERRIDES_JSON_KEY,
         SettingsManager.ACTIVE_PANEL_TINT_COLOR_KEY,
         SettingsManager.ACTIVE_PANEL_TINT_INTENSITY_KEY,
         SettingsManager.TARGET_PANEL_TINT_COLOR_KEY,
@@ -134,6 +140,7 @@ def _tracked_keys() -> list[str]:
         SettingsManager.DEFAULT_ARCHIVE_UNPACKER_BACKEND_KEY,
         SettingsManager.EVERYTHING_EXECUTABLE_KEY,
         SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY,
+        SettingsManager.KEYPAD_MARK_SCOPE_KEY,
         SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY,
         SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY,
         SettingsManager.SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE_KEY,
@@ -308,6 +315,7 @@ def test_ui_preferences_round_trip() -> None:
             everything_executable=r"C:\tools\Everything.exe",
             use_everything_sdk_for_folder_sizes=False,
             enable_right_click_row_selection=False,
+            keypad_mark_scope="files_and_directories",
             auto_calculate_dir_sizes_on_space=True,
             auto_calculate_dir_sizes_before_copy_move=True,
             auto_calculate_dir_sizes_before_archive=True,
@@ -643,6 +651,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         settings.remove(SettingsManager.EVERYTHING_EXECUTABLE_KEY)
         settings.remove(SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY)
         settings.remove(SettingsManager.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY)
+        settings.set_value(SettingsManager.KEYPAD_MARK_SCOPE_KEY, "bogus")
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY)
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY)
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY)
@@ -978,6 +987,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             loaded.enable_right_click_row_selection
             is SettingsManager.DEFAULT_ENABLE_RIGHT_CLICK_ROW_SELECTION
         )
+        assert loaded.keypad_mark_scope == SettingsManager.DEFAULT_KEYPAD_MARK_SCOPE
         assert (
             loaded.auto_calculate_dir_sizes_on_space
             is SettingsManager.DEFAULT_AUTO_CALCULATE_DIR_SIZES_ON_SPACE
@@ -1018,6 +1028,29 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
             loaded.external_copymove_structured_options
             == ExternalCopyMoveBackendOptions()
         )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_color_scheme_round_trip_and_normalization() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.color_scheme_id = COLOR_SCHEME_LOW_GLARE
+        settings.color_scheme_overrides_json = json.dumps(
+            {
+                "file_list_current_focused_background_hex": "#123abc",
+                "footer_background_hex": "bad-value",
+                "ignored_key": "#FFFFFF",
+            }
+        )
+
+        loaded = settings.ui_preferences()
+        assert loaded.color_scheme_id == COLOR_SCHEME_LOW_GLARE
+        assert json.loads(loaded.color_scheme_overrides_json) == {
+            "file_list_current_focused_background_hex": "#123ABC",
+            "footer_background_hex": default_color_scheme().footer_background_hex,
+        }
     finally:
         _restore(settings, before)
 
