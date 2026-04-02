@@ -31,6 +31,7 @@ from threep_commons.qt.widget_identity import assign_widget_identity
 
 from . import widget_naming
 from .explorer_tab import ExplorerTab
+from .file_icons import ALLOWED_FILE_ICON_MODES, FILE_ICON_MODE_NONE
 from .mounts import list_roots_for_navigation
 from .panel_groups import (
     DEFAULT_TAB_GROUP_ID,
@@ -83,18 +84,20 @@ def _tab_label(path: Path) -> str:
     return path.name or display_path_text(path)
 
 
-def _is_hidden_or_system_entry(entry: os.DirEntry[str]) -> bool:
+def _entry_hidden_system_flags(entry: os.DirEntry[str]) -> tuple[bool, bool]:
+    """Return `(is_hidden, is_system)` flags for one directory entry."""
+
     hidden = entry.name.startswith(".")
     if os.name != "nt":
-        return hidden
+        return hidden, False
     try:
         stat_result = entry.stat(follow_symlinks=False)
     except OSError:
-        return hidden
+        return hidden, False
     attributes = int(getattr(stat_result, "st_file_attributes", 0))
-    hidden = hidden or bool(attributes & 0x2)
+    normalized_hidden = hidden or bool(attributes & 0x2)
     system = bool(attributes & 0x4)
-    return hidden or system
+    return normalized_hidden, system
 
 
 class _FocusWatcher(QObject):
@@ -147,7 +150,12 @@ class PanelWidget(QWidget):
     root_combo: QComboBox
     group_picker_combo: QComboBox
     new_group_btn: QPushButton
+    history_btn: QPushButton
+    bookmarks_btn: QPushButton
     address_edit: QLineEdit
+    breadcrumb_host: QWidget
+    breadcrumb_layout: QHBoxLayout
+    breadcrumb_buttons: list[QPushButton]
     back_btn: QPushButton
     forward_btn: QPushButton
     up_btn: QPushButton
@@ -178,6 +186,7 @@ class PanelWidget(QWidget):
         super().__init__(parent)
         self.panel_id = panel_id
         self._show_hidden = show_hidden
+        self._show_system_files = True
         self.show_root_dropdown = bool(show_root_dropdown)
         self.default_path = Path(default_path)
         self._roots_provider = roots_provider or list_roots_for_navigation
@@ -189,6 +198,7 @@ class PanelWidget(QWidget):
         self.restoring_state = False
         self.column_width_auto_align_mode = self.COLUMN_ALIGN_MODE_CURRENT_PANEL_TABS
         self.root_buttons: list[QPushButton] = []
+        self.breadcrumb_buttons = []
         self._history_menu: QMenu | None = None
         self._root_picker_menu: QMenu | None = None
         self._tab_groups: dict[str, _PanelTabGroupRuntime] = {}
@@ -204,8 +214,22 @@ class PanelWidget(QWidget):
         self.show_refresh_button = True
         self.show_root_buttons = True
         self.show_address_bar = True
+        self.show_breadcrumb_bar = True
         self.show_navigation_buttons = True
+        self.show_history_button = True
+        self.show_bookmarks_button = True
+        self.show_tab_bar = True
         self.show_tab_close_buttons = bool(show_tab_close_buttons)
+        self._append_directory_backslash = False
+        self._directories_sort_mode = "like_files"
+        self._show_parent_dir_at_drive_root = True
+        self._show_square_brackets_around_directories = True
+        self._name_sort_method = "natural_locale"
+        self._file_icon_mode = "all_associated"
+        self._dim_hidden_entries = True
+        self._file_icon_size_px = 16
+        self._file_icon_padding_horizontal = 2
+        self._file_icon_padding_vertical = 1
         self.tab_position_mode = normalize_panel_tab_position_mode(
             self.TAB_POSITION_MODE_DEFAULT
         )
@@ -220,7 +244,7 @@ class PanelWidget(QWidget):
         self.enable_right_click_row_selection = True
         self.navigation_coordinator = PanelNavigationCoordinator(
             self,
-            is_hidden_or_system_entry=_is_hidden_or_system_entry,
+            entry_hidden_system_flags=_entry_hidden_system_flags,
         )
         self.inline_filter_coordinator = PanelInlineFilterCoordinator(self)
         self.presentation_coordinator = PanelPresentationCoordinator(self)
@@ -555,9 +579,7 @@ class PanelWidget(QWidget):
                 tabs=tabs,
                 current_index=max(0, int(group_state.get("current_index", 0))),
                 column_widths=[
-                    width
-                    for width in group_state.get("column_widths", [])
-                    if width > 0
+                    width for width in group_state.get("column_widths", []) if width > 0
                 ],
             )
             self._tab_groups[group_id] = group
@@ -672,6 +694,18 @@ class PanelWidget(QWidget):
         return self._show_hidden
 
     @property
+    def show_system_files_enabled(self) -> bool:
+        """Return whether system files are visible in this panel."""
+
+        return self._show_system_files
+
+    @property
+    def file_icon_mode(self) -> str:
+        """Return the active root and file-list icon mode."""
+
+        return self._file_icon_mode
+
+    @property
     def root_paths(self) -> list[Path]:
         return list(self._root_paths)
 
@@ -731,6 +765,18 @@ class PanelWidget(QWidget):
             self.navigation_coordinator.schedule_address_completion_update(
                 self.address_edit.text()
             )
+        self.navigation_coordinator.rebuild_breadcrumbs(self.current_path())
+
+    def set_show_system_files(self, enabled: bool) -> None:
+        """Toggle system-file visibility and refresh all tabs."""
+
+        self._show_system_files = bool(enabled)
+        for tab in self.iter_all_tabs():
+            tab.navigation.set_show_system_files(self._show_system_files)
+        if self.address_edit.hasFocus():
+            self.navigation_coordinator.schedule_address_completion_update(
+                self.address_edit.text()
+            )
 
     def set_show_root_dropdown(self, enabled: bool) -> None:
         self.presentation_coordinator.apply_toolbar_visibility(
@@ -738,8 +784,79 @@ class PanelWidget(QWidget):
             show_root_buttons=self.show_root_buttons,
             show_root_dropdown=enabled,
             show_address_bar=self.show_address_bar,
+            show_breadcrumb_bar=self.show_breadcrumb_bar,
             show_navigation_buttons=self.show_navigation_buttons,
+            show_history_button=self.show_history_button,
+            show_bookmarks_button=self.show_bookmarks_button,
         )
+
+    def set_directories_sort_mode(self, mode: str) -> None:
+        """Apply the configured directory sorting mode to all tabs."""
+
+        self._directories_sort_mode = str(mode).strip().lower() or "like_files"
+        for tab in self.iter_all_tabs():
+            tab.set_directories_sort_mode(self._directories_sort_mode)
+
+    def set_show_parent_dir_at_drive_root(self, enabled: bool) -> None:
+        """Apply drive-root parent-row behavior across all tabs."""
+
+        self._show_parent_dir_at_drive_root = bool(enabled)
+        for tab in self.iter_all_tabs():
+            tab.set_show_parent_dir_at_drive_root(self._show_parent_dir_at_drive_root)
+
+    def set_show_square_brackets_around_directories(self, enabled: bool) -> None:
+        """Apply directory square-bracket formatting across all tabs."""
+
+        self._show_square_brackets_around_directories = bool(enabled)
+        for tab in self.iter_all_tabs():
+            tab.set_show_square_brackets_around_directories(
+                self._show_square_brackets_around_directories
+            )
+
+    def set_append_directory_backslash(self, enabled: bool) -> None:
+        """Apply directory display formatting across all tabs."""
+
+        self._append_directory_backslash = bool(enabled)
+        for tab in self.iter_all_tabs():
+            tab.set_append_directory_backslash(self._append_directory_backslash)
+
+    def set_name_sort_method(self, mode: str) -> None:
+        """Apply file-name sorting semantics across all tabs."""
+
+        self._name_sort_method = str(mode).strip().lower() or "natural_locale"
+        for tab in self.iter_all_tabs():
+            tab.set_name_sort_method(self._name_sort_method)
+
+    def set_file_icon_preferences(
+        self,
+        *,
+        icon_mode: str,
+        dim_hidden_entries: bool,
+        icon_size_px: int,
+        padding_horizontal_px: int,
+        padding_vertical_px: int,
+    ) -> None:
+        """Apply file-list icon mode and spacing preferences to all tabs."""
+
+        normalized_mode = str(icon_mode).strip().lower()
+        if normalized_mode not in ALLOWED_FILE_ICON_MODES:
+            normalized_mode = FILE_ICON_MODE_NONE
+        self._file_icon_mode = normalized_mode
+        self._dim_hidden_entries = bool(dim_hidden_entries)
+        self._file_icon_size_px = max(1, int(icon_size_px))
+        self._file_icon_padding_horizontal = max(0, int(padding_horizontal_px))
+        self._file_icon_padding_vertical = max(0, int(padding_vertical_px))
+        for tab in self.iter_all_tabs():
+            tab.set_file_icon_mode(
+                self._file_icon_mode,
+                dim_hidden_entries=self._dim_hidden_entries,
+            )
+            tab.set_file_list_icon_metrics(
+                icon_size_px=self._file_icon_size_px,
+                padding_horizontal_px=self._file_icon_padding_horizontal,
+                padding_vertical_px=self._file_icon_padding_vertical,
+            )
+        self.navigation_coordinator.rebuild_root_controls(self.current_path())
 
     def resolved_tab_position_mode(self, *, default_tab_position: str) -> str:
         """Return the effective tab-position mode for this panel."""
@@ -891,6 +1008,16 @@ class PanelWidget(QWidget):
         tab = ExplorerTab(
             path,
             show_hidden=self._show_hidden,
+            show_system_files=self._show_system_files,
+            directories_sort_mode=self._directories_sort_mode,
+            show_parent_dir_at_drive_root=self._show_parent_dir_at_drive_root,
+            show_square_brackets_around_directories=(
+                self._show_square_brackets_around_directories
+            ),
+            append_directory_backslash=self._append_directory_backslash,
+            name_sort_method=self._name_sort_method,
+            file_icon_mode=self._file_icon_mode,
+            dim_hidden_entries=self._dim_hidden_entries,
             enable_right_click_row_selection=self.enable_right_click_row_selection,
             file_list_size_formatter=self.file_list_size_formatter,
             properties_size_formatter=self.properties_size_formatter,
@@ -907,6 +1034,11 @@ class PanelWidget(QWidget):
         tab.navigation.changed.connect(_on_navigation_changed)
         tab.columns.changed.connect(_on_widths_changed)
         tab.view.setFont(self.file_list_font_value)
+        tab.set_file_list_icon_metrics(
+            icon_size_px=self._file_icon_size_px,
+            padding_horizontal_px=self._file_icon_padding_horizontal,
+            padding_vertical_px=self._file_icon_padding_vertical,
+        )
 
         tab.installEventFilter(self.focus_watcher)
         tab.view.installEventFilter(self.focus_watcher)

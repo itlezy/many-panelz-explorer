@@ -37,6 +37,19 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
         self._storage.set_value(self.SHOW_HIDDEN_DEFAULT_KEY, bool(enabled))
 
     @property
+    def show_system_files(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_SYSTEM_FILES_KEY,
+                self.DEFAULT_SHOW_SYSTEM_FILES,
+            )
+        )
+
+    @show_system_files.setter
+    def show_system_files(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_SYSTEM_FILES_KEY, bool(enabled))
+
+    @property
     def show_root_dropdown(self) -> bool:
         return normalize.normalize_bool(
             self._storage.value(self.SHOW_ROOT_DROPDOWN_KEY, False)
@@ -45,6 +58,19 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
     @show_root_dropdown.setter
     def show_root_dropdown(self, enabled: bool) -> None:
         self._storage.set_value(self.SHOW_ROOT_DROPDOWN_KEY, bool(enabled))
+
+    @property
+    def show_status_bar(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_STATUS_BAR_KEY,
+                self.DEFAULT_SHOW_STATUS_BAR,
+            )
+        )
+
+    @show_status_bar.setter
+    def show_status_bar(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_STATUS_BAR_KEY, bool(enabled))
 
     @property
     def show_storage_overview_status_row(self) -> bool:
@@ -80,6 +106,91 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
         if normalized not in self.ALLOWED_COLUMN_WIDTH_AUTO_ALIGN_MODES:
             normalized = self.DEFAULT_COLUMN_WIDTH_AUTO_ALIGN_MODE
         self._storage.set_value(self.COLUMN_WIDTH_AUTO_ALIGN_MODE_KEY, normalized)
+
+    @property
+    def directories_sort_mode(self) -> str:
+        value = str(
+            self._storage.value(
+                self.DIRECTORIES_SORT_MODE_KEY,
+                self.DEFAULT_DIRECTORIES_SORT_MODE,
+            )
+        )
+        mode = value.strip().lower()
+        if mode not in self.ALLOWED_DIRECTORIES_SORT_MODES:
+            return self.DEFAULT_DIRECTORIES_SORT_MODE
+        return mode
+
+    @directories_sort_mode.setter
+    def directories_sort_mode(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized not in self.ALLOWED_DIRECTORIES_SORT_MODES:
+            normalized = self.DEFAULT_DIRECTORIES_SORT_MODE
+        self._storage.set_value(self.DIRECTORIES_SORT_MODE_KEY, normalized)
+
+    @property
+    def show_parent_dir_at_drive_root(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_PARENT_DIR_AT_DRIVE_ROOT_KEY,
+                self.DEFAULT_SHOW_PARENT_DIR_AT_DRIVE_ROOT,
+            )
+        )
+
+    @show_parent_dir_at_drive_root.setter
+    def show_parent_dir_at_drive_root(self, enabled: bool) -> None:
+        self._storage.set_value(
+            self.SHOW_PARENT_DIR_AT_DRIVE_ROOT_KEY,
+            bool(enabled),
+        )
+
+    @property
+    def show_square_brackets_around_directories(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES_KEY,
+                self.DEFAULT_SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES,
+            )
+        )
+
+    @show_square_brackets_around_directories.setter
+    def show_square_brackets_around_directories(self, enabled: bool) -> None:
+        self._storage.set_value(
+            self.SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES_KEY,
+            bool(enabled),
+        )
+
+    @property
+    def append_directory_backslash(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.APPEND_DIRECTORY_BACKSLASH_KEY,
+                self.DEFAULT_APPEND_DIRECTORY_BACKSLASH,
+            )
+        )
+
+    @append_directory_backslash.setter
+    def append_directory_backslash(self, enabled: bool) -> None:
+        self._storage.set_value(self.APPEND_DIRECTORY_BACKSLASH_KEY, bool(enabled))
+
+    @property
+    def name_sort_method(self) -> str:
+        value = str(
+            self._storage.value(
+                self.NAME_SORT_METHOD_KEY,
+                self.DEFAULT_NAME_SORT_METHOD,
+            )
+        )
+        mode = value.strip().lower()
+        if mode not in self.ALLOWED_NAME_SORT_METHODS:
+            return self.DEFAULT_NAME_SORT_METHOD
+        return mode
+
+    @name_sort_method.setter
+    def name_sort_method(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized not in self.ALLOWED_NAME_SORT_METHODS:
+            normalized = self.DEFAULT_NAME_SORT_METHOD
+        self._storage.set_value(self.NAME_SORT_METHOD_KEY, normalized)
 
     @property
     def autofit_columns(self) -> bool:
@@ -125,6 +236,19 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
         self._storage.set_value(self.SHOW_ADDRESS_BAR_KEY, bool(enabled))
 
     @property
+    def show_breadcrumb_bar(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_BREADCRUMB_BAR_KEY,
+                self.DEFAULT_SHOW_BREADCRUMB_BAR,
+            )
+        )
+
+    @show_breadcrumb_bar.setter
+    def show_breadcrumb_bar(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_BREADCRUMB_BAR_KEY, bool(enabled))
+
+    @property
     def show_navigation_buttons(self) -> bool:
         return normalize.normalize_bool(
             self._storage.value(self.SHOW_NAVIGATION_BUTTONS_KEY, True)
@@ -133,6 +257,45 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
     @show_navigation_buttons.setter
     def show_navigation_buttons(self, enabled: bool) -> None:
         self._storage.set_value(self.SHOW_NAVIGATION_BUTTONS_KEY, bool(enabled))
+
+    @property
+    def show_history_button(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_HISTORY_BUTTON_KEY,
+                self.DEFAULT_SHOW_HISTORY_BUTTON,
+            )
+        )
+
+    @show_history_button.setter
+    def show_history_button(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_HISTORY_BUTTON_KEY, bool(enabled))
+
+    @property
+    def show_bookmarks_button(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_BOOKMARKS_BUTTON_KEY,
+                self.DEFAULT_SHOW_BOOKMARKS_BUTTON,
+            )
+        )
+
+    @show_bookmarks_button.setter
+    def show_bookmarks_button(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_BOOKMARKS_BUTTON_KEY, bool(enabled))
+
+    @property
+    def show_tab_bar(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.SHOW_TAB_BAR_KEY,
+                self.DEFAULT_SHOW_TAB_BAR,
+            )
+        )
+
+    @show_tab_bar.setter
+    def show_tab_bar(self, enabled: bool) -> None:
+        self._storage.set_value(self.SHOW_TAB_BAR_KEY, bool(enabled))
 
     @property
     def show_tab_close_buttons(self) -> bool:
@@ -264,6 +427,111 @@ class UiBehaviorSettingsMixin(SettingsDomainBase, SettingsRegistry):
                 fallback=self.DEFAULT_STANDARD_TAB_FIXED_WIDTH_PX,
                 minimum=self.MIN_STANDARD_TAB_FIXED_WIDTH_PX,
                 maximum=self.MAX_STANDARD_TAB_FIXED_WIDTH_PX,
+            ),
+        )
+
+    @property
+    def file_icon_mode(self) -> str:
+        value = str(
+            self._storage.value(
+                self.FILE_ICON_MODE_KEY,
+                self.DEFAULT_FILE_ICON_MODE,
+            )
+        )
+        mode = value.strip().lower()
+        if mode not in self.ALLOWED_FILE_ICON_MODES:
+            return self.DEFAULT_FILE_ICON_MODE
+        return mode
+
+    @file_icon_mode.setter
+    def file_icon_mode(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized not in self.ALLOWED_FILE_ICON_MODES:
+            normalized = self.DEFAULT_FILE_ICON_MODE
+        self._storage.set_value(self.FILE_ICON_MODE_KEY, normalized)
+
+    @property
+    def dim_hidden_entries(self) -> bool:
+        return normalize.normalize_bool(
+            self._storage.value(
+                self.DIM_HIDDEN_ENTRIES_KEY,
+                self.DEFAULT_DIM_HIDDEN_ENTRIES,
+            )
+        )
+
+    @dim_hidden_entries.setter
+    def dim_hidden_entries(self, enabled: bool) -> None:
+        self._storage.set_value(self.DIM_HIDDEN_ENTRIES_KEY, bool(enabled))
+
+    @property
+    def file_icon_size_px(self) -> int:
+        return normalize.normalize_positive_int(
+            self._storage.value(
+                self.FILE_ICON_SIZE_PX_KEY,
+                self.DEFAULT_FILE_ICON_SIZE_PX,
+            ),
+            fallback=self.DEFAULT_FILE_ICON_SIZE_PX,
+            minimum=self.MIN_FILE_ICON_SIZE_PX,
+            maximum=self.MAX_FILE_ICON_SIZE_PX,
+        )
+
+    @file_icon_size_px.setter
+    def file_icon_size_px(self, value: int) -> None:
+        self._storage.set_value(
+            self.FILE_ICON_SIZE_PX_KEY,
+            normalize.normalize_positive_int(
+                value,
+                fallback=self.DEFAULT_FILE_ICON_SIZE_PX,
+                minimum=self.MIN_FILE_ICON_SIZE_PX,
+                maximum=self.MAX_FILE_ICON_SIZE_PX,
+            ),
+        )
+
+    @property
+    def file_icon_padding_horizontal(self) -> int:
+        return normalize.normalize_positive_int(
+            self._storage.value(
+                self.FILE_ICON_PADDING_HORIZONTAL_KEY,
+                self.DEFAULT_FILE_ICON_PADDING_HORIZONTAL,
+            ),
+            fallback=self.DEFAULT_FILE_ICON_PADDING_HORIZONTAL,
+            minimum=self.MIN_FILE_ICON_PADDING_PX,
+            maximum=self.MAX_FILE_ICON_PADDING_PX,
+        )
+
+    @file_icon_padding_horizontal.setter
+    def file_icon_padding_horizontal(self, value: int) -> None:
+        self._storage.set_value(
+            self.FILE_ICON_PADDING_HORIZONTAL_KEY,
+            normalize.normalize_positive_int(
+                value,
+                fallback=self.DEFAULT_FILE_ICON_PADDING_HORIZONTAL,
+                minimum=self.MIN_FILE_ICON_PADDING_PX,
+                maximum=self.MAX_FILE_ICON_PADDING_PX,
+            ),
+        )
+
+    @property
+    def file_icon_padding_vertical(self) -> int:
+        return normalize.normalize_positive_int(
+            self._storage.value(
+                self.FILE_ICON_PADDING_VERTICAL_KEY,
+                self.DEFAULT_FILE_ICON_PADDING_VERTICAL,
+            ),
+            fallback=self.DEFAULT_FILE_ICON_PADDING_VERTICAL,
+            minimum=self.MIN_FILE_ICON_PADDING_PX,
+            maximum=self.MAX_FILE_ICON_PADDING_PX,
+        )
+
+    @file_icon_padding_vertical.setter
+    def file_icon_padding_vertical(self, value: int) -> None:
+        self._storage.set_value(
+            self.FILE_ICON_PADDING_VERTICAL_KEY,
+            normalize.normalize_positive_int(
+                value,
+                fallback=self.DEFAULT_FILE_ICON_PADDING_VERTICAL,
+                minimum=self.MIN_FILE_ICON_PADDING_PX,
+                maximum=self.MAX_FILE_ICON_PADDING_PX,
             ),
         )
 

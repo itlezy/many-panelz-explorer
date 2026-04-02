@@ -157,7 +157,7 @@ class ExternalFileManagerLauncher:
         tab = panel.current_tab()
         if tab is None:
             return FileManagerLaunchTarget(panel.current_path(), "directory")
-        selected_paths = tab.selected_paths()
+        selected_paths = tab.marked_or_current_paths()
         if len(selected_paths) != 1:
             return FileManagerLaunchTarget(panel.current_path(), "directory")
         selected_path = selected_paths[0]

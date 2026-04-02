@@ -68,6 +68,10 @@ from many_panelz_explorer.external_tools import (
     DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
     DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
 )
+from many_panelz_explorer.file_icons import (
+    ALLOWED_FILE_ICON_MODES,
+    FILE_ICON_MODE_ALL_ASSOCIATED,
+)
 from many_panelz_explorer.panel_tab_positions import (
     ALLOWED_DEFAULT_TAB_POSITIONS,
     TAB_POSITION_MODE_TOP,
@@ -79,14 +83,27 @@ class SettingsRegistry:
 
     NEW_CONTEXT_MODE_KEY = "config/new_context_mode"
     SHOW_HIDDEN_DEFAULT_KEY = "ui/show_hidden_default"
+    SHOW_SYSTEM_FILES_KEY = "ui/show_system_files"
     SHOW_ROOT_DROPDOWN_KEY = "ui/show_root_dropdown"
+    SHOW_STATUS_BAR_KEY = "ui/show_status_bar"
     SHOW_STORAGE_OVERVIEW_STATUS_ROW_KEY = "ui/show_storage_overview_status_row"
     COLUMN_WIDTH_AUTO_ALIGN_MODE_KEY = "ui/file_list/column_width_auto_align_mode"
+    DIRECTORIES_SORT_MODE_KEY = "ui/file_list/directories_sort_mode"
+    SHOW_PARENT_DIR_AT_DRIVE_ROOT_KEY = "ui/file_list/show_parent_dir_at_drive_root"
+    SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES_KEY = (
+        "ui/file_list/show_square_brackets_around_directories"
+    )
+    APPEND_DIRECTORY_BACKSLASH_KEY = "ui/file_list/append_directory_backslash"
+    NAME_SORT_METHOD_KEY = "ui/file_list/name_sort_method"
     AUTOFIT_COLUMNS_KEY = "ui/file_list/autofit_columns"
     SHOW_REFRESH_BUTTON_KEY = "ui/show_refresh_button"
     SHOW_ROOT_BUTTONS_KEY = "ui/show_root_buttons"
     SHOW_ADDRESS_BAR_KEY = "ui/show_address_bar"
+    SHOW_BREADCRUMB_BAR_KEY = "ui/show_breadcrumb_bar"
     SHOW_NAVIGATION_BUTTONS_KEY = "ui/show_navigation_buttons"
+    SHOW_HISTORY_BUTTON_KEY = "ui/show_history_button"
+    SHOW_BOOKMARKS_BUTTON_KEY = "ui/show_bookmarks_button"
+    SHOW_TAB_BAR_KEY = "ui/show_tab_bar"
     SHOW_TAB_CLOSE_BUTTONS_KEY = "ui/show_tab_close_buttons"
     DEFAULT_TAB_POSITION_KEY = "ui/default_tab_position"
     HORIZONTAL_TAB_WIDTH_MODE_KEY = "ui/tabs/horizontal_width_mode"
@@ -110,6 +127,11 @@ class SettingsRegistry:
     NAVIGATION_USE_APP_FONT_KEY = "ui/font/navigation/use_app_font"
     NAVIGATION_FONT_FAMILY_KEY = "ui/font/navigation/family"
     NAVIGATION_FONT_SIZE_PT_KEY = "ui/font/navigation/size_pt"
+    FILE_ICON_MODE_KEY = "ui/file_list/icons/mode"
+    DIM_HIDDEN_ENTRIES_KEY = "ui/file_list/icons/dim_hidden_entries"
+    FILE_ICON_SIZE_PX_KEY = "ui/file_list/icons/size_px"
+    FILE_ICON_PADDING_HORIZONTAL_KEY = "ui/file_list/icons/padding_horizontal"
+    FILE_ICON_PADDING_VERTICAL_KEY = "ui/file_list/icons/padding_vertical"
     CONTEXT_IMMEDIATE_CHILD_SCAN_CAP_KEY = "context/detection/immediate_child_scan_cap"
     CONTEXT_TOOL_CODE_EDITOR_EXE_PATH_KEY = "context/tools/code_editor/exe_path"
     CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE_KEY = (
@@ -262,10 +284,21 @@ class SettingsRegistry:
     DEFAULT_FILE_LIST_FONT_FAMILY = ""
     DEFAULT_FILE_LIST_FONT_SIZE_PT = 10
     DEFAULT_COLUMN_WIDTH_AUTO_ALIGN_MODE = "current_panel_tabs"
+    DEFAULT_DIRECTORIES_SORT_MODE = "like_files"
+    DEFAULT_SHOW_PARENT_DIR_AT_DRIVE_ROOT = True
+    DEFAULT_SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES = True
+    DEFAULT_APPEND_DIRECTORY_BACKSLASH = False
+    DEFAULT_NAME_SORT_METHOD = "natural_locale"
     DEFAULT_AUTOFIT_COLUMNS = False
     DEFAULT_NAVIGATION_USE_APP_FONT = True
     DEFAULT_NAVIGATION_FONT_FAMILY = ""
     DEFAULT_NAVIGATION_FONT_SIZE_PT = 10
+    DEFAULT_SHOW_SYSTEM_FILES = True
+    DEFAULT_SHOW_STATUS_BAR = True
+    DEFAULT_SHOW_BREADCRUMB_BAR = True
+    DEFAULT_SHOW_HISTORY_BUTTON = True
+    DEFAULT_SHOW_BOOKMARKS_BUTTON = True
+    DEFAULT_SHOW_TAB_BAR = True
     DEFAULT_SHOW_TAB_CLOSE_BUTTONS = True
     DEFAULT_DEFAULT_TAB_POSITION = TAB_POSITION_MODE_TOP
     DEFAULT_HORIZONTAL_TAB_WIDTH_MODE = "adaptive"
@@ -289,6 +322,15 @@ class SettingsRegistry:
     DEFAULT_PROPERTIES_BYTE_FORMAT_MODE = "bytes"
     DEFAULT_PROPERTIES_BYTE_CUSTOM_TEMPLATE = ""
     DEFAULT_CONTEXT_IMMEDIATE_CHILD_SCAN_CAP = 33
+    DEFAULT_FILE_ICON_MODE = FILE_ICON_MODE_ALL_ASSOCIATED
+    DEFAULT_DIM_HIDDEN_ENTRIES = True
+    DEFAULT_FILE_ICON_SIZE_PX = 16
+    MIN_FILE_ICON_SIZE_PX = 12
+    MAX_FILE_ICON_SIZE_PX = 48
+    DEFAULT_FILE_ICON_PADDING_HORIZONTAL = 2
+    DEFAULT_FILE_ICON_PADDING_VERTICAL = 1
+    MIN_FILE_ICON_PADDING_PX = 0
+    MAX_FILE_ICON_PADDING_PX = 12
     DEFAULT_CONTEXT_TOOL_CODE_EDITOR_EXE_PATH = ""
     DEFAULT_CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE = "{folder}"
     DEFAULT_CONTEXT_TOOL_GIT_GUI_EXE_PATH = ""
@@ -373,9 +415,7 @@ class SettingsRegistry:
     DEFAULT_AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE = False
     DEFAULT_SEVEN_ZIP_EXECUTABLE = DEFAULT_SEVEN_ZIP_EXECUTABLE
     DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE = DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
-    DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE = (
-        DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE
-    )
+    DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE = DEFAULT_SEVEN_ZIP_EXTRACT_ARGS_TEMPLATE
     DEFAULT_WINRAR_EXECUTABLE = DEFAULT_WINRAR_EXECUTABLE
     DEFAULT_WINRAR_PACK_ARGS_TEMPLATE = DEFAULT_WINRAR_PACK_ARGS_TEMPLATE
     DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE = DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
@@ -418,6 +458,16 @@ class SettingsRegistry:
         "all_windows_panels_tabs",
         "none",
     }
+    ALLOWED_DIRECTORIES_SORT_MODES: ClassVar[set[str]] = {
+        "by_name",
+        "like_files",
+    }
+    ALLOWED_NAME_SORT_METHODS: ClassVar[set[str]] = {
+        "alphabetical_locale",
+        "strict_codepoint",
+        "natural_codepoint",
+        "natural_locale",
+    }
     ALLOWED_DEFAULT_TAB_POSITION_MODES: ClassVar[set[str]] = (
         ALLOWED_DEFAULT_TAB_POSITIONS
     )
@@ -436,6 +486,7 @@ class SettingsRegistry:
         "bytes",
         "custom",
     }
+    ALLOWED_FILE_ICON_MODES: ClassVar[set[str]] = ALLOWED_FILE_ICON_MODES
     ALLOWED_TERMINAL_STARTUP_POSITIONS: ClassVar[set[str]] = {
         "normal",
         "maximized",

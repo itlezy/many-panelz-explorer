@@ -34,14 +34,25 @@ def _tracked_keys() -> list[str]:
     return [
         SettingsManager.NEW_CONTEXT_MODE_KEY,
         SettingsManager.SHOW_HIDDEN_DEFAULT_KEY,
+        SettingsManager.SHOW_SYSTEM_FILES_KEY,
         SettingsManager.SHOW_ROOT_DROPDOWN_KEY,
+        SettingsManager.SHOW_STATUS_BAR_KEY,
         SettingsManager.SHOW_STORAGE_OVERVIEW_STATUS_ROW_KEY,
         SettingsManager.COLUMN_WIDTH_AUTO_ALIGN_MODE_KEY,
+        SettingsManager.DIRECTORIES_SORT_MODE_KEY,
+        SettingsManager.SHOW_PARENT_DIR_AT_DRIVE_ROOT_KEY,
+        SettingsManager.SHOW_SQUARE_BRACKETS_AROUND_DIRECTORIES_KEY,
+        SettingsManager.APPEND_DIRECTORY_BACKSLASH_KEY,
+        SettingsManager.NAME_SORT_METHOD_KEY,
         SettingsManager.AUTOFIT_COLUMNS_KEY,
         SettingsManager.SHOW_REFRESH_BUTTON_KEY,
         SettingsManager.SHOW_ROOT_BUTTONS_KEY,
         SettingsManager.SHOW_ADDRESS_BAR_KEY,
+        SettingsManager.SHOW_BREADCRUMB_BAR_KEY,
         SettingsManager.SHOW_NAVIGATION_BUTTONS_KEY,
+        SettingsManager.SHOW_HISTORY_BUTTON_KEY,
+        SettingsManager.SHOW_BOOKMARKS_BUTTON_KEY,
+        SettingsManager.SHOW_TAB_BAR_KEY,
         SettingsManager.SHOW_TAB_CLOSE_BUTTONS_KEY,
         SettingsManager.DEFAULT_TAB_POSITION_KEY,
         SettingsManager.HORIZONTAL_TAB_WIDTH_MODE_KEY,
@@ -65,6 +76,11 @@ def _tracked_keys() -> list[str]:
         SettingsManager.NAVIGATION_USE_APP_FONT_KEY,
         SettingsManager.NAVIGATION_FONT_FAMILY_KEY,
         SettingsManager.NAVIGATION_FONT_SIZE_PT_KEY,
+        SettingsManager.FILE_ICON_MODE_KEY,
+        SettingsManager.DIM_HIDDEN_ENTRIES_KEY,
+        SettingsManager.FILE_ICON_SIZE_PX_KEY,
+        SettingsManager.FILE_ICON_PADDING_HORIZONTAL_KEY,
+        SettingsManager.FILE_ICON_PADDING_VERTICAL_KEY,
         SettingsManager.CONTEXT_IMMEDIATE_CHILD_SCAN_CAP_KEY,
         SettingsManager.CONTEXT_TOOL_CODE_EDITOR_EXE_PATH_KEY,
         SettingsManager.CONTEXT_TOOL_CODE_EDITOR_ARGS_TEMPLATE_KEY,
@@ -171,14 +187,25 @@ def test_ui_preferences_round_trip() -> None:
         expected = UiPreferences(
             new_context_mode="cwd",
             show_hidden_default=False,
+            show_system_files=False,
             show_root_dropdown=True,
+            show_status_bar=False,
             show_storage_overview_status_row=False,
             column_width_auto_align_mode="all_windows_panels_tabs",
+            directories_sort_mode="by_name",
+            show_parent_dir_at_drive_root=False,
+            show_square_brackets_around_directories=False,
+            append_directory_backslash=True,
+            name_sort_method="strict_codepoint",
             autofit_columns=True,
             show_refresh_button=False,
             show_root_buttons=False,
             show_address_bar=False,
+            show_breadcrumb_bar=False,
             show_navigation_buttons=False,
+            show_history_button=False,
+            show_bookmarks_button=False,
+            show_tab_bar=False,
             show_tab_close_buttons=False,
             default_tab_position="left_horizontal",
             horizontal_tab_width_mode="fixed",
@@ -204,6 +231,11 @@ def test_ui_preferences_round_trip() -> None:
             navigation_use_app_font=False,
             navigation_font_family="Segoe UI",
             navigation_font_size_pt=12,
+            file_icon_mode="standard_only",
+            dim_hidden_entries=False,
+            file_icon_size_px=24,
+            file_icon_padding_horizontal=5,
+            file_icon_padding_vertical=3,
             context_immediate_child_scan_cap=55,
             context_tool_code_editor_exe_path=r"C:\tools\code.exe",
             context_tool_code_editor_args_template="--folder {folder}",
@@ -612,9 +644,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         settings.remove(SettingsManager.USE_EVERYTHING_SDK_FOR_FOLDER_SIZES_KEY)
         settings.remove(SettingsManager.ENABLE_RIGHT_CLICK_ROW_SELECTION_KEY)
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_ON_SPACE_KEY)
-        settings.remove(
-            SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY
-        )
+        settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_COPY_MOVE_KEY)
         settings.remove(SettingsManager.AUTO_CALCULATE_DIR_SIZES_BEFORE_ARCHIVE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_EXECUTABLE_KEY)
         settings.remove(SettingsManager.SEVEN_ZIP_PACK_ARGS_TEMPLATE_KEY)
@@ -962,8 +992,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         )
         assert loaded.seven_zip_executable == DEFAULT_SEVEN_ZIP_EXECUTABLE
         assert (
-            loaded.seven_zip_pack_args_template
-            == DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
+            loaded.seven_zip_pack_args_template == DEFAULT_SEVEN_ZIP_PACK_ARGS_TEMPLATE
         )
         assert (
             loaded.seven_zip_extract_args_template
@@ -972,8 +1001,7 @@ def test_ui_preferences_invalid_values_fallback_to_defaults() -> None:
         assert loaded.winrar_executable == DEFAULT_WINRAR_EXECUTABLE
         assert loaded.winrar_pack_args_template == DEFAULT_WINRAR_PACK_ARGS_TEMPLATE
         assert (
-            loaded.winrar_extract_args_template
-            == DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
+            loaded.winrar_extract_args_template == DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE
         )
         assert loaded.use_extended_paths_robocopy is False
         assert loaded.use_extended_paths_teracopy is False
@@ -1032,6 +1060,17 @@ def test_ui_preferences_column_auto_align_mode_defaults_when_unset() -> None:
             loaded.column_width_auto_align_mode
             == SettingsManager.DEFAULT_COLUMN_WIDTH_AUTO_ALIGN_MODE
         )
+    finally:
+        _restore(settings, before)
+
+
+def test_ui_preferences_name_sort_method_invalid_value_uses_default() -> None:
+    settings = SettingsManager()
+    before = _snapshot(settings)
+    try:
+        settings.set_value(SettingsManager.NAME_SORT_METHOD_KEY, "weird_sort")
+        loaded = settings.ui_preferences()
+        assert loaded.name_sort_method == SettingsManager.DEFAULT_NAME_SORT_METHOD
     finally:
         _restore(settings, before)
 

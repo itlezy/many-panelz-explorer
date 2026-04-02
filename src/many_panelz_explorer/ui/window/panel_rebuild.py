@@ -242,7 +242,10 @@ class WindowPanelRebuildCoordinator:
             show_root_buttons,
             show_root_dropdown,
             show_address_bar,
+            show_breadcrumb_bar,
             show_navigation_buttons,
+            show_history_button,
+            show_bookmarks_button,
         ) = self.window.preferences_coordinator.panel_toolbar_visibility_preferences()
         (
             horizontal_tab_width_mode,
@@ -261,7 +264,13 @@ class WindowPanelRebuildCoordinator:
             show_root_buttons=show_root_buttons,
             show_root_dropdown=show_root_dropdown,
             show_address_bar=show_address_bar,
+            show_breadcrumb_bar=show_breadcrumb_bar,
             show_navigation_buttons=show_navigation_buttons,
+            show_history_button=show_history_button,
+            show_bookmarks_button=show_bookmarks_button,
+        )
+        panel.presentation_coordinator.apply_tab_bar_visibility(
+            show_tab_bar=self.window.preferences_coordinator.show_tab_bar_enabled
         )
         panel.presentation_coordinator.apply_tab_close_button_visibility(
             show_tab_close_buttons=(
@@ -282,6 +291,36 @@ class WindowPanelRebuildCoordinator:
         )
         panel.enable_right_click_row_selection = (
             self.window.preferences_coordinator.enable_right_click_row_selection
+        )
+        panel.set_show_system_files(
+            self.window.preferences_coordinator.show_system_files_enabled
+        )
+        panel.set_directories_sort_mode(
+            self.window.preferences_coordinator.directories_sort_mode
+        )
+        panel.set_show_parent_dir_at_drive_root(
+            self.window.preferences_coordinator.show_parent_dir_at_drive_root_enabled
+        )
+        panel.set_show_square_brackets_around_directories(
+            self.window.preferences_coordinator.show_square_brackets_around_directories_enabled
+        )
+        panel.set_append_directory_backslash(
+            self.window.preferences_coordinator.append_directory_backslash_enabled
+        )
+        panel.set_name_sort_method(self.window.preferences_coordinator.name_sort_method)
+        (
+            icon_size_px,
+            padding_horizontal_px,
+            padding_vertical_px,
+        ) = self.window.preferences_coordinator.file_icon_metrics
+        panel.set_file_icon_preferences(
+            icon_mode=self.window.preferences_coordinator.file_icon_mode,
+            dim_hidden_entries=(
+                self.window.preferences_coordinator.dim_hidden_entries_enabled
+            ),
+            icon_size_px=icon_size_px,
+            padding_horizontal_px=padding_horizontal_px,
+            padding_vertical_px=padding_vertical_px,
         )
         for tab_index in range(panel.tabs.count()):
             tab = panel.tabs.widget(tab_index)

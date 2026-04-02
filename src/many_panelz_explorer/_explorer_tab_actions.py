@@ -156,9 +156,9 @@ class ExplorerTabActions(QObject):
     def copy_selected_item_or_panel_path(self) -> None:
         """Copy a selected path, or fall back to the active panel path."""
 
-        selected = self._selected_real_paths()
-        if len(selected) == 1:
-            self._copy_text_to_clipboard(str(selected[0]))
+        targets = self._selected_or_current_paths()
+        if len(targets) == 1:
+            self._copy_text_to_clipboard(str(targets[0]))
             return
         self._copy_text_to_clipboard(str(self._tab.navigation.path))
         self._show_status_message("Copied panel path to clipboard.", 1800)
@@ -338,7 +338,10 @@ class ExplorerTabActions(QObject):
             return
 
         def _rename() -> None:
+            source_was_marked = self._tab.is_path_marked(source)
             renamed = file_ops.rename_path(source, name.strip())
+            if source_was_marked and renamed.parent == self._tab.navigation.path:
+                self._tab.schedule_mark_restore([renamed])
             self._tab.navigation.set_path(
                 self._tab.navigation.path,
                 push_history=False,
@@ -492,7 +495,7 @@ class ExplorerTabActions(QObject):
         menu.addAction(remove_action)
 
     def _open_selected(self) -> None:
-        for path in self._tab.selected_paths():
+        for path in self._selected_or_current_paths():
             if path.is_dir():
                 self._tab.navigation.set_path(path)
                 continue
@@ -515,12 +518,12 @@ class ExplorerTabActions(QObject):
         )
 
     def _copy_selected(self) -> None:
-        selected = self._tab.selected_paths()
+        selected = self._selected_or_current_paths()
         if selected:
             file_ops.set_clipboard(selected, cut=False)
 
     def _cut_selected(self) -> None:
-        selected = self._tab.selected_paths()
+        selected = self._selected_or_current_paths()
         if selected:
             file_ops.set_clipboard(selected, cut=True)
 
@@ -528,7 +531,7 @@ class ExplorerTabActions(QObject):
         self._run_and_refresh(lambda: file_ops.paste_items(self._tab.navigation.path))
 
     def _move_selected(self) -> None:
-        selected = self._tab.selected_paths()
+        selected = self._selected_or_current_paths()
         if not selected:
             return
         dest = QFileDialog.getExistingDirectory(
@@ -541,7 +544,7 @@ class ExplorerTabActions(QObject):
         self._run_and_refresh(lambda: file_ops.move_items(selected, Path(dest)))
 
     def _delete_selected(self) -> None:
-        selected = self._tab.selected_paths()
+        selected = self._selected_or_current_paths()
         if not selected:
             return
         names = "\n".join(path.name for path in selected[:10])
@@ -596,29 +599,10 @@ class ExplorerTabActions(QObject):
         return _trigger
 
     def _selected_real_paths(self) -> list[Path]:
-        selected: list[Path] = []
-        selection_model = self._tab.view.selectionModel()
-        for index in selection_model.selectedRows():
-            if not index.isValid() or self._tab.model.is_parent_index(index):
-                continue
-            file_path = self._tab.model.filePath(index)
-            if file_path:
-                selected.append(Path(file_path))
-        return selected
+        return self._tab.marked_paths()
 
     def _selected_or_current_paths(self) -> list[Path]:
-        selected = self._selected_real_paths()
-        if selected:
-            return selected
-        current_index = self._tab.view.currentIndex()
-        if not current_index.isValid() or self._tab.model.is_parent_index(
-            current_index
-        ):
-            return []
-        file_path = self._tab.model.filePath(current_index)
-        if not file_path:
-            return []
-        return [Path(file_path)]
+        return self._tab.marked_or_current_paths()
 
     def _single_selected_or_current_path(self) -> Path | None:
         paths = self._selected_or_current_paths()
@@ -637,13 +621,7 @@ class ExplorerTabActions(QObject):
         return current_index
 
     def _toggle_row_selection(self, index: QModelIndex) -> bool:
-        selection_model = self._tab.view.selectionModel()
-        selection_model.select(
-            index,
-            QItemSelectionModel.SelectionFlag.Toggle
-            | QItemSelectionModel.SelectionFlag.Rows,
-        )
-        return selection_model.isSelected(index)
+        return self._tab.toggle_mark_at_index(index)
 
     def _next_selectable_row_index(self, current_index: QModelIndex) -> QModelIndex:
         root_index = self._tab.view.rootIndex()

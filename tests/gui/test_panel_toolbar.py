@@ -321,6 +321,54 @@ def test_address_autocomplete_respects_show_hidden_setting(
     )
 
 
+def test_address_autocomplete_respects_show_system_files_setting(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    visible = root / "visible"
+    system_dir = root / "system_dir"
+    visible.mkdir(parents=True)
+    system_dir.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    panel.add_tab(root)
+
+    def _fake_flags(entry: os.DirEntry[str]) -> tuple[bool, bool]:
+        return entry.name == "system_dir", entry.name == "system_dir"
+
+    monkeypatch.setattr(
+        panel.navigation_coordinator,
+        "_entry_hidden_system_flags",
+        _fake_flags,
+    )
+
+    panel.set_show_system_files(False)
+    panel.address_edit.setFocus()
+    panel.address_edit.selectAll()
+    QTest.keyClicks(panel.address_edit, "sys")
+    qtbot.wait(220)
+    suggestions_system_off = panel.address_completion_model.stringList()
+    assert _norm(system_dir) not in {_norm(item) for item in suggestions_system_off}
+
+    panel.set_show_system_files(True)
+    panel.address_edit.selectAll()
+    QTest.keyClicks(panel.address_edit, "sys")
+    qtbot.waitUntil(
+        lambda: (
+            _norm(system_dir)
+            in {_norm(item) for item in panel.address_completion_model.stringList()}
+        ),
+        timeout=2000,
+    )
+
+
 def test_address_autocomplete_activation_fills_and_navigates_on_enter(
     qtbot, tmp_path: Path
 ) -> None:
@@ -709,36 +757,51 @@ def test_toolbar_visibility_flags_are_independent(qtbot, tmp_path: Path) -> None
         show_root_buttons=False,
         show_root_dropdown=False,
         show_address_bar=False,
+        show_breadcrumb_bar=False,
         show_navigation_buttons=False,
+        show_history_button=False,
+        show_bookmarks_button=False,
     )
     assert panel.refresh_btn.isVisible() is False
     assert panel.root_buttons_host.isVisible() is False
     assert panel.root_combo.isVisible() is False
     assert panel.address_edit.isVisible() is False
+    assert panel.breadcrumb_host.isVisible() is False
     assert panel.back_btn.isVisible() is False
     assert panel.forward_btn.isVisible() is False
     assert panel.up_btn.isVisible() is False
     assert panel.root_btn.isVisible() is False
+    assert panel.history_btn.isVisible() is False
+    assert panel.bookmarks_btn.isVisible() is False
 
     panel.presentation_coordinator.apply_toolbar_visibility(
         show_refresh_button=False,
         show_root_buttons=True,
         show_root_dropdown=False,
         show_address_bar=True,
+        show_breadcrumb_bar=True,
         show_navigation_buttons=False,
+        show_history_button=True,
+        show_bookmarks_button=False,
     )
     assert panel.refresh_btn.isVisible() is False
     assert panel.root_buttons_host.isVisible() is True
     assert panel.root_combo.isVisible() is False
     assert panel.address_edit.isVisible() is True
+    assert panel.breadcrumb_host.isVisible() is True
     assert panel.back_btn.isVisible() is False
+    assert panel.history_btn.isVisible() is True
+    assert panel.bookmarks_btn.isVisible() is False
 
     panel.presentation_coordinator.apply_toolbar_visibility(
         show_refresh_button=True,
         show_root_buttons=True,
         show_root_dropdown=True,
         show_address_bar=True,
+        show_breadcrumb_bar=True,
         show_navigation_buttons=True,
+        show_history_button=True,
+        show_bookmarks_button=True,
     )
     qtbot.waitUntil(
         lambda: panel.root_combo.isVisible() and panel.root_combo.width() > 0
@@ -746,7 +809,107 @@ def test_toolbar_visibility_flags_are_independent(qtbot, tmp_path: Path) -> None
     assert panel.refresh_btn.isVisible() is True
     assert panel.root_buttons_host.isVisible() is True
     assert panel.address_edit.isVisible() is True
+    assert panel.breadcrumb_host.isVisible() is True
     assert panel.back_btn.isVisible() is True
+    assert panel.history_btn.isVisible() is True
+    assert panel.bookmarks_btn.isVisible() is True
+
+
+def test_breadcrumb_buttons_follow_and_navigate_path(qtbot, tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    a = root / "a"
+    b = a / "b"
+    b.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    tab = panel.add_tab(root)
+
+    qtbot.waitUntil(lambda: len(panel.breadcrumb_buttons) >= 1)
+    assert panel.breadcrumb_buttons[-1].text().lower() == "root"
+
+    tab.navigation.set_path(b)
+    qtbot.waitUntil(
+        lambda: (
+            [button.text() for button in panel.breadcrumb_buttons][-3:]
+            == ["root", "a", "b"]
+        )
+    )
+
+    panel.breadcrumb_buttons[-2].click()
+    qtbot.waitUntil(lambda: tab.navigation.path == a)
+
+
+def test_root_controls_show_icons_when_icon_mode_enabled(qtbot, tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    drive_a = root / "A"
+    drive_b = root / "B"
+    drive_a.mkdir(parents=True)
+    drive_b.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        show_root_dropdown=True,
+        roots_provider=lambda _current: [drive_a, drive_b],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    panel.add_tab(root)
+
+    panel.set_file_icon_preferences(
+        icon_mode="standard_only",
+        dim_hidden_entries=True,
+        icon_size_px=16,
+        padding_horizontal_px=2,
+        padding_vertical_px=1,
+    )
+
+    qtbot.waitUntil(lambda: len(panel.root_buttons) == 2)
+    assert all(not button.icon().isNull() for button in panel.root_buttons)
+    assert not panel.root_combo.itemIcon(0).isNull()
+
+
+def test_history_and_bookmark_buttons_trigger_their_menus(
+    qtbot, tmp_path: Path
+) -> None:
+    root = tmp_path / "root"
+    a = root / "a"
+    b = a / "b"
+    b.mkdir(parents=True)
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    tab = panel.add_tab(root)
+    tab.navigation.set_path(a)
+    tab.navigation.set_path(b)
+
+    panel.history_btn.click()
+    qtbot.waitUntil(lambda: panel._history_menu is not None)
+
+    bookmark_calls = 0
+
+    class _BookmarksStub:
+        def show_bookmarks_hotlist(self) -> None:
+            nonlocal bookmark_calls
+            bookmark_calls += 1
+
+    panel.bookmarks_coordinator = _BookmarksStub()
+    panel.bookmarks_btn.click()
+    assert bookmark_calls == 1
 
 
 def test_tab_close_buttons_visibility_can_be_toggled(qtbot, tmp_path: Path) -> None:
@@ -868,6 +1031,47 @@ def test_root_picker_menu_uses_top_left_anchor_and_numbered_actions(
     assert action_group is not None
     assert action_group.isExclusive() is True
     assert all(action.actionGroup() is action_group for action in actions)
+
+
+def test_drive_root_parent_entry_uses_root_picker_menu(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if os.name != "nt":
+        pytest.skip("Drive-root parent picker behavior is Windows-specific.")
+
+    root = tmp_path / "root"
+    root.mkdir()
+
+    panel = PanelWidget(
+        panel_id=1,
+        default_path=root,
+        show_hidden=True,
+        roots_provider=lambda _current: [Path(root.anchor), root],
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    tab = panel.add_tab(root)
+
+    drive_root = Path(root.anchor)
+    tab.navigation.set_path(drive_root)
+    qtbot.waitUntil(lambda: tab.navigation.path == drive_root)
+    qtbot.waitUntil(lambda: tab.model.rowCount(tab.view.rootIndex()) > 0)
+    assert tab.model.data(tab.model.index(0, 0), Qt.DisplayRole) == ".."
+
+    picker_calls = 0
+
+    def _count_picker_calls() -> None:
+        nonlocal picker_calls
+        picker_calls += 1
+
+    monkeypatch.setattr(
+        panel.navigation_coordinator,
+        "show_root_picker_menu",
+        _count_picker_calls,
+    )
+
+    tab.navigation.go_up()
+    assert picker_calls == 1
 
 
 def test_overlapping_roots_mark_only_most_specific_match_active(

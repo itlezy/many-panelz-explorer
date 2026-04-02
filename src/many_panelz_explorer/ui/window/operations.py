@@ -39,7 +39,7 @@ class WindowOperationsCoordinator:
         tab = panel.current_tab()
         if tab is None:
             return
-        selected = tab.selected_paths()
+        selected = tab.marked_or_current_paths()
         if not selected:
             self.window.statusBar().showMessage(
                 "No items selected in source pane.", 3000
@@ -161,7 +161,7 @@ class WindowOperationsCoordinator:
         if source_tab is None:
             return
 
-        selected = source_tab.selected_paths()
+        selected = source_tab.marked_or_current_paths()
         if not selected:
             self.window.statusBar().showMessage(
                 "No items selected in source pane.", 3000

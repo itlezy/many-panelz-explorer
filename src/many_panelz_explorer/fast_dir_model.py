@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import re
 import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cmp_to_key
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 from PySide6.QtCore import (
     QAbstractTableModel,
+    QCollator,
     QDir,
     QModelIndex,
     QObject,
@@ -20,7 +23,14 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
+from PySide6.QtGui import QBrush, QColor
 from threep_commons.fs_paths import path_key
+
+from .file_icons import (
+    ALLOWED_FILE_ICON_MODES,
+    FILE_ICON_MODE_NONE,
+    shared_file_icon_resolver,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -29,6 +39,16 @@ if TYPE_CHECKING:
 
 _HIDDEN_ATTRIBUTE_MASK = 0x2
 _SYSTEM_ATTRIBUTE_MASK = 0x4
+_NAME_SORT_METHOD_STRICT_CODEPOINT = "strict_codepoint"
+_NAME_SORT_METHOD_NATURAL_CODEPOINT = "natural_codepoint"
+_NAME_SORT_METHOD_ALPHABETICAL_LOCALE = "alphabetical_locale"
+_NAME_SORT_METHOD_NATURAL_LOCALE = "natural_locale"
+_ALLOWED_NAME_SORT_METHODS = {
+    _NAME_SORT_METHOD_ALPHABETICAL_LOCALE,
+    _NAME_SORT_METHOD_STRICT_CODEPOINT,
+    _NAME_SORT_METHOD_NATURAL_CODEPOINT,
+    _NAME_SORT_METHOD_NATURAL_LOCALE,
+}
 
 
 @dataclass(slots=True)
@@ -122,11 +142,27 @@ class FastDirModel(QAbstractTableModel):
         self._visible_entries: list[_DirEntry] = []
         self._show_parent_entry = True
         self._show_hidden = False
+        self._show_system = False
         self._sort_column = 0
         self._sort_order = Qt.SortOrder.AscendingOrder
+        self._directories_sort_mode = "like_files"
+        self._show_parent_dir_at_drive_root = True
+        self._show_square_brackets_around_directories = True
+        self._append_directory_backslash = False
+        self._name_sort_method = _NAME_SORT_METHOD_NATURAL_LOCALE
+        self._file_icon_mode = "all_associated"
+        self._dim_hidden_entries = True
         self._request_id = 0
         self._size_formatter = size_formatter or self._default_size_formatter
         self._folder_size_states: dict[str, _FolderSizeState] = {}
+        self._alphabetical_collator = QCollator()
+        self._alphabetical_collator.setCaseSensitivity(
+            Qt.CaseSensitivity.CaseInsensitive
+        )
+        self._alphabetical_collator.setNumericMode(False)
+        self._natural_collator = QCollator()
+        self._natural_collator.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._natural_collator.setNumericMode(True)
         self._signals = _ModelSignals(self)
         self._signals.listing_ready.connect(self._on_listing_ready)
         self._signals.folder_size_ready.connect(self._on_folder_size_ready)
@@ -182,6 +218,28 @@ class FastDirModel(QAbstractTableModel):
         if role == int(Qt.ItemDataRole.UserRole):
             return self.filePath(index)
 
+        if role == int(Qt.ItemDataRole.DecorationRole) and index.column() == 0:
+            if self._is_parent_row(index.row()):
+                return None
+            entry = self._entry_for_row(index.row())
+            if entry is None:
+                return None
+            return shared_file_icon_resolver().icon_for_path(
+                entry.path,
+                is_dir=entry.is_dir,
+                mode=self._file_icon_mode,
+            )
+
+        if role == int(Qt.ItemDataRole.ForegroundRole):
+            if self._is_parent_row(index.row()):
+                return None
+            entry = self._entry_for_row(index.row())
+            if entry is None:
+                return None
+            if self._dim_hidden_entries and (entry.is_hidden or entry.is_system):
+                return QBrush(QColor("#7A7A7A"))
+            return None
+
         if role != int(Qt.ItemDataRole.DisplayRole):
             return None
 
@@ -196,7 +254,9 @@ class FastDirModel(QAbstractTableModel):
             return ""
 
         if col == 0:
-            return f"[{entry.name}]" if entry.is_dir else entry.name
+            if not entry.is_dir:
+                return entry.name
+            return self._format_directory_name(entry)
         if col == 1:
             return "" if entry.is_dir else entry.extension
         if col == 2:
@@ -272,6 +332,8 @@ class FastDirModel(QAbstractTableModel):
             return ""
         row = index.row()
         if self._is_parent_row(row):
+            if self.parent_row_opens_root_picker():
+                return ""
             return str(self._current_path.parent)
         entry = self._entry_for_row(row)
         return str(entry.path) if entry is not None else ""
@@ -280,6 +342,7 @@ class FastDirModel(QAbstractTableModel):
         target = self._path_key(path)
         if (
             self._show_parent_entry
+            and not self.parent_row_opens_root_picker()
             and self._path_key(self._current_path.parent) == target
         ):
             return self.index(0, 0)
@@ -335,6 +398,64 @@ class FastDirModel(QAbstractTableModel):
                 top,
                 bottom,
                 [int(Qt.ItemDataRole.DisplayRole)],
+            )
+
+    def set_directories_sort_mode(self, mode: str) -> None:
+        """Apply the configured directory sorting behavior."""
+
+        normalized_mode = str(mode).strip().lower()
+        self._directories_sort_mode = (
+            "by_name" if normalized_mode == "by_name" else "like_files"
+        )
+        self._rebuild_visible(reset=True)
+
+    def set_show_parent_dir_at_drive_root(self, enabled: bool) -> None:
+        """Configure whether drive roots should expose a synthetic parent row."""
+
+        self._show_parent_dir_at_drive_root = bool(enabled)
+
+    def set_show_square_brackets_around_directories(self, enabled: bool) -> None:
+        """Apply directory square-bracket formatting preferences."""
+
+        self._show_square_brackets_around_directories = bool(enabled)
+        self._emit_name_column_changed()
+
+    def set_append_directory_backslash(self, enabled: bool) -> None:
+        """Apply directory text formatting preferences."""
+
+        self._append_directory_backslash = bool(enabled)
+        self._emit_name_column_changed()
+
+    def set_name_sort_method(self, mode: str) -> None:
+        """Apply the configured file-name comparison method."""
+
+        normalized_mode = str(mode).strip().lower()
+        if normalized_mode not in _ALLOWED_NAME_SORT_METHODS:
+            normalized_mode = _NAME_SORT_METHOD_NATURAL_LOCALE
+        self._name_sort_method = normalized_mode
+        self._rebuild_visible(reset=True)
+
+    def set_file_icon_mode(self, mode: str, *, dim_hidden_entries: bool) -> None:
+        """Apply file icon and hidden-entry display preferences."""
+
+        normalized_mode = str(mode).strip().lower()
+        if normalized_mode not in ALLOWED_FILE_ICON_MODES:
+            normalized_mode = FILE_ICON_MODE_NONE
+        self._file_icon_mode = normalized_mode
+        self._dim_hidden_entries = bool(dim_hidden_entries)
+        row_count = self.rowCount()
+        if row_count <= 0:
+            return
+        top = self.index(0, 0)
+        bottom = self.index(row_count - 1, 0)
+        if top.isValid() and bottom.isValid():
+            self.dataChanged.emit(
+                top,
+                bottom,
+                [
+                    int(Qt.ItemDataRole.DecorationRole),
+                    int(Qt.ItemDataRole.ForegroundRole),
+                ],
             )
 
     def request_folder_sizes(
@@ -396,6 +517,39 @@ class FastDirModel(QAbstractTableModel):
         """Return all currently visible directory rows in display order."""
 
         return [entry.path for entry in self._visible_entries if entry.is_dir]
+
+    def visible_paths(self) -> list[Path]:
+        """Return all currently visible real paths in display order."""
+
+        return [entry.path for entry in self._visible_entries]
+
+    def visible_entry_count(self) -> int:
+        """Return the number of visible real filesystem entries."""
+
+        return len(self._visible_entries)
+
+    def visible_summary(self) -> tuple[int, int, int]:
+        """Return `(count, known_bytes, pending_dirs)` for visible entries."""
+
+        return self._summary_for_entries(self._visible_entries)
+
+    def summary_for_paths(self, paths: Sequence[Path]) -> tuple[int, int, int]:
+        """Return `(count, known_bytes, pending_dirs)` for visible matching paths."""
+
+        entries_by_key = {
+            self._path_key(entry.path): entry for entry in self._visible_entries
+        }
+        matched_entries: list[_DirEntry] = []
+        seen_keys: set[str] = set()
+        for path in paths:
+            entry_key = self._path_key(Path(path))
+            if entry_key in seen_keys:
+                continue
+            seen_keys.add(entry_key)
+            entry = entries_by_key.get(entry_key)
+            if entry is not None:
+                matched_entries.append(entry)
+        return self._summary_for_entries(matched_entries)
 
     def folder_size_status(
         self,
@@ -484,15 +638,16 @@ class FastDirModel(QAbstractTableModel):
         self._emit_size_changed_for_path(folder_path)
 
     def _refresh_filter_flags(self) -> None:
-        self._show_hidden = bool(
-            self._filter_flags & (QDir.Filter.Hidden | QDir.Filter.System)
-        )
+        self._show_hidden = bool(self._filter_flags & QDir.Filter.Hidden)
+        self._show_system = bool(self._filter_flags & QDir.Filter.System)
         self._show_parent_entry = not bool(self._filter_flags & QDir.Filter.NoDotDot)
 
     def _apply_entry_filters(self, entries: list[_DirEntry]) -> list[_DirEntry]:
         filtered: list[_DirEntry] = []
         for entry in entries:
-            if not self._show_hidden and (entry.is_hidden or entry.is_system):
+            if not self._show_hidden and entry.is_hidden:
+                continue
+            if not self._show_system and entry.is_system:
                 continue
             if not self._matches_name_filters(entry):
                 continue
@@ -509,26 +664,7 @@ class FastDirModel(QAbstractTableModel):
         return False
 
     def _sort_entries(self, entries: list[_DirEntry]) -> list[_DirEntry]:
-        reverse = self._sort_order == Qt.SortOrder.DescendingOrder
-        sorted_entries = list(entries)
-
-        if self._sort_column == 0:
-            sorted_entries.sort(
-                key=lambda item: (0 if item.is_dir else 1, item.name.casefold()),
-                reverse=reverse,
-            )
-            return sorted_entries
-
-        # Compatibility fallback for non-name sort columns.
-        if self._sort_column == 1:
-            sort_key = self._extension_sort_key
-        elif self._sort_column == 2:
-            sort_key = self._size_sort_key
-        else:
-            sort_key = self._modified_sort_key
-
-        sorted_entries = sorted(sorted_entries, key=sort_key, reverse=reverse)
-        return sorted_entries
+        return sorted(entries, key=cmp_to_key(self._compare_entries))
 
     def _rebuild_visible(self, *, reset: bool) -> None:
         if reset:
@@ -548,6 +684,11 @@ class FastDirModel(QAbstractTableModel):
         if idx < 0 or idx >= len(self._visible_entries):
             return None
         return self._visible_entries[idx]
+
+    def parent_row_opens_root_picker(self) -> bool:
+        """Return whether the visible parent row represents the root picker."""
+
+        return self._show_parent_entry and self._is_drive_root(self._current_path)
 
     def _format_size(self, value: int) -> str:
         try:
@@ -570,40 +711,168 @@ class FastDirModel(QAbstractTableModel):
             return flags
         return cast("QDir.Filter", flags)
 
-    def _extension_sort_key(self, item: _DirEntry) -> tuple[int, str, str]:
-        return (
-            0 if item.is_dir else 1,
-            item.extension.casefold(),
-            item.name.casefold(),
-        )
+    def _compare_entries(self, left: _DirEntry, right: _DirEntry) -> int:
+        dir_cmp = self._compare_dir_group(left, right)
+        name_cmp = self._compare_names(left.name, right.name)
 
-    def _size_sort_key(self, item: _DirEntry) -> tuple[int, int, str]:
-        if item.is_dir:
-            folder_state = self._folder_size_states.get(self._path_key(item.path))
-            size_value = folder_state.bytes_value if folder_state is not None else -1
-            return (
-                0,
-                size_value,
-                item.name.casefold(),
+        if self._sort_column == 0:
+            if dir_cmp != 0:
+                return dir_cmp
+            return self._apply_sort_order(name_cmp)
+
+        if dir_cmp != 0:
+            return dir_cmp
+
+        if self._directories_sort_mode == "by_name" and left.is_dir and right.is_dir:
+            return self._apply_sort_order(name_cmp)
+
+        if self._sort_column == 1:
+            value_cmp = self._compare_text_values(left.extension, right.extension)
+        elif self._sort_column == 2:
+            value_cmp = self._compare_numeric_values(
+                self._sortable_size_value(left),
+                self._sortable_size_value(right),
             )
-        return (
-            1,
-            item.size,
-            item.name.casefold(),
-        )
+        else:
+            value_cmp = self._compare_numeric_values(
+                left.modified_ts,
+                right.modified_ts,
+            )
+        if value_cmp != 0:
+            return self._apply_sort_order(value_cmp)
+        if dir_cmp != 0:
+            return dir_cmp
+        return self._apply_sort_order(name_cmp)
 
-    def _modified_sort_key(self, item: _DirEntry) -> tuple[int, float, str]:
-        return (
-            0 if item.is_dir else 1,
-            item.modified_ts,
-            item.name.casefold(),
-        )
+    def _compare_dir_group(self, left: _DirEntry, right: _DirEntry) -> int:
+        if left.is_dir == right.is_dir:
+            return 0
+        return -1 if left.is_dir else 1
+
+    def _compare_numeric_values(self, left: float | int, right: float | int) -> int:
+        if left < right:
+            return -1
+        if left > right:
+            return 1
+        return 0
+
+    def _compare_text_values(self, left: str, right: str) -> int:
+        return self._compare_names(left, right)
+
+    def _compare_names(self, left: str, right: str) -> int:
+        if self._name_sort_method == _NAME_SORT_METHOD_STRICT_CODEPOINT:
+            return self._compare_codepoint_names(left, right, natural=False)
+        if self._name_sort_method == _NAME_SORT_METHOD_NATURAL_CODEPOINT:
+            return self._compare_codepoint_names(left, right, natural=True)
+        if self._name_sort_method == _NAME_SORT_METHOD_ALPHABETICAL_LOCALE:
+            return self._compare_locale_names(left, right, natural=False)
+        return self._compare_locale_names(left, right, natural=True)
+
+    def _compare_locale_names(self, left: str, right: str, *, natural: bool) -> int:
+        collator = self._natural_collator if natural else self._alphabetical_collator
+        result = int(collator.compare(left, right))
+        if result != 0:
+            return result
+        return self._compare_codepoint_names(left, right, natural=natural)
+
+    def _compare_codepoint_names(self, left: str, right: str, *, natural: bool) -> int:
+        if natural:
+            left_key = self._natural_codepoint_key(left)
+            right_key = self._natural_codepoint_key(right)
+        else:
+            left_key = self._strict_codepoint_key(left)
+            right_key = self._strict_codepoint_key(right)
+        if left_key < right_key:
+            return -1
+        if left_key > right_key:
+            return 1
+        return 0
+
+    def _strict_codepoint_key(self, value: str) -> tuple[str, str]:
+        return value.upper(), value
+
+    def _natural_codepoint_key(
+        self, value: str
+    ) -> tuple[tuple[int, object, object], ...]:
+        parts = re.split(r"(\d+)", value)
+        key: list[tuple[int, object, object]] = []
+        for part in parts:
+            if not part:
+                continue
+            if part.isdigit():
+                key.append((0, int(part), len(part)))
+                continue
+            key.append((1, part.casefold(), part))
+        return tuple(key)
+
+    def _sortable_size_value(self, item: _DirEntry) -> int:
+        if not item.is_dir:
+            return int(item.size)
+        folder_state = self._folder_size_states.get(self._path_key(item.path))
+        if folder_state is None:
+            return -1
+        return int(folder_state.bytes_value)
+
+    def _apply_sort_order(self, comparison: int) -> int:
+        if self._sort_order == Qt.SortOrder.DescendingOrder:
+            return -comparison
+        return comparison
+
+    def _format_directory_name(self, entry: _DirEntry) -> str:
+        name = entry.name
+        if self._show_square_brackets_around_directories:
+            name = f"[{name}]"
+        if self._append_directory_backslash:
+            name = f"{name}\\"
+        return name
+
+    def _emit_name_column_changed(self) -> None:
+        row_count = self.rowCount()
+        if row_count <= 0:
+            return
+        top = self.index(0, 0)
+        bottom = self.index(row_count - 1, 0)
+        if top.isValid() and bottom.isValid():
+            self.dataChanged.emit(
+                top,
+                bottom,
+                [int(Qt.ItemDataRole.DisplayRole)],
+            )
+
+    def _is_drive_root(self, path: Path) -> bool:
+        if not self._show_parent_dir_at_drive_root:
+            return False
+        if os.name != "nt":
+            return False
+        normalized_path = Path(path)
+        anchor = normalized_path.anchor
+        return bool(anchor) and normalized_path == Path(anchor)
 
     def _default_size_formatter(self, value: int) -> str:
         return f"{int(value):,}"
 
     def _path_key(self, path: Path) -> str:
         return path_key(path)
+
+    def _summary_for_entries(
+        self, entries: Sequence[_DirEntry]
+    ) -> tuple[int, int, int]:
+        """Return `(count, known_bytes, pending_dirs)` for directory entries."""
+
+        count = 0
+        known_bytes = 0
+        pending_dirs = 0
+        for entry in entries:
+            count += 1
+            if not entry.is_dir:
+                known_bytes += int(entry.size)
+                continue
+            folder_state = self._folder_size_states.get(self._path_key(entry.path))
+            if folder_state is not None and folder_state.status == "ready":
+                known_bytes += int(folder_state.bytes_value)
+                continue
+            pending_dirs += 1
+        return count, known_bytes, pending_dirs
 
     def _emit_size_changed_for_path(self, path: Path) -> None:
         index = self.index_for_path(path)

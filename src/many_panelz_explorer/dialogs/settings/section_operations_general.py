@@ -553,7 +553,7 @@ def build_shortcut_external_tool_rows(
 
     dialog.enable_right_click_row_selection_checkbox = QCheckBox(dialog)
     dialog.enable_right_click_row_selection_checkbox.setText(
-        "Select row on right click and open menu after 1s hold"
+        "Use right mouse button to mark rows and hold 1s for menu"
     )
     dialog.enable_right_click_row_selection_checkbox.toggled.connect(
         dialog.on_controls_changed
@@ -562,14 +562,15 @@ def build_shortcut_external_tool_rows(
         dialog,
         section=open_tools_group,
         key="enable_right_click_row_selection",
-        title="Right-Click Row Selection",
+        title="Mouse Selection Mode",
         description=(
-            "When enabled, right click selects the row first and opens the "
-            "context menu only after about 1 second of holding the button."
+            "Enabled uses commander-style right-button marking. Disabled uses "
+            "Explorer-like left-button selection. In both modes, clicking the "
+            "icon toggles a row mark."
         ),
         terms=(
-            "file list right click row selection context menu hold delay "
-            "total commander tc"
+            "file list mouse selection mode right button left button mark "
+            "context menu hold delay total commander explorer icon click"
         ),
         controls=[dialog.enable_right_click_row_selection_checkbox],
     )

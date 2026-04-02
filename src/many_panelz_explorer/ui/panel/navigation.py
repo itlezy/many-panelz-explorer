@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QActionGroup
-from PySide6.QtWidgets import QMenu, QPushButton, QSizePolicy
+from PySide6.QtWidgets import QLabel, QMenu, QPushButton, QSizePolicy
 from threep_commons.fs_paths import (
     coerce_path,
     dedup_paths,
@@ -21,8 +21,12 @@ from threep_commons.fs_paths import (
     path_key,
 )
 
+from ...file_icons import FILE_ICON_MODE_NONE, shared_file_icon_resolver
+
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtWidgets import QWidget
 
     from ...explorer_tab import ExplorerTab
     from ...panel_widget import PanelWidget
@@ -65,28 +69,34 @@ class PanelNavigationCoordinator:
         self,
         panel: PanelWidget,
         *,
-        is_hidden_or_system_entry: Callable[[os.DirEntry[str]], bool],
+        entry_hidden_system_flags: Callable[[os.DirEntry[str]], tuple[bool, bool]],
     ) -> None:
         self.panel = panel
-        self._is_hidden_or_system_entry = is_hidden_or_system_entry
+        self._entry_hidden_system_flags = entry_hidden_system_flags
         self._existing_roots_cache: dict[tuple[str, ...], _RootPathCacheEntry] = {}
         self._root_buttons_signature: tuple[str, ...] | None = None
         self._root_combo_signature: tuple[str, ...] | None = None
+        self._root_buttons_icon_mode: str | None = None
+        self._root_combo_icon_mode: str | None = None
 
     def rebuild_root_controls(self, current_path: Path | None) -> None:
         roots = self.safe_roots(current_path)
         self.panel.set_root_paths(roots)
         self.rebuild_root_buttons(current_path, roots)
         self.rebuild_root_combo(current_path, roots)
+        self.rebuild_breadcrumbs(current_path)
 
     def rebuild_root_buttons(
         self, current_path: Path | None, roots: list[Path]
     ) -> None:
         active_root_index = self.resolve_active_root_index(current_path, roots)
         roots_signature = self._root_signature(roots)
-        if self._root_buttons_signature == roots_signature and len(
-            self.panel.root_buttons
-        ) == len(roots):
+        current_icon_mode = self.panel.file_icon_mode
+        if (
+            self._root_buttons_signature == roots_signature
+            and self._root_buttons_icon_mode == current_icon_mode
+            and len(self.panel.root_buttons) == len(roots)
+        ):
             self._sync_root_button_checks(active_root_index)
             return
 
@@ -100,6 +110,15 @@ class PanelNavigationCoordinator:
             button.setToolTip(display_path_text(root_path))
             button.setCheckable(True)
             button.setChecked(index == active_root_index)
+            if current_icon_mode != FILE_ICON_MODE_NONE:
+                button.setIcon(
+                    shared_file_icon_resolver().icon_for_path(
+                        root_path,
+                        is_dir=True,
+                        mode=current_icon_mode,
+                    )
+                    or button.icon()
+                )
             button.clicked.connect(self._navigate_to_root_callback(root_path))
             button.installEventFilter(self.panel.focus_watcher)
             self.panel.root_buttons_layout.addWidget(button)
@@ -107,6 +126,7 @@ class PanelNavigationCoordinator:
 
         self.panel.root_buttons_layout.addStretch(1)
         self._root_buttons_signature = roots_signature
+        self._root_buttons_icon_mode = current_icon_mode
 
     def rebuild_root_combo(self, current_path: Path | None, roots: list[Path]) -> None:
         self.panel.root_combo.setVisible(self.panel.show_root_dropdown_enabled)
@@ -117,6 +137,7 @@ class PanelNavigationCoordinator:
         roots_signature = self._root_signature(roots)
         if (
             self._root_combo_signature == roots_signature
+            and self._root_combo_icon_mode == self.panel.file_icon_mode
             and self.panel.root_combo.count() == len(roots)
         ):
             self.panel.root_combo.setCurrentIndex(
@@ -127,10 +148,21 @@ class PanelNavigationCoordinator:
         self.panel.root_combo.blockSignals(True)
         try:
             self.panel.root_combo.clear()
+            current_icon_mode = self.panel.file_icon_mode
             for root_path in roots:
-                self.panel.root_combo.addItem(
-                    _navigation_root_text(root_path), str(root_path)
-                )
+                item_text = _navigation_root_text(root_path)
+                if current_icon_mode == FILE_ICON_MODE_NONE:
+                    self.panel.root_combo.addItem(item_text, str(root_path))
+                else:
+                    icon = shared_file_icon_resolver().icon_for_path(
+                        root_path,
+                        is_dir=True,
+                        mode=current_icon_mode,
+                    )
+                    if icon is None:
+                        self.panel.root_combo.addItem(item_text, str(root_path))
+                    else:
+                        self.panel.root_combo.addItem(icon, item_text, str(root_path))
                 combo_idx = self.panel.root_combo.count() - 1
                 self.panel.root_combo.setItemData(
                     combo_idx,
@@ -144,6 +176,7 @@ class PanelNavigationCoordinator:
         finally:
             self.panel.root_combo.blockSignals(False)
         self._root_combo_signature = roots_signature
+        self._root_combo_icon_mode = self.panel.file_icon_mode
 
     def safe_roots(self, current_path: Path | None) -> list[Path]:
         try:
@@ -293,6 +326,47 @@ class PanelNavigationCoordinator:
         if popup is not None and popup.isVisible():
             popup.hide()
 
+    def rebuild_breadcrumbs(self, current_path: Path | None) -> None:
+        """Rebuild clickable breadcrumb buttons for the current path."""
+
+        layout = self.panel.breadcrumb_layout
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.panel.breadcrumb_buttons = []
+        if current_path is None:
+            self.panel.breadcrumb_host.setToolTip("")
+            return
+
+        self.panel.breadcrumb_host.setToolTip(display_path_text(current_path))
+        entries = self._breadcrumb_entries(current_path)
+        for index, (label, path) in enumerate(entries):
+            button = QPushButton(label)
+            button.setFlat(True)
+            button.setMinimumWidth(0)
+            button.setSizePolicy(
+                QSizePolicy.Policy.Maximum,
+                QSizePolicy.Policy.Fixed,
+            )
+            button.setToolTip(display_path_text(path))
+            button.setFont(self.panel.navigation_font)
+            button.clicked.connect(self._navigate_to_root_callback(path))
+            button.installEventFilter(self.panel.focus_watcher)
+            layout.addWidget(button)
+            self.panel.breadcrumb_buttons.append(button)
+            if index >= len(entries) - 1:
+                continue
+            separator = QLabel(">")
+            separator.setFont(self.panel.navigation_font)
+            separator.setProperty("panel_breadcrumb_separator", True)
+            layout.addWidget(separator)
+        layout.addStretch(1)
+
     def collect_address_completion_paths(self, raw_text: str) -> list[str]:
         context = self.resolve_address_completion_context(raw_text)
         if context is None:
@@ -312,10 +386,10 @@ class PanelNavigationCoordinator:
                         continue
                     if not is_dir:
                         continue
-                    if (
-                        not self.panel.show_hidden_enabled
-                        and self._is_hidden_or_system_entry(entry)
-                    ):
+                    is_hidden, is_system = self._entry_hidden_system_flags(entry)
+                    if not self.panel.show_hidden_enabled and is_hidden:
+                        continue
+                    if not self.panel.show_system_files_enabled and is_system:
                         continue
                     name = entry.name
                     if prefix_cmp and not name.casefold().startswith(prefix_cmp):
@@ -411,10 +485,21 @@ class PanelNavigationCoordinator:
 
         self.panel.set_history_menu(menu)
         menu.popup(
-            self.panel.address_edit.mapToGlobal(
-                self.panel.address_edit.rect().bottomLeft()
+            self._history_menu_anchor_widget().mapToGlobal(
+                self._history_menu_anchor_widget().rect().bottomLeft()
             )
         )
+
+    def show_bookmarks_hotlist(self) -> None:
+        """Show the window bookmark hotlist from this panel."""
+
+        bookmarks_coordinator = getattr(
+            self.panel.window(),
+            "bookmarks_coordinator",
+            None,
+        )
+        if bookmarks_coordinator is not None:
+            bookmarks_coordinator.show_bookmarks_hotlist()
 
     def show_root_picker_menu(self) -> None:
         """Show a popup menu that lets the user jump to a discovered root."""
@@ -498,3 +583,27 @@ class PanelNavigationCoordinator:
         """Return a cache key for a path set used by root validation."""
 
         return tuple(sorted({path_key(path) for path in paths}))
+
+    def _history_menu_anchor_widget(self) -> QWidget:
+        """Return the widget used to anchor the history menu popup."""
+
+        if self.panel.show_history_button and self.panel.history_btn.isVisible():
+            return self.panel.history_btn
+        return self.panel.address_edit
+
+    def _breadcrumb_entries(self, path: Path) -> list[tuple[str, Path]]:
+        """Return ordered `(label, path)` breadcrumb entries for one path."""
+
+        normalized_path = Path(path)
+        parts = normalized_path.parts
+        if not parts:
+            return [(display_path_text(normalized_path), normalized_path)]
+
+        entries: list[tuple[str, Path]] = []
+        accumulated = Path(parts[0])
+        root_label = _navigation_root_text(accumulated)
+        entries.append((root_label, accumulated))
+        for part in parts[1:]:
+            accumulated = accumulated / part
+            entries.append((part, accumulated))
+        return entries

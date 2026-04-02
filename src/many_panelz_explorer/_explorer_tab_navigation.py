@@ -1,7 +1,8 @@
-"""Navigation history and selection restoration for explorer tabs."""
+"""Navigation history and current-row restoration for explorer tabs."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class ExplorerTabNavigation(QObject):
-    """Manage path history, filters, and selection restore for a tab."""
+    """Manage path history, filters, and current-row restore for a tab."""
 
     changed = Signal()
 
@@ -31,6 +32,7 @@ class ExplorerTabNavigation(QObject):
         view: QTreeView,
         columns: ExplorerTabColumns,
         show_hidden: bool,
+        show_system_files: bool,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -41,9 +43,11 @@ class ExplorerTabNavigation(QObject):
         self._history: list[Path] = []
         self._history_index = -1
         self._show_hidden = bool(show_hidden)
-        self._selection_memory: dict[str, Path] = {}
+        self._show_system_files = bool(show_system_files)
+        self._current_row_memory: dict[str, Path] = {}
         self._selection_restore_token = 0
         self._show_parent_entry = True
+        self._show_parent_dir_at_drive_root = True
         self._inline_filter_text = ""
         self._apply_model_filters()
 
@@ -78,6 +82,23 @@ class ExplorerTabNavigation(QObject):
         self._apply_model_filters()
         self.refresh()
 
+    def set_show_system_files(self, enabled: bool) -> None:
+        """Update system-file visibility and refresh the active path."""
+
+        self._show_system_files = bool(enabled)
+        self._apply_model_filters()
+        self.refresh()
+
+    def set_show_parent_dir_at_drive_root(self, enabled: bool) -> None:
+        """Update whether drive roots expose a synthetic parent row."""
+
+        self._show_parent_dir_at_drive_root = bool(enabled)
+        self._show_parent_entry = self._should_show_parent_entry(self.path)
+        self._apply_model_filters()
+        if not self._history:
+            return
+        self.refresh()
+
     def set_inline_filter(self, text: str) -> None:
         normalized = str(text or "").strip()
         if normalized == self._inline_filter_text:
@@ -96,13 +117,15 @@ class ExplorerTabNavigation(QObject):
         push_history: bool = True,
         selection_hint: Path | None = None,
     ) -> None:
-        previous_path = self.path if self._history else None
-        if previous_path is not None:
-            self._remember_selection_for_path(previous_path)
-
         target = coerce_path(path)
         if not target.exists() or not target.is_dir():
             target = Path.home()
+        previous_path = self.path if self._history else None
+        if previous_path is not None:
+            self._remember_current_row_for_path(previous_path)
+        prepare_for_path_change = getattr(self._owner, "prepare_for_path_change", None)
+        if callable(prepare_for_path_change):
+            prepare_for_path_change(previous_path, target)
 
         self._show_parent_entry = self._should_show_parent_entry(target)
         self._apply_model_filters()
@@ -119,7 +142,7 @@ class ExplorerTabNavigation(QObject):
         self._columns.preserve_for_reload()
         index = self._model.setRootPath(str(target))
         self._view.setRootIndex(index)
-        self._restore_selection_for_path(target, preferred=selection_hint)
+        self._restore_current_row_for_path(target, preferred=selection_hint)
         self.changed.emit()
 
     def refresh(self) -> None:
@@ -139,6 +162,15 @@ class ExplorerTabNavigation(QObject):
 
     def go_up(self) -> None:
         current = self.path
+        if self._should_show_drive_root_parent_picker(current):
+            show_parent_picker = getattr(
+                self._owner,
+                "show_drive_root_parent_picker",
+                None,
+            )
+            if callable(show_parent_picker):
+                show_parent_picker()
+            return
         parent = current.parent
         if parent != current:
             self.set_path(parent, selection_hint=current)
@@ -154,7 +186,9 @@ class ExplorerTabNavigation(QObject):
         if not self._show_parent_entry:
             filters |= QDir.Filter.NoDotDot
         if self._show_hidden:
-            filters |= QDir.Filter.Hidden | QDir.Filter.System
+            filters |= QDir.Filter.Hidden
+        if self._show_system_files:
+            filters |= QDir.Filter.System
         model_any: Any = self._model
         model_any.setFilter(filters)
         if self._inline_filter_text:
@@ -165,39 +199,49 @@ class ExplorerTabNavigation(QObject):
         self._model.setNameFilterDisables(True)
 
     def _should_show_parent_entry(self, path: Path) -> bool:
+        if self._should_show_drive_root_parent_picker(path):
+            return True
         if path.parent == path:
             return False
         return not is_drive_root(path)
 
-    def _selected_or_current_path(self) -> Path | None:
-        selection_model = self._view.selectionModel()
-        selected_rows = selection_model.selectedRows()
-        index = selected_rows[0] if selected_rows else self._view.currentIndex()
+    def _should_show_drive_root_parent_picker(self, path: Path) -> bool:
+        return self._show_parent_dir_at_drive_root and self._is_windows_drive_root(path)
+
+    def _is_windows_drive_root(self, path: Path) -> bool:
+        if os.name != "nt":
+            return False
+        normalized_path = Path(path)
+        anchor = normalized_path.anchor
+        return bool(anchor) and normalized_path == Path(anchor)
+
+    def _current_path_or_none(self) -> Path | None:
+        index = self._view.currentIndex()
         if not index.isValid() or self._model.is_parent_index(index):
             return None
         return Path(self._model.filePath(index))
 
-    def _remember_selection_for_path(self, path: Path) -> None:
-        selected = self._selected_or_current_path()
-        if selected is None or selected.parent != path:
+    def _remember_current_row_for_path(self, path: Path) -> None:
+        current_row_path = self._current_path_or_none()
+        if current_row_path is None or current_row_path.parent != path:
             return
-        self._selection_memory[self._path_key(path)] = selected
+        self._current_row_memory[self._path_key(path)] = current_row_path
 
-    def _restore_selection_for_path(
+    def _restore_current_row_for_path(
         self, path: Path, preferred: Path | None = None
     ) -> None:
-        candidate = preferred or self._selection_memory.get(self._path_key(path))
+        candidate = preferred or self._current_row_memory.get(self._path_key(path))
         if candidate is None or candidate.parent != path:
             return
         self._selection_restore_token += 1
         token = self._selection_restore_token
-        self._try_restore_selection(
+        self._try_restore_current_row(
             candidate,
             token,
             attempts_remaining=self._SELECTION_RESTORE_ATTEMPTS,
         )
 
-    def _try_restore_selection(
+    def _try_restore_current_row(
         self,
         candidate: Path,
         token: int,
@@ -216,11 +260,10 @@ class ExplorerTabNavigation(QObject):
         index = self._model.index_for_path(candidate)
         if index.isValid():
             selection_model = self._view.selectionModel()
-            flags = (
-                QItemSelectionModel.SelectionFlag.ClearAndSelect
-                | QItemSelectionModel.SelectionFlag.Rows
+            selection_model.setCurrentIndex(
+                index,
+                QItemSelectionModel.SelectionFlag.Current,
             )
-            selection_model.setCurrentIndex(index, flags)
             self._view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
             return
 
@@ -228,7 +271,7 @@ class ExplorerTabNavigation(QObject):
             return
         QTimer.singleShot(
             self._SELECTION_RESTORE_INTERVAL_MS,
-            lambda: self._try_restore_selection(
+            lambda: self._try_restore_current_row(
                 candidate,
                 token,
                 attempts_remaining=attempts_remaining - 1,

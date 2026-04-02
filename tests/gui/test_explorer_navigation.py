@@ -191,7 +191,10 @@ def test_parent_entry_shown_except_at_drive_root(qtbot, tmp_path: Path) -> None:
         first_root_name = str(
             tab.model.data(tab.model.index(0, 0, tab.view.rootIndex()), Qt.DisplayRole)
         )
-        assert first_root_name != ".."
+        if os.name == "nt":
+            assert first_root_name == ".."
+        else:
+            assert first_root_name != ".."
 
 
 def test_non_name_sort_columns_use_compatibility_fallback(

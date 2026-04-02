@@ -183,6 +183,11 @@ class WindowStatusCoordinator:
             self._storage_refresh_timer.start()
         self.refresh_storage_overview_status()
 
+    def set_status_bar_visible(self, enabled: bool) -> None:
+        """Show or hide the window status bar."""
+
+        self.window.statusBar().setVisible(bool(enabled))
+
     def set_storage_bytes_formatter(
         self,
         formatter: Callable[[int], str] | None,

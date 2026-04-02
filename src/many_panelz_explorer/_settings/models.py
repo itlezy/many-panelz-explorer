@@ -64,6 +64,7 @@ from many_panelz_explorer.external_tools import (
     DEFAULT_WINRAR_EXTRACT_ARGS_TEMPLATE,
     DEFAULT_WINRAR_PACK_ARGS_TEMPLATE,
 )
+from many_panelz_explorer.file_icons import FILE_ICON_MODE_ALL_ASSOCIATED
 from many_panelz_explorer.panel_tab_positions import TAB_POSITION_MODE_TOP
 
 
@@ -73,14 +74,25 @@ class UiPreferences:
 
     new_context_mode: str = "clone_active_path"
     show_hidden_default: bool = True
+    show_system_files: bool = True
     show_root_dropdown: bool = False
+    show_status_bar: bool = True
     show_storage_overview_status_row: bool = True
     column_width_auto_align_mode: str = "current_panel_tabs"
+    directories_sort_mode: str = "like_files"
+    show_parent_dir_at_drive_root: bool = True
+    show_square_brackets_around_directories: bool = True
+    append_directory_backslash: bool = False
+    name_sort_method: str = "natural_locale"
     autofit_columns: bool = False
     show_refresh_button: bool = True
     show_root_buttons: bool = True
     show_address_bar: bool = True
+    show_breadcrumb_bar: bool = True
     show_navigation_buttons: bool = True
+    show_history_button: bool = True
+    show_bookmarks_button: bool = True
+    show_tab_bar: bool = True
     show_tab_close_buttons: bool = True
     default_tab_position: str = TAB_POSITION_MODE_TOP
     horizontal_tab_width_mode: str = "adaptive"
@@ -106,6 +118,11 @@ class UiPreferences:
     navigation_use_app_font: bool = True
     navigation_font_family: str = ""
     navigation_font_size_pt: int = 10
+    file_icon_mode: str = FILE_ICON_MODE_ALL_ASSOCIATED
+    dim_hidden_entries: bool = True
+    file_icon_size_px: int = 16
+    file_icon_padding_horizontal: int = 2
+    file_icon_padding_vertical: int = 1
     context_immediate_child_scan_cap: int = 33
     context_tool_code_editor_exe_path: str = ""
     context_tool_code_editor_args_template: str = "{folder}"

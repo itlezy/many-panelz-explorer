@@ -253,6 +253,9 @@ class ExplorerWindow(QMainWindow):
         self.status_coordinator.set_storage_label_template(
             self.preferences_coordinator.status_bar_storage_label_template
         )
+        self.status_coordinator.set_status_bar_visible(
+            self.preferences_coordinator.show_status_bar_enabled
+        )
         self.status_coordinator.set_storage_overview_enabled(
             self.preferences_coordinator.show_storage_overview_enabled
         )

@@ -39,19 +39,32 @@ class PanelPresentationCoordinator:
         show_root_buttons: bool,
         show_root_dropdown: bool,
         show_address_bar: bool,
+        show_breadcrumb_bar: bool,
         show_navigation_buttons: bool,
+        show_history_button: bool,
+        show_bookmarks_button: bool,
     ) -> None:
         dropdown_changed = self.panel.show_root_dropdown != bool(show_root_dropdown)
         self.panel.show_refresh_button = bool(show_refresh_button)
         self.panel.show_root_buttons = bool(show_root_buttons)
         self.panel.show_root_dropdown = bool(show_root_dropdown)
         self.panel.show_address_bar = bool(show_address_bar)
+        self.panel.show_breadcrumb_bar = bool(show_breadcrumb_bar)
         self.panel.show_navigation_buttons = bool(show_navigation_buttons)
+        self.panel.show_history_button = bool(show_history_button)
+        self.panel.show_bookmarks_button = bool(show_bookmarks_button)
         if dropdown_changed:
             self.panel.navigation_coordinator.rebuild_root_controls(
                 self.panel.current_path()
             )
         self._sync_toolbar_visibility()
+        self.panel.widget_map_coordinator.sync_overlay()
+
+    def apply_tab_bar_visibility(self, *, show_tab_bar: bool) -> None:
+        """Show or hide the visible tab strip for this panel."""
+
+        self.panel.show_tab_bar = bool(show_tab_bar)
+        self.panel.tabs.tabBar().setVisible(self.panel.show_tab_bar)
         self.panel.widget_map_coordinator.sync_overlay()
 
     def apply_tab_close_button_visibility(
@@ -240,6 +253,9 @@ class PanelPresentationCoordinator:
         self.panel.root_buttons_host.setVisible(self.panel.show_root_buttons)
         self.panel.root_combo.setVisible(self.panel.show_root_dropdown)
         self.panel.address_edit.setVisible(self.panel.show_address_bar)
+        self.panel.breadcrumb_host.setVisible(self.panel.show_breadcrumb_bar)
+        self.panel.history_btn.setVisible(self.panel.show_history_button)
+        self.panel.bookmarks_btn.setVisible(self.panel.show_bookmarks_button)
         for nav_button in self.panel.navigation_buttons:
             nav_button.setVisible(self.panel.show_navigation_buttons)
 
@@ -250,11 +266,16 @@ class PanelPresentationCoordinator:
             self.panel.group_picker_combo,
             self.panel.new_group_btn,
             self.panel.address_edit,
+            self.panel.breadcrumb_host,
+            self.panel.history_btn,
+            self.panel.bookmarks_btn,
             *self.panel.navigation_buttons,
         ]
         for widget in toolbar_widgets:
             widget.setFont(self.panel.navigation_font_value)
         for button in self.panel.root_buttons:
+            button.setFont(self.panel.navigation_font_value)
+        for button in self.panel.breadcrumb_buttons:
             button.setFont(self.panel.navigation_font_value)
 
     def _apply_file_list_font(self) -> None:

@@ -71,10 +71,24 @@ def load_panel_preferences(dialog: SettingsDialog, preferences: UiPreferences) -
     dialog.set_combo_value(dialog.new_context_combo, preferences.new_context_mode)
     dialog.context_scan_cap_spin.setValue(preferences.context_immediate_child_scan_cap)
     dialog.show_hidden_checkbox.setChecked(preferences.show_hidden_default)
+    dialog.show_system_files_checkbox.setChecked(preferences.show_system_files)
     dialog.show_root_dropdown_checkbox.setChecked(preferences.show_root_dropdown)
     dialog.set_combo_value(
         dialog.column_width_auto_align_mode_combo,
         preferences.column_width_auto_align_mode,
+    )
+    dialog.show_parent_dir_at_drive_root_checkbox.setChecked(
+        preferences.show_parent_dir_at_drive_root
+    )
+    dialog.show_square_brackets_around_directories_checkbox.setChecked(
+        preferences.show_square_brackets_around_directories
+    )
+    dialog.append_directory_backslash_checkbox.setChecked(
+        preferences.append_directory_backslash
+    )
+    dialog.set_combo_value(
+        dialog.name_sort_method_combo,
+        preferences.name_sort_method,
     )
     dialog.autofit_columns_checkbox.setChecked(preferences.autofit_columns)
     dialog.show_refresh_button_checkbox.setChecked(preferences.show_refresh_button)
@@ -342,9 +356,7 @@ def load_operations_preferences(
     )
     dialog.winrar_executable_edit.setText(preferences.winrar_executable)
     dialog.winrar_pack_args_edit.setText(preferences.winrar_pack_args_template)
-    dialog.winrar_extract_args_edit.setText(
-        preferences.winrar_extract_args_template
-    )
+    dialog.winrar_extract_args_edit.setText(preferences.winrar_extract_args_template)
     open_overrides_state.load_file_open_overrides(
         dialog,
         preferences.file_open_overrides_json,
@@ -518,10 +530,21 @@ def collect_preferences_from_controls(dialog: SettingsDialog) -> UiPreferences:
     return UiPreferences(
         new_context_mode=str(dialog.new_context_combo.currentData()),
         show_hidden_default=dialog.show_hidden_checkbox.isChecked(),
+        show_system_files=dialog.show_system_files_checkbox.isChecked(),
         show_root_dropdown=dialog.show_root_dropdown_checkbox.isChecked(),
         column_width_auto_align_mode=str(
             dialog.column_width_auto_align_mode_combo.currentData()
         ),
+        show_parent_dir_at_drive_root=(
+            dialog.show_parent_dir_at_drive_root_checkbox.isChecked()
+        ),
+        show_square_brackets_around_directories=(
+            dialog.show_square_brackets_around_directories_checkbox.isChecked()
+        ),
+        append_directory_backslash=(
+            dialog.append_directory_backslash_checkbox.isChecked()
+        ),
+        name_sort_method=str(dialog.name_sort_method_combo.currentData()),
         autofit_columns=dialog.autofit_columns_checkbox.isChecked(),
         context_immediate_child_scan_cap=dialog.context_scan_cap_spin.value(),
         show_refresh_button=dialog.show_refresh_button_checkbox.isChecked(),

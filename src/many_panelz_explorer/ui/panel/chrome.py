@@ -381,6 +381,17 @@ def build_panel_toolbar(panel: PanelWidget, root: QVBoxLayout) -> None:
         panel.navigation_coordinator.schedule_address_completion_update
     )
 
+    panel.breadcrumb_host = QWidget()
+    panel.breadcrumb_host.setMinimumWidth(0)
+    panel.breadcrumb_host.setSizePolicy(
+        QSizePolicy.Policy.Ignored,
+        QSizePolicy.Policy.Fixed,
+    )
+    panel.breadcrumb_layout = QHBoxLayout(panel.breadcrumb_host)
+    panel.breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+    panel.breadcrumb_layout.setSpacing(4)
+    toolbar.addWidget(panel.breadcrumb_host, 1)
+
     panel.back_btn = QPushButton("<")
     panel.back_btn.setMinimumWidth(28)
     panel.back_btn.setSizePolicy(
@@ -422,6 +433,28 @@ def build_panel_toolbar(panel: PanelWidget, root: QVBoxLayout) -> None:
         panel.up_btn,
         panel.root_btn,
     ]
+
+    panel.history_btn = QPushButton("Hist")
+    panel.history_btn.setMinimumWidth(40)
+    panel.history_btn.setSizePolicy(
+        QSizePolicy.Policy.Fixed,
+        QSizePolicy.Policy.Fixed,
+    )
+    panel.history_btn.setToolTip("Show history")
+    panel.history_btn.clicked.connect(panel.navigation_coordinator.show_history_menu)
+    toolbar.addWidget(panel.history_btn)
+
+    panel.bookmarks_btn = QPushButton("Marks")
+    panel.bookmarks_btn.setMinimumWidth(48)
+    panel.bookmarks_btn.setSizePolicy(
+        QSizePolicy.Policy.Fixed,
+        QSizePolicy.Policy.Fixed,
+    )
+    panel.bookmarks_btn.setToolTip("Show bookmarks hotlist")
+    panel.bookmarks_btn.clicked.connect(
+        panel.navigation_coordinator.show_bookmarks_hotlist
+    )
+    toolbar.addWidget(panel.bookmarks_btn)
 
     root.addLayout(toolbar)
 
@@ -491,9 +524,24 @@ def assign_panel_control_identities(panel: PanelWidget) -> None:
         widget_naming.panel_control_alias(panel.panel_id, "address"),
     )
     panel.assign_identity(
+        panel.breadcrumb_host,
+        widget_naming.panel_control_widget_id(panel.panel_id, "breadcrumbs"),
+        widget_naming.panel_control_alias(panel.panel_id, "breadcrumbs"),
+    )
+    panel.assign_identity(
         panel.root_combo,
         widget_naming.panel_control_widget_id(panel.panel_id, "root_combo"),
         widget_naming.panel_control_alias(panel.panel_id, "root_combo"),
+    )
+    panel.assign_identity(
+        panel.history_btn,
+        widget_naming.panel_control_widget_id(panel.panel_id, "history"),
+        widget_naming.panel_control_alias(panel.panel_id, "history"),
+    )
+    panel.assign_identity(
+        panel.bookmarks_btn,
+        widget_naming.panel_control_widget_id(panel.panel_id, "bookmarks"),
+        widget_naming.panel_control_alias(panel.panel_id, "bookmarks"),
     )
     panel.assign_identity(
         panel.back_btn,
@@ -545,6 +593,9 @@ def install_panel_focus_watchers(panel: PanelWidget) -> None:
     panel.group_picker_combo.installEventFilter(panel.focus_watcher)
     panel.new_group_btn.installEventFilter(panel.focus_watcher)
     panel.address_edit.installEventFilter(panel.focus_watcher)
+    panel.breadcrumb_host.installEventFilter(panel.focus_watcher)
+    panel.history_btn.installEventFilter(panel.focus_watcher)
+    panel.bookmarks_btn.installEventFilter(panel.focus_watcher)
     panel.address_edit.installEventFilter(panel)
 
 
@@ -582,7 +633,13 @@ def finalize_panel_ui(panel: PanelWidget) -> None:
         show_root_buttons=panel.show_root_buttons,
         show_root_dropdown=panel.show_root_dropdown,
         show_address_bar=panel.show_address_bar,
+        show_breadcrumb_bar=panel.show_breadcrumb_bar,
         show_navigation_buttons=panel.show_navigation_buttons,
+        show_history_button=panel.show_history_button,
+        show_bookmarks_button=panel.show_bookmarks_button,
+    )
+    panel.presentation_coordinator.apply_tab_bar_visibility(
+        show_tab_bar=panel.show_tab_bar
     )
     panel.presentation_coordinator.apply_font_preferences(
         file_list_font=panel.file_list_font_value,

@@ -34,6 +34,18 @@ def _mode_label(mode: str) -> str:
     return "Clone Active Path"
 
 
+def _name_sort_method_label(mode: str) -> str:
+    """Return the UI label for one file-name sorting mode."""
+
+    if mode == "alphabetical_locale":
+        return "Alphabetical, locale-aware"
+    if mode == "strict_codepoint":
+        return "Strict character code"
+    if mode == "natural_codepoint":
+        return "Natural, character code"
+    return "Natural, locale-aware"
+
+
 def build_appearance_rows(
     dialog: SettingsDialog,
     *,
@@ -271,9 +283,24 @@ def build_panel_visibility_rows(
         section=visibility_group,
         key="show_hidden_default",
         title="Show Hidden Files",
-        description="Enable hidden/system entries by default for all panels.",
+        description="Enable hidden entries by default for all panels.",
         terms="hidden files default",
         controls=[dialog.show_hidden_checkbox],
+    )
+
+    dialog.show_system_files_checkbox = QCheckBox(
+        "Show system files by default",
+        dialog,
+    )
+    dialog.show_system_files_checkbox.toggled.connect(dialog.on_controls_changed)
+    add_row(
+        dialog,
+        section=visibility_group,
+        key="show_system_files",
+        title="Show System Files",
+        description="Enable system-attribute entries by default for all panels.",
+        terms="system files default",
+        controls=[dialog.show_system_files_checkbox],
     )
 
     dialog.show_root_dropdown_checkbox = QCheckBox(
@@ -508,6 +535,84 @@ def build_panel_layout_rows(
         description="Choose how file-list column width changes propagate.",
         terms="column width align auto-align tabs panels current window all windows",
         controls=[dialog.column_width_auto_align_mode_combo],
+    )
+
+    dialog.show_parent_dir_at_drive_root_checkbox = QCheckBox(
+        "Show .. at drive root",
+        dialog,
+    )
+    dialog.show_parent_dir_at_drive_root_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=file_list_layout_group,
+        key="show_parent_dir_at_drive_root",
+        title="Parent Dir at Drive Root",
+        description=(
+            "Show a synthetic parent row at drive roots so going up opens "
+            "the root picker."
+        ),
+        terms="parent dir drive root my computer roots picker",
+        controls=[dialog.show_parent_dir_at_drive_root_checkbox],
+    )
+
+    dialog.show_square_brackets_around_directories_checkbox = QCheckBox(
+        "Wrap directories in [brackets]",
+        dialog,
+    )
+    dialog.show_square_brackets_around_directories_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=file_list_layout_group,
+        key="show_square_brackets_around_directories",
+        title="Square Brackets Around Directories",
+        description="Show directories in bracketed form so they stand out from files.",
+        terms="directories square brackets formatting display",
+        controls=[dialog.show_square_brackets_around_directories_checkbox],
+    )
+
+    dialog.append_directory_backslash_checkbox = QCheckBox(
+        "Append \\ to directories",
+        dialog,
+    )
+    dialog.append_directory_backslash_checkbox.toggled.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=file_list_layout_group,
+        key="append_directory_backslash",
+        title="Append Backslash",
+        description=(
+            "Append a trailing backslash to directory names. This combines "
+            "with brackets."
+        ),
+        terms="directories append backslash formatting display",
+        controls=[dialog.append_directory_backslash_checkbox],
+    )
+
+    dialog.name_sort_method_combo = QComboBox(dialog)
+    for mode in [
+        "alphabetical_locale",
+        "strict_codepoint",
+        "natural_codepoint",
+        "natural_locale",
+    ]:
+        dialog.name_sort_method_combo.addItem(_name_sort_method_label(mode), mode)
+    dialog.name_sort_method_combo.currentIndexChanged.connect(
+        dialog.on_controls_changed
+    )
+    add_row(
+        dialog,
+        section=file_list_layout_group,
+        key="name_sort_method",
+        title="Name Sort Method",
+        description="Choose how file names compare in name sorting and tie-breaks.",
+        terms="name sort method alphabetical strict codepoint natural locale numbers",
+        controls=[dialog.name_sort_method_combo],
     )
 
     dialog.autofit_columns_checkbox = QCheckBox("Fit on startup and resize", dialog)

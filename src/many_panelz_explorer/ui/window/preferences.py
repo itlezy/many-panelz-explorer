@@ -43,9 +43,21 @@ class WindowPreferencesCoordinator:
         return self._show_hidden
 
     @property
+    def show_system_files_enabled(self) -> bool:
+        """Return whether system files should be visible."""
+
+        return self._show_system_files
+
+    @property
     def show_widget_map_enabled(self) -> bool:
         """Return whether widget-map overlays should be visible."""
         return self._show_widget_map
+
+    @property
+    def show_status_bar_enabled(self) -> bool:
+        """Return whether the window status bar should be visible."""
+
+        return self._show_status_bar
 
     @property
     def show_storage_overview_enabled(self) -> bool:
@@ -78,9 +90,33 @@ class WindowPreferencesCoordinator:
         return self._show_address_bar
 
     @property
+    def show_breadcrumb_bar_enabled(self) -> bool:
+        """Return whether breadcrumb bars should be visible."""
+
+        return self._show_breadcrumb_bar
+
+    @property
     def show_navigation_buttons_enabled(self) -> bool:
         """Return whether back/forward/up buttons should be visible."""
         return self._show_navigation_buttons
+
+    @property
+    def show_history_button_enabled(self) -> bool:
+        """Return whether history buttons should be visible."""
+
+        return self._show_history_button
+
+    @property
+    def show_bookmarks_button_enabled(self) -> bool:
+        """Return whether bookmark buttons should be visible."""
+
+        return self._show_bookmarks_button
+
+    @property
+    def show_tab_bar_enabled(self) -> bool:
+        """Return whether tab bars should be visible."""
+
+        return self._show_tab_bar
 
     @property
     def show_tab_close_buttons_enabled(self) -> bool:
@@ -121,6 +157,36 @@ class WindowPreferencesCoordinator:
     def column_width_auto_align_mode(self) -> str:
         """Return the selected auto-alignment mode for file list widths."""
         return self._column_width_auto_align_mode
+
+    @property
+    def directories_sort_mode(self) -> str:
+        """Return the configured directory sorting behavior."""
+
+        return self._directories_sort_mode
+
+    @property
+    def append_directory_backslash_enabled(self) -> bool:
+        """Return whether directories should render with a trailing backslash."""
+
+        return self._append_directory_backslash
+
+    @property
+    def show_parent_dir_at_drive_root_enabled(self) -> bool:
+        """Return whether drive roots should show a synthetic parent row."""
+
+        return self._show_parent_dir_at_drive_root
+
+    @property
+    def show_square_brackets_around_directories_enabled(self) -> bool:
+        """Return whether directory names should render with square brackets."""
+
+        return self._show_square_brackets_around_directories
+
+    @property
+    def name_sort_method(self) -> str:
+        """Return the configured name-comparison strategy."""
+
+        return self._name_sort_method
 
     @property
     def autofit_columns_enabled(self) -> bool:
@@ -164,6 +230,28 @@ class WindowPreferencesCoordinator:
         return bool(self._enable_right_click_row_selection)
 
     @property
+    def file_icon_mode(self) -> str:
+        """Return the configured file-icon display mode."""
+
+        return self._file_icon_mode
+
+    @property
+    def dim_hidden_entries_enabled(self) -> bool:
+        """Return whether hidden or system items should render dimmed."""
+
+        return self._dim_hidden_entries
+
+    @property
+    def file_icon_metrics(self) -> tuple[int, int, int]:
+        """Return icon size and horizontal/vertical padding values."""
+
+        return (
+            self._file_icon_size_px,
+            self._file_icon_padding_horizontal,
+            self._file_icon_padding_vertical,
+        )
+
+    @property
     def status_bar_storage_label_template(self) -> str:
         """Return the active storage status label template."""
         return self._status_bar_storage_label_template
@@ -179,14 +267,17 @@ class WindowPreferencesCoordinator:
 
     def panel_toolbar_visibility_preferences(
         self,
-    ) -> tuple[bool, bool, bool, bool, bool]:
+    ) -> tuple[bool, bool, bool, bool, bool, bool, bool, bool]:
         """Return panel toolbar visibility flags."""
         return (
             self._show_refresh_button,
             self._show_root_buttons,
             self._show_root_dropdown,
             self._show_address_bar,
+            self._show_breadcrumb_bar,
             self._show_navigation_buttons,
+            self._show_history_button,
+            self._show_bookmarks_button,
         )
 
     def panel_tab_width_preferences(self) -> tuple[str, int, str, int]:
@@ -211,6 +302,7 @@ class WindowPreferencesCoordinator:
         file_list_font, navigation_font = self.effective_panel_fonts()
         for panel in self.window.panel_widgets.values():
             panel.set_show_hidden(self._show_hidden)
+            panel.set_show_system_files(self._show_system_files)
             panel.enable_right_click_row_selection = (
                 self._enable_right_click_row_selection
             )
@@ -219,7 +311,13 @@ class WindowPreferencesCoordinator:
                 show_root_buttons=self._show_root_buttons,
                 show_root_dropdown=self._show_root_dropdown,
                 show_address_bar=self._show_address_bar,
+                show_breadcrumb_bar=self._show_breadcrumb_bar,
                 show_navigation_buttons=self._show_navigation_buttons,
+                show_history_button=self._show_history_button,
+                show_bookmarks_button=self._show_bookmarks_button,
+            )
+            panel.presentation_coordinator.apply_tab_bar_visibility(
+                show_tab_bar=self._show_tab_bar
             )
             panel.presentation_coordinator.apply_tab_close_button_visibility(
                 show_tab_close_buttons=self._show_tab_close_buttons
@@ -234,6 +332,20 @@ class WindowPreferencesCoordinator:
             )
             panel.state_coordinator.set_column_width_auto_align_mode(
                 self._column_width_auto_align_mode
+            )
+            panel.set_directories_sort_mode(self._directories_sort_mode)
+            panel.set_show_parent_dir_at_drive_root(self._show_parent_dir_at_drive_root)
+            panel.set_show_square_brackets_around_directories(
+                self._show_square_brackets_around_directories
+            )
+            panel.set_append_directory_backslash(self._append_directory_backslash)
+            panel.set_name_sort_method(self._name_sort_method)
+            panel.set_file_icon_preferences(
+                icon_mode=self._file_icon_mode,
+                dim_hidden_entries=self._dim_hidden_entries,
+                icon_size_px=self._file_icon_size_px,
+                padding_horizontal_px=self._file_icon_padding_horizontal,
+                padding_vertical_px=self._file_icon_padding_vertical,
             )
             panel.presentation_coordinator.apply_font_preferences(
                 file_list_font=file_list_font,
@@ -263,6 +375,7 @@ class WindowPreferencesCoordinator:
         self.window.status_coordinator.set_storage_label_template(
             self._status_bar_storage_label_template
         )
+        self.window.status_coordinator.set_status_bar_visible(self._show_status_bar)
         self.window.status_coordinator.set_storage_overview_enabled(
             self._show_storage_overview_status_row
         )
@@ -340,16 +453,31 @@ class WindowPreferencesCoordinator:
         """Copy preference values into coordinator state."""
         self._new_context_mode = preferences.new_context_mode
         self._show_hidden = bool(preferences.show_hidden_default)
+        self._show_system_files = bool(preferences.show_system_files)
         self._show_root_dropdown = bool(preferences.show_root_dropdown)
+        self._show_status_bar = bool(preferences.show_status_bar)
         self._show_storage_overview_status_row = bool(
             preferences.show_storage_overview_status_row
         )
         self._column_width_auto_align_mode = preferences.column_width_auto_align_mode
+        self._directories_sort_mode = preferences.directories_sort_mode
+        self._show_parent_dir_at_drive_root = bool(
+            preferences.show_parent_dir_at_drive_root
+        )
+        self._show_square_brackets_around_directories = bool(
+            preferences.show_square_brackets_around_directories
+        )
+        self._append_directory_backslash = bool(preferences.append_directory_backslash)
+        self._name_sort_method = preferences.name_sort_method
         self._autofit_columns = bool(preferences.autofit_columns)
         self._show_refresh_button = bool(preferences.show_refresh_button)
         self._show_root_buttons = bool(preferences.show_root_buttons)
         self._show_address_bar = bool(preferences.show_address_bar)
+        self._show_breadcrumb_bar = bool(preferences.show_breadcrumb_bar)
         self._show_navigation_buttons = bool(preferences.show_navigation_buttons)
+        self._show_history_button = bool(preferences.show_history_button)
+        self._show_bookmarks_button = bool(preferences.show_bookmarks_button)
+        self._show_tab_bar = bool(preferences.show_tab_bar)
         self._show_tab_close_buttons = bool(preferences.show_tab_close_buttons)
         self._default_tab_position = normalize_default_tab_position(
             preferences.default_tab_position
@@ -372,6 +500,13 @@ class WindowPreferencesCoordinator:
         self._navigation_use_app_font = bool(preferences.navigation_use_app_font)
         self._navigation_font_family = preferences.navigation_font_family
         self._navigation_font_size_pt = int(preferences.navigation_font_size_pt)
+        self._file_icon_mode = preferences.file_icon_mode
+        self._dim_hidden_entries = bool(preferences.dim_hidden_entries)
+        self._file_icon_size_px = int(preferences.file_icon_size_px)
+        self._file_icon_padding_horizontal = int(
+            preferences.file_icon_padding_horizontal
+        )
+        self._file_icon_padding_vertical = int(preferences.file_icon_padding_vertical)
         self._active_panel_tint_color_hex = preferences.active_panel_tint_color_hex
         self._active_panel_tint_intensity_percent = (
             preferences.active_panel_tint_intensity_percent

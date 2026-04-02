@@ -189,6 +189,25 @@ def _row_center(tab: ExplorerTab, path: Path) -> QPoint:
     return tab.view.visualRect(index).center()
 
 
+def _row_icon_center(tab: ExplorerTab, path: Path) -> QPoint:
+    """Return the viewport click position for the row icon area."""
+
+    index = tab.model.index(str(path))
+    assert index.isValid()
+    rect = tab.view.visualRect(index)
+    icon_half_width = max(8, tab.view.iconSize().width() // 2)
+    return QPoint(rect.left() + icon_half_width, rect.center().y())
+
+
+def _current_real_path(tab: ExplorerTab) -> Path | None:
+    """Return the current real filesystem path in the active file list."""
+
+    current_index = tab.view.currentIndex()
+    if not current_index.isValid() or tab.model.is_parent_index(current_index):
+        return None
+    return Path(tab.model.filePath(current_index))
+
+
 class _ControllerCloneStub(_ControllerStub):
     def __init__(
         self,
@@ -347,6 +366,7 @@ def test_external_file_manager_actions_launch_expected_commands(
     assert recorded[-1] == [
         str(total_commander_exe),
         "/O",
+        "/T",
         "/A",
         f"/L={source_file}",
         f"/R={target_file}",
@@ -355,7 +375,9 @@ def test_external_file_manager_actions_launch_expected_commands(
     window.double_commander_here_source_action.trigger()
     assert recorded[-1] == [
         str(double_commander_exe),
+        "--no-splash",
         "-C",
+        "-T",
         "-L",
         str(source_file),
     ]
@@ -1265,7 +1287,7 @@ def test_tc_selection_shortcuts_toggle_current_row_and_advance(
     assert tab.view.currentIndex() == parent_index
 
 
-def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
+def test_right_button_mouse_mode_moves_cursor_and_marks_explicitly(
     qtbot, tmp_path: Path
 ) -> None:
     settings = SettingsManager()
@@ -1304,9 +1326,26 @@ def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
         Qt.KeyboardModifier.NoModifier,
         _row_center(tab, alpha_file),
     )
-    assert _selected_real_paths(tab) == [alpha_file]
+    assert _selected_real_paths(tab) == []
+    assert _current_real_path(tab) == alpha_file
+    assert tab.status_label.text().startswith("Marked 0/3 | ")
+
+    QTest.mouseClick(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_icon_center(tab, beta_file),
+    )
+    assert _selected_real_paths(tab) == [beta_file]
+    assert _current_real_path(tab) == beta_file
+    assert "Marked 1/3" in tab.status_label.text()
 
     delayed_calls: list[tuple[int, int]] = []
+    immediate_calls: list[tuple[int, int]] = []
+    tab.view.customContextMenuRequested.disconnect(tab._actions.open_context_menu)
+    tab.view.customContextMenuRequested.connect(
+        lambda pos: immediate_calls.append((pos.x(), pos.y()))
+    )
     tab.view.delayed_context_menu_requested.disconnect(tab._actions.open_context_menu)
     tab.view.delayed_context_menu_requested.connect(
         lambda pos: delayed_calls.append((pos.x(), pos.y()))
@@ -1316,20 +1355,22 @@ def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
-        _row_center(tab, beta_file),
+        _row_center(tab, gamma_file),
     )
-    assert _selected_real_paths(tab) == [beta_file]
+    assert set(_selected_real_paths(tab)) == {beta_file, gamma_file}
+    assert _current_real_path(tab) == gamma_file
     qtbot.wait(150)
+    assert immediate_calls == []
     assert delayed_calls == []
     QTest.mouseRelease(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
-        _row_center(tab, beta_file),
+        _row_center(tab, gamma_file),
     )
+    assert immediate_calls == []
     assert delayed_calls == []
 
-    _select_paths(tab, [alpha_file, beta_file])
     hold_point = _row_center(tab, alpha_file)
     QTest.mousePress(
         tab.view.viewport(),
@@ -1337,8 +1378,9 @@ def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
         Qt.KeyboardModifier.NoModifier,
         hold_point,
     )
-    assert _selected_real_paths(tab) == [alpha_file, beta_file]
+    assert set(_selected_real_paths(tab)) == {alpha_file, beta_file, gamma_file}
     qtbot.wait(1100)
+    assert immediate_calls == []
     assert delayed_calls == [(hold_point.x(), hold_point.y())]
     QTest.mouseRelease(
         tab.view.viewport(),
@@ -1348,7 +1390,7 @@ def test_mouse_selection_uses_left_click_by_default_and_delays_right_click_menu(
     )
 
 
-def test_right_click_uses_qt_default_when_delayed_row_selection_is_disabled(
+def test_left_button_mouse_mode_keeps_explorer_like_left_click_behavior(
     qtbot, tmp_path: Path
 ) -> None:
     settings = SettingsManager()
@@ -1378,27 +1420,43 @@ def test_right_click_uses_qt_default_when_delayed_row_selection_is_disabled(
     tab.navigation.set_path(root)
     qtbot.waitUntil(lambda: tab.model.index(str(beta_file)).isValid())
     tab.view.setFocus()
-    _select_paths(tab, [alpha_file])
-
-    delayed_calls: list[tuple[int, int]] = []
-    tab.view.delayed_context_menu_requested.connect(
-        lambda pos: delayed_calls.append((pos.x(), pos.y()))
+    QTest.mousePress(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, alpha_file),
     )
+    QTest.mouseRelease(
+        tab.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _row_center(tab, alpha_file),
+    )
+    qtbot.waitUntil(lambda: _selected_real_paths(tab) == [alpha_file])
+    assert _current_real_path(tab) == alpha_file
+
+    context_calls: list[tuple[int, int]] = []
+    tab.view.customContextMenuRequested.disconnect(tab._actions.open_context_menu)
+    tab.view.customContextMenuRequested.connect(
+        lambda pos: context_calls.append((pos.x(), pos.y()))
+    )
+
     QTest.mousePress(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
         _row_center(tab, beta_file),
     )
-    qtbot.wait(1100)
     QTest.mouseRelease(
         tab.view.viewport(),
         Qt.MouseButton.RightButton,
         Qt.KeyboardModifier.NoModifier,
         _row_center(tab, beta_file),
     )
+    qtbot.wait(150)
 
-    assert delayed_calls == []
+    assert _selected_real_paths(tab) == [alpha_file]
+    assert len(context_calls) == 1
 
 
 def test_space_auto_calculates_selected_directory_size_when_enabled(
@@ -1571,8 +1629,8 @@ def test_file_list_shortcuts_cover_selection_context_and_clipboard(
 
     tab.view.selectionModel().clearSelection()
     QTest.keyClick(tab.view, Qt.Key_P, Qt.ControlModifier)
-    assert QApplication.clipboard().text() == str(root)
-    assert window.statusBar().currentMessage() == "Copied panel path to clipboard."
+    assert QApplication.clipboard().text() == str(first_file)
+    assert window.statusBar().currentMessage() == ""
 
     _select_paths(tab, [first_file, second_file])
     QTest.keyClick(tab.view, Qt.Key_P, Qt.ControlModifier)
@@ -1682,9 +1740,7 @@ def test_f9_opens_terminal_for_active_tab(
     assert active_calls == ["active"]
 
 
-def test_tc_root_and_target_pane_shortcuts(
-    qtbot, tmp_path: Path
-) -> None:
+def test_tc_root_and_target_pane_shortcuts(qtbot, tmp_path: Path) -> None:
     settings = SettingsManager()
     roots_provider = _test_roots_provider(tmp_path)
     window = ExplorerWindow(
@@ -2525,7 +2581,7 @@ def test_copy_to_target_uses_last_active_non_source_panel(
     target_panel.current_tab().navigation.set_path(dst_dir)
 
     monkeypatch.setattr(
-        source_panel.current_tab(), "selected_paths", lambda: [src_file]
+        source_panel.current_tab(), "marked_or_current_paths", lambda: [src_file]
     )
     captured: list[Path] = []
     queue_manager = window.controller.operation_queue_manager

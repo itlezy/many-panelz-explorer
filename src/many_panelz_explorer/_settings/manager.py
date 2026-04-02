@@ -33,18 +33,35 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
 
     new_context_mode = delegate_domain_property("ui", "new_context_mode")
     show_hidden_default = delegate_domain_property("ui", "show_hidden_default")
+    show_system_files = delegate_domain_property("ui", "show_system_files")
     show_root_dropdown = delegate_domain_property("ui", "show_root_dropdown")
+    show_status_bar = delegate_domain_property("ui", "show_status_bar")
     show_storage_overview_status_row = delegate_domain_property(
         "ui", "show_storage_overview_status_row"
     )
     column_width_auto_align_mode = delegate_domain_property(
         "ui", "column_width_auto_align_mode"
     )
+    directories_sort_mode = delegate_domain_property("ui", "directories_sort_mode")
+    show_parent_dir_at_drive_root = delegate_domain_property(
+        "ui", "show_parent_dir_at_drive_root"
+    )
+    show_square_brackets_around_directories = delegate_domain_property(
+        "ui", "show_square_brackets_around_directories"
+    )
+    append_directory_backslash = delegate_domain_property(
+        "ui", "append_directory_backslash"
+    )
+    name_sort_method = delegate_domain_property("ui", "name_sort_method")
     autofit_columns = delegate_domain_property("ui", "autofit_columns")
     show_refresh_button = delegate_domain_property("ui", "show_refresh_button")
     show_root_buttons = delegate_domain_property("ui", "show_root_buttons")
     show_address_bar = delegate_domain_property("ui", "show_address_bar")
+    show_breadcrumb_bar = delegate_domain_property("ui", "show_breadcrumb_bar")
     show_navigation_buttons = delegate_domain_property("ui", "show_navigation_buttons")
+    show_history_button = delegate_domain_property("ui", "show_history_button")
+    show_bookmarks_button = delegate_domain_property("ui", "show_bookmarks_button")
+    show_tab_bar = delegate_domain_property("ui", "show_tab_bar")
     show_tab_close_buttons = delegate_domain_property("ui", "show_tab_close_buttons")
     default_tab_position = delegate_domain_property("ui", "default_tab_position")
     horizontal_tab_width_mode = delegate_domain_property(
@@ -96,6 +113,15 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     navigation_use_app_font = delegate_domain_property("ui", "navigation_use_app_font")
     navigation_font_family = delegate_domain_property("ui", "navigation_font_family")
     navigation_font_size_pt = delegate_domain_property("ui", "navigation_font_size_pt")
+    file_icon_mode = delegate_domain_property("ui", "file_icon_mode")
+    dim_hidden_entries = delegate_domain_property("ui", "dim_hidden_entries")
+    file_icon_size_px = delegate_domain_property("ui", "file_icon_size_px")
+    file_icon_padding_horizontal = delegate_domain_property(
+        "ui", "file_icon_padding_horizontal"
+    )
+    file_icon_padding_vertical = delegate_domain_property(
+        "ui", "file_icon_padding_vertical"
+    )
     context_immediate_child_scan_cap = delegate_domain_property(
         "ui", "context_immediate_child_scan_cap"
     )
@@ -343,14 +369,27 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         return UiPreferences(
             new_context_mode=self.new_context_mode,
             show_hidden_default=self.show_hidden_default,
+            show_system_files=self.show_system_files,
             show_root_dropdown=self.show_root_dropdown,
+            show_status_bar=self.show_status_bar,
             show_storage_overview_status_row=self.show_storage_overview_status_row,
             column_width_auto_align_mode=self.column_width_auto_align_mode,
+            directories_sort_mode=self.directories_sort_mode,
+            show_parent_dir_at_drive_root=self.show_parent_dir_at_drive_root,
+            show_square_brackets_around_directories=(
+                self.show_square_brackets_around_directories
+            ),
+            append_directory_backslash=self.append_directory_backslash,
+            name_sort_method=self.name_sort_method,
             autofit_columns=self.autofit_columns,
             show_refresh_button=self.show_refresh_button,
             show_root_buttons=self.show_root_buttons,
             show_address_bar=self.show_address_bar,
+            show_breadcrumb_bar=self.show_breadcrumb_bar,
             show_navigation_buttons=self.show_navigation_buttons,
+            show_history_button=self.show_history_button,
+            show_bookmarks_button=self.show_bookmarks_button,
+            show_tab_bar=self.show_tab_bar,
             show_tab_close_buttons=self.show_tab_close_buttons,
             default_tab_position=self.default_tab_position,
             horizontal_tab_width_mode=self.horizontal_tab_width_mode,
@@ -374,6 +413,11 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
             navigation_use_app_font=self.navigation_use_app_font,
             navigation_font_family=self.navigation_font_family,
             navigation_font_size_pt=self.navigation_font_size_pt,
+            file_icon_mode=self.file_icon_mode,
+            dim_hidden_entries=self.dim_hidden_entries,
+            file_icon_size_px=self.file_icon_size_px,
+            file_icon_padding_horizontal=self.file_icon_padding_horizontal,
+            file_icon_padding_vertical=self.file_icon_padding_vertical,
             context_immediate_child_scan_cap=self.context_immediate_child_scan_cap,
             context_tool_code_editor_exe_path=self.context_tool_code_editor_exe_path,
             context_tool_code_editor_args_template=self.context_tool_code_editor_args_template,
@@ -460,9 +504,7 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
                 self.use_everything_sdk_for_folder_sizes
             ),
             enable_right_click_row_selection=self.enable_right_click_row_selection,
-            auto_calculate_dir_sizes_on_space=(
-                self.auto_calculate_dir_sizes_on_space
-            ),
+            auto_calculate_dir_sizes_on_space=(self.auto_calculate_dir_sizes_on_space),
             auto_calculate_dir_sizes_before_copy_move=(
                 self.auto_calculate_dir_sizes_before_copy_move
             ),
@@ -501,16 +543,29 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
     def set_ui_preferences(self, preferences: UiPreferences) -> None:
         self.new_context_mode = preferences.new_context_mode
         self.show_hidden_default = preferences.show_hidden_default
+        self.show_system_files = preferences.show_system_files
         self.show_root_dropdown = preferences.show_root_dropdown
+        self.show_status_bar = preferences.show_status_bar
         self.show_storage_overview_status_row = (
             preferences.show_storage_overview_status_row
         )
         self.column_width_auto_align_mode = preferences.column_width_auto_align_mode
+        self.directories_sort_mode = preferences.directories_sort_mode
+        self.show_parent_dir_at_drive_root = preferences.show_parent_dir_at_drive_root
+        self.show_square_brackets_around_directories = (
+            preferences.show_square_brackets_around_directories
+        )
+        self.append_directory_backslash = preferences.append_directory_backslash
+        self.name_sort_method = preferences.name_sort_method
         self.autofit_columns = preferences.autofit_columns
         self.show_refresh_button = preferences.show_refresh_button
         self.show_root_buttons = preferences.show_root_buttons
         self.show_address_bar = preferences.show_address_bar
+        self.show_breadcrumb_bar = preferences.show_breadcrumb_bar
         self.show_navigation_buttons = preferences.show_navigation_buttons
+        self.show_history_button = preferences.show_history_button
+        self.show_bookmarks_button = preferences.show_bookmarks_button
+        self.show_tab_bar = preferences.show_tab_bar
         self.show_tab_close_buttons = preferences.show_tab_close_buttons
         self.default_tab_position = preferences.default_tab_position
         self.horizontal_tab_width_mode = preferences.horizontal_tab_width_mode
@@ -542,6 +597,11 @@ class SettingsManager(SettingsManagerBase, SettingsRegistry):
         self.navigation_use_app_font = preferences.navigation_use_app_font
         self.navigation_font_family = preferences.navigation_font_family
         self.navigation_font_size_pt = preferences.navigation_font_size_pt
+        self.file_icon_mode = preferences.file_icon_mode
+        self.dim_hidden_entries = preferences.dim_hidden_entries
+        self.file_icon_size_px = preferences.file_icon_size_px
+        self.file_icon_padding_horizontal = preferences.file_icon_padding_horizontal
+        self.file_icon_padding_vertical = preferences.file_icon_padding_vertical
         self.context_immediate_child_scan_cap = (
             preferences.context_immediate_child_scan_cap
         )
