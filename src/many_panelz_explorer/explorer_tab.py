@@ -24,6 +24,7 @@ from . import mounts
 from ._explorer_tab_actions import ExplorerTabActions
 from ._explorer_tab_columns import ExplorerTabColumns
 from ._explorer_tab_navigation import ExplorerTabNavigation
+from ._explorer_tab_shortcuts import ExplorerTabFileListShortcuts
 from .color_schemes import ResolvedColorScheme, default_color_scheme
 from .explorer_file_list_view import ExplorerFileListView
 from .fast_dir_model import FastDirModel
@@ -171,6 +172,13 @@ class ExplorerTab(QWidget):
         )
         self.navigation.set_show_parent_dir_at_drive_root(show_parent_dir_at_drive_root)
         self._actions = ExplorerTabActions(self, parent=self)
+        self._file_list_shortcuts = ExplorerTabFileListShortcuts(
+            tab=self,
+            actions=self._actions,
+            trigger_window_shortcut=self._trigger_window_shortcut,
+            trigger_window_action=self._trigger_window_action,
+            handle_keypad_mark_shortcut=self._handle_keypad_mark_shortcut,
+        )
 
         self.view.customContextMenuRequested.connect(self._actions.open_context_menu)
         self.view.delayed_context_menu_requested.connect(
@@ -881,7 +889,7 @@ class ExplorerTab(QWidget):
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self.view and event.type() == QEvent.Type.KeyPress:
             key_event = cast("QKeyEvent", event)
-            if self._handle_file_list_shortcut_key(key_event):
+            if self._file_list_shortcuts.handle_key(key_event):
                 return True
             if self._handle_navigation_key(key_event):
                 index = self.view.currentIndex()
@@ -889,240 +897,6 @@ class ExplorerTab(QWidget):
                     self._on_item_activated(index)
                 return True
         return super().eventFilter(obj, event)
-
-    def _handle_file_list_shortcut_key(self, key_event: QKeyEvent) -> bool:
-        modifiers = key_event.modifiers()
-        key = key_event.key()
-        return (
-            self._handle_window_shortcut_binding(modifiers, key)
-            or self._handle_mark_shortcut_binding(key_event, modifiers, key)
-            or self._handle_window_action_binding(modifiers, key)
-            or self._handle_local_action_shortcut_binding(modifiers, key)
-        )
-
-    def _handle_window_shortcut_binding(
-        self,
-        modifiers: Qt.KeyboardModifier,
-        key: int,
-    ) -> bool:
-        """Handle file-list keys that forward to window-owned shortcuts."""
-
-        dispatch = {
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_Tab),
-            ): "next_tab_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_Tab),
-            ): "previous_tab_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_Backtab),
-            ): "previous_tab_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_PageDown),
-            ): "next_tab_alias_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_PageUp),
-            ): "previous_tab_alias_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_D),
-            ): "bookmarks_hotlist_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_I),
-            ): "sync_target_panel_path_shortcut",
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_U),
-            ): "exchange_panel_paths_shortcut",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F3),
-            ): "list_files_shortcut",
-            (
-                Qt.KeyboardModifier.AltModifier,
-                int(Qt.Key.Key_F3),
-            ): "alt_list_files_shortcut",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F4),
-            ): "edit_files_shortcut",
-            (
-                Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_F4),
-            ): "new_file_shortcut",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F7),
-            ): "create_directory_shortcut",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F9),
-            ): "terminal_here_shortcut",
-        }
-        shortcut_name = dispatch.get((modifiers, key))
-        if shortcut_name is None:
-            return False
-        return self._trigger_window_shortcut(shortcut_name)
-
-    def _handle_mark_shortcut_binding(
-        self,
-        key_event: QKeyEvent,
-        modifiers: Qt.KeyboardModifier,
-        key: int,
-    ) -> bool:
-        """Handle marking and selection shortcuts scoped to the file list."""
-
-        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(
-            Qt.Key.Key_Insert
-        ):
-            self._actions.toggle_current_item_selection_and_advance()
-            return True
-        if modifiers == Qt.KeyboardModifier.NoModifier and key == int(Qt.Key.Key_Space):
-            self._actions.toggle_current_item_selection()
-            return True
-        if self._handle_keypad_mark_shortcut(key_event):
-            return True
-        if modifiers == Qt.KeyboardModifier.ControlModifier and key == int(
-            Qt.Key.Key_A
-        ):
-            self._actions.select_all_items()
-            return True
-        if modifiers == Qt.KeyboardModifier.ShiftModifier and key == int(
-            Qt.Key.Key_F10
-        ):
-            self._actions.open_context_menu_from_keyboard()
-            return True
-        return False
-
-    def _handle_window_action_binding(
-        self,
-        modifiers: Qt.KeyboardModifier,
-        key: int,
-    ) -> bool:
-        """Handle keys that trigger window-owned operation actions."""
-
-        dispatch = {
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F5),
-            ): "copy_to_target_action",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F6),
-            ): "move_to_target_action",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_F8),
-            ): "delete_selection_action",
-            (
-                Qt.KeyboardModifier.NoModifier,
-                int(Qt.Key.Key_Delete),
-            ): "delete_selection_action",
-        }
-        action_name = dispatch.get((modifiers, key))
-        if action_name is None:
-            return False
-        return self._trigger_window_action(action_name)
-
-    def _handle_local_action_shortcut_binding(
-        self,
-        modifiers: Qt.KeyboardModifier,
-        key: int,
-    ) -> bool:
-        """Handle file-list shortcuts that stay within the current tab workflow."""
-
-        dispatch: dict[tuple[Qt.KeyboardModifier, int], Callable[[], bool]] = {
-            (
-                Qt.KeyboardModifier.AltModifier,
-                int(Qt.Key.Key_F7),
-            ): lambda: self._run_shortcut_action(self.launch_everything_search),
-            (
-                Qt.KeyboardModifier.AltModifier,
-                int(Qt.Key.Key_F9),
-            ): lambda: self._run_shortcut_action(self.extract_supported_archive),
-            (
-                Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_F9),
-            ): lambda: self._run_shortcut_action(self.test_supported_archives),
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_L),
-            ): lambda: self._run_shortcut_action(
-                self.calculate_selected_or_current_folder_sizes
-            ),
-            (
-                Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_Return),
-            ): lambda: self._run_shortcut_action(self.calculate_visible_folder_sizes),
-            (
-                Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_Enter),
-            ): lambda: self._run_shortcut_action(self.calculate_visible_folder_sizes),
-            (
-                Qt.KeyboardModifier.AltModifier,
-                int(Qt.Key.Key_Return),
-            ): lambda: self._run_shortcut_action(
-                self.show_properties_selected_or_current
-            ),
-            (
-                Qt.KeyboardModifier.AltModifier,
-                int(Qt.Key.Key_Enter),
-            ): lambda: self._run_shortcut_action(
-                self.show_properties_selected_or_current
-            ),
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_F3),
-            ): lambda: self._run_sort_shortcut(0),
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_F4),
-            ): lambda: self._run_sort_shortcut(1),
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_F5),
-            ): lambda: self._run_sort_shortcut(3),
-            (
-                Qt.KeyboardModifier.ControlModifier,
-                int(Qt.Key.Key_F6),
-            ): lambda: self._run_sort_shortcut(2),
-            (
-                Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_F5),
-            ): lambda: self._run_shortcut_action(
-                self.copy_selected_or_current_to_current_directory
-            ),
-            (
-                Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_F6),
-            ): lambda: self._run_shortcut_action(self.rename_selected_or_current),
-            (
-                Qt.KeyboardModifier.ShiftModifier,
-                int(Qt.Key.Key_F7),
-            ): lambda: self._run_shortcut_action(self.create_directory_in_target),
-        }
-        handler = dispatch.get((modifiers, key))
-        if handler is None:
-            return False
-        return handler()
-
-    def _run_shortcut_action(self, action: Callable[[], None]) -> bool:
-        """Run one local shortcut action and report the key as handled."""
-
-        action()
-        return True
-
-    def _run_sort_shortcut(self, column: int) -> bool:
-        """Run one column-sort shortcut and report the key as handled."""
-
-        self.sort_by_column(column)
-        return True
 
     def _handle_navigation_key(self, key_event: QKeyEvent) -> bool:
         modifiers = key_event.modifiers()
