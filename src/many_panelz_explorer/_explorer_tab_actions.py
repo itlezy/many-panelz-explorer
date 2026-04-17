@@ -599,10 +599,18 @@ class ExplorerTabActions(QObject):
         return _trigger
 
     def _selected_real_paths(self) -> list[Path]:
-        return self._tab.marked_paths()
+        """Return the currently selected paths through the compatibility seam."""
+
+        return self._tab.selected_paths()
 
     def _selected_or_current_paths(self) -> list[Path]:
-        return self._tab.marked_or_current_paths()
+        """Return selected paths, or fall back to the current row."""
+
+        selected = self._selected_real_paths()
+        if selected:
+            return selected
+        current = self._tab.current_path_or_none()
+        return [current] if current is not None else []
 
     def _single_selected_or_current_path(self) -> Path | None:
         paths = self._selected_or_current_paths()

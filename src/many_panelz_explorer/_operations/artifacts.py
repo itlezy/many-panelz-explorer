@@ -184,8 +184,8 @@ def expand_template(
     kind: str,
     sources: tuple[Path, ...],
     target_dir: Path | None,
-    target_path: Path | None,
-    backend_options: dict[str, str],
+    target_path: Path | None = None,
+    backend_options: dict[str, str] | None = None,
     use_extended_paths: bool,
 ) -> str:
     """Expand operation placeholders into an executor argument template."""
@@ -224,6 +224,6 @@ def expand_template(
         .replace("{target}", target_literal)
         .replace("{archive}", archive_literal)
     )
-    for key, value in backend_options.items():
+    for key, value in (backend_options or {}).items():
         expanded = expanded.replace(f"{{{key}}}", str(value or "").strip())
     return expanded
