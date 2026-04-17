@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-from . import external_tools, file_ops, folder_sizes
+from . import external_tools, file_ops
 from .dialogs.properties_dialog import PropertiesDialog
 from .terminal_launchers import available_terminal_launchers
 
@@ -232,26 +232,18 @@ class ExplorerTabActions(QObject):
     def calculate_selected_or_current_folder_sizes(self) -> None:
         """Calculate folder sizes for selected folders or the current folder."""
 
-        targets = [path for path in self._selected_or_current_paths() if path.is_dir()]
-        if not targets:
-            self._show_status_message(
-                "Select one folder, or place the cursor on a folder, first.",
-                2600,
-            )
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return
-        self.queue_folder_size_calculation(targets, announce=True)
+        operations.calculate_selected_or_current_folder_sizes_in_tab(self._tab)
 
     def calculate_visible_folder_sizes(self) -> None:
         """Calculate folder sizes for every visible folder in the current file list."""
 
-        targets = self._tab.model.visible_directory_paths()
-        if not targets:
-            self._show_status_message(
-                "No visible folders are available for size calculation.",
-                2600,
-            )
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return
-        self.queue_folder_size_calculation(targets, announce=True)
+        operations.calculate_visible_folder_sizes_in_tab(self._tab)
 
     def open_terminal_here(self) -> None:
         """Open the configured terminal at the current tab path."""
@@ -275,39 +267,18 @@ class ExplorerTabActions(QObject):
     def extract_supported_archive(self) -> None:
         """Open the archive unpack dialog for one selected `.7z` or `.rar` file."""
 
-        archive = self._single_selected_or_current_path()
-        if archive is None or not archive.is_file():
-            return
-        suffix = archive.suffix.casefold()
-        if suffix not in {".7z", ".rar"}:
-            self._show_status_message(
-                "Alt+F9 supports only .7z and .rar archives.",
-                2400,
-            )
-            return
         operations = self._window_operations_coordinator()
         if operations is None:
             return
-        operations.unpack_archive(archive=archive)
+        operations.unpack_selected_archive_in_tab(self._tab)
 
     def test_supported_archives(self) -> None:
         """Queue or run archive tests for the selected `.7z` and `.rar` files."""
 
-        selected_archives = [
-            path
-            for path in self._selected_or_current_paths()
-            if path.is_file() and path.suffix.casefold() in {".7z", ".rar"}
-        ]
-        if not selected_archives:
-            self._show_status_message(
-                "Alt+Shift+F9 supports only .7z and .rar archives.",
-                2400,
-            )
-            return
         operations = self._window_operations_coordinator()
         if operations is None:
             return
-        operations.test_archives(archives=selected_archives)
+        operations.test_selected_archives_in_tab(self._tab)
 
     def show_properties_selected_or_current(self) -> None:
         """Open properties for the selected item or current row."""
@@ -371,59 +342,18 @@ class ExplorerTabActions(QObject):
     def create_directory_in_target(self) -> None:
         """Create one directory inside the resolved target pane."""
 
-        target_panel = self._target_panel()
-        if target_panel is None:
-            self._show_status_message(
-                "No target pane is available. Create another pane first.",
-                2400,
-            )
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return
-        suggested_name = "New Folder"
-        selected = self._single_selected_or_current_path()
-        if selected is not None:
-            suggested_name = selected.name or suggested_name
-        name, ok = QInputDialog.getText(
-            self._tab,
-            "New folder in target pane",
-            "Folder name:",
-            text=suggested_name,
-        )
-        if not ok or not name.strip():
-            return
-
-        def _create() -> None:
-            created = file_ops.create_folder(target_panel.current_path(), name.strip())
-            current_target_tab = target_panel.current_tab()
-            if current_target_tab is not None:
-                current_target_tab.navigation.set_path(
-                    target_panel.current_path(),
-                    push_history=False,
-                    selection_hint=created,
-                )
-
-        self._run_action(_create)
-        target_panel.navigation_coordinator.refresh_current_path()
+        operations.create_directory_in_target_for_tab(self._tab)
 
     def open_selected_or_current_in_target_pane(self) -> None:
         """Open the selected directory in the target pane or mirror the current path."""
 
-        target_panel = self._target_panel()
-        if target_panel is None:
-            self._show_status_message(
-                "No target pane is available. Create another pane first.",
-                2400,
-            )
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return
-        candidate = self._single_selected_or_current_path()
-        target_path = (
-            candidate
-            if candidate is not None and candidate.is_dir()
-            else self._tab.navigation.path
-        )
-        current_target_tab = target_panel.current_tab()
-        if current_target_tab is None:
-            return
-        current_target_tab.navigation.set_path(target_path)
+        operations.open_selected_or_current_in_target_pane(self._tab)
 
     def sort_by_column(self, column: int) -> None:
         """Sort the current file list by one model column in ascending order."""
@@ -563,13 +493,10 @@ class ExplorerTabActions(QObject):
         self.show_properties_selected_or_current()
 
     def _zip_create(self) -> None:
-        selected = self._selected_or_current_paths()
-        if not selected:
-            return
         operations = self._window_operations_coordinator()
         if operations is None:
             return
-        operations.pack_sources(sources=selected)
+        operations.pack_selected_sources_in_tab(self._tab)
 
     def _zip_extract(self) -> None:
         self.extract_supported_archive()
@@ -694,22 +621,6 @@ class ExplorerTabActions(QObject):
             return None
         return panel
 
-    def _target_panel(self) -> PanelWidget | None:
-        """Return the resolved target panel for this tab."""
-
-        active_panel = self._active_panel()
-        if active_panel is None:
-            return None
-        from .window import ExplorerWindow
-
-        window = self._tab.window()
-        if not isinstance(window, ExplorerWindow):
-            return None
-        target_panel = window.panels_coordinator.target_panel()
-        if target_panel is active_panel:
-            return None
-        return target_panel
-
     def _run_and_refresh(self, action: Callable[[], object]) -> None:
         self._run_action(action)
         self._tab.navigation.refresh()
@@ -722,36 +633,14 @@ class ExplorerTabActions(QObject):
     ) -> int:
         """Queue one folder-size batch with the configured preferred backend."""
 
-        settings = self._window_settings()
-        if settings is None:
+        operations = self._window_operations_coordinator()
+        if operations is None:
             return 0
-        calculator = folder_sizes.build_folder_size_calculator(
-            use_everything_sdk=settings.use_everything_sdk_for_folder_sizes,
-            everything_executable=settings.everything_executable,
+        return operations.queue_folder_size_calculation(
+            tab=self._tab,
+            paths=paths,
+            announce=announce,
         )
-        queued = self._tab.model.request_folder_sizes(paths, calculator=calculator)
-        if not announce:
-            return int(queued)
-        if queued <= 0:
-            self._show_status_message(
-                "Folder sizes are already calculated or in progress.",
-                2400,
-            )
-            return int(queued)
-        if calculator.uses_everything_sdk:
-            self._show_status_message(
-                (
-                    f"Calculating {queued} folder size(s) with "
-                    "Everything SDK when available."
-                ),
-                2600,
-            )
-            return int(queued)
-        self._show_status_message(
-            f"Calculating {queued} folder size(s) with native recursive scanning.",
-            2600,
-        )
-        return int(queued)
 
     def _maybe_auto_calculate_size_for_index(self, index: QModelIndex) -> None:
         """Queue directory size calculation when the Space trigger is enabled."""

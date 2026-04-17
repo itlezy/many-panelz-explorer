@@ -851,6 +851,97 @@ def test_calculate_size_action_uses_current_folder_when_nothing_is_selected(
     qtbot.waitUntil(lambda: _size_cell_text(tab, folder) == "6")
 
 
+def test_shift_f7_creates_directory_in_target_pane(
+    qtbot,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="target-create-directory",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    source_panel, target_panel = _ordered_panels(window)[:2]
+    window.panels_coordinator.set_active_panel(source_panel.panel_id)
+    source_tab = source_panel.current_tab()
+    target_tab = target_panel.current_tab()
+    assert source_tab is not None
+    assert target_tab is not None
+
+    source_root = tmp_path / "source-target-folder"
+    target_root = tmp_path / "target-target-folder"
+    source_root.mkdir()
+    target_root.mkdir()
+    source_tab.navigation.set_path(source_root)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_panel.current_path() == source_root)
+    qtbot.waitUntil(lambda: target_panel.current_path() == target_root)
+
+    monkeypatch.setattr(
+        QInputDialog,
+        "getText",
+        lambda *_a, **_k: ("Created In Target", True),
+    )
+
+    source_tab.view.setFocus()
+    QTest.keyClick(source_tab.view, Qt.Key.Key_F7, Qt.KeyboardModifier.ShiftModifier)
+
+    created = target_root / "Created In Target"
+    qtbot.waitUntil(created.exists)
+    assert created.is_dir() is True
+
+
+def test_ctrl_right_opens_selected_directory_in_target_pane(
+    qtbot,
+    tmp_path: Path,
+) -> None:
+    settings = SettingsManager()
+    roots_provider = _test_roots_provider(tmp_path)
+    window = ExplorerWindow(
+        controller=_ControllerStub(),
+        settings=settings,
+        window_id="target-open-selection",
+        roots_provider=roots_provider,
+    )
+    window.default_maximize_on_first_show = False
+    qtbot.addWidget(window)
+    window.show()
+
+    source_panel, target_panel = _ordered_panels(window)[:2]
+    window.panels_coordinator.set_active_panel(source_panel.panel_id)
+    source_tab = source_panel.current_tab()
+    target_tab = target_panel.current_tab()
+    assert source_tab is not None
+    assert target_tab is not None
+
+    source_root = tmp_path / "source-open-target"
+    selected_dir = source_root / "picked"
+    target_root = tmp_path / "target-open-target"
+    selected_dir.mkdir(parents=True)
+    target_root.mkdir()
+    source_tab.navigation.set_path(source_root)
+    target_tab.navigation.set_path(target_root)
+    qtbot.waitUntil(lambda: source_tab.model.index(str(selected_dir)).isValid())
+    qtbot.waitUntil(lambda: target_panel.current_path() == target_root)
+
+    _select_paths(source_tab, [selected_dir])
+    source_tab.view.setFocus()
+    QTest.keyClick(
+        source_tab.view,
+        Qt.Key.Key_Right,
+        Qt.KeyboardModifier.ControlModifier,
+    )
+
+    qtbot.waitUntil(lambda: target_panel.current_path() == selected_dir)
+
+
 def test_show_widget_map_toggle_updates_existing_and_new_panels(
     qtbot, tmp_path: Path
 ) -> None:
@@ -2122,9 +2213,9 @@ def test_copy_move_and_archive_flows_queue_directory_sizes_when_enabled(
 
     queued: list[list[Path]] = []
     monkeypatch.setattr(
-        tab,
+        window.operations_coordinator,
         "queue_folder_size_calculation",
-        lambda paths, *, announce=False: queued.append(list(paths)) or 1,
+        lambda *, tab, paths, announce: queued.append(list(paths)) or 1,
     )
     monkeypatch.setattr(
         window.operations_coordinator,

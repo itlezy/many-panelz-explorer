@@ -1,4 +1,4 @@
-"""Window-level coordination for file and archive actions."""
+"""Window-level coordination for file, archive, and target-pane actions."""
 
 from __future__ import annotations
 
@@ -6,8 +6,9 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 
+from ... import file_ops, folder_sizes
 from ..._operations.path_helpers import to_windows_long_path
 from ..._operations.types import (
     SHORTCUT_BEHAVIOR_DIALOG,
@@ -17,12 +18,16 @@ from ..._operations.types import (
 from .panels import resolve_window_target_panel_id
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ...explorer_tab import ExplorerTab
+    from ...panel_widget import PanelWidget
     from ...window import ExplorerWindow
 
 
 type ConflictChoice = Literal["overwrite", "skip", "rename", "cancel"]
 type ArchiveOperationKind = Literal["pack", "unpack"]
+SUPPORTED_ARCHIVE_SUFFIXES = frozenset({".7z", ".rar"})
 
 
 class WindowOperationsCoordinator:
@@ -94,6 +99,11 @@ class WindowOperationsCoordinator:
         if panel is not None and job.status in {"succeeded", "failed", "cancelled"}:
             panel.navigation_coordinator.refresh_current_path()
 
+    def pack_selected_sources_in_tab(self, tab: ExplorerTab) -> None:
+        """Pack the current tab selection through the shared archive workflow."""
+
+        self.pack_sources(sources=self._selected_or_current_paths(tab))
+
     def unpack_archive(self, *, archive: Path) -> None:
         """Open the archive unpack dialog for the provided archive path."""
 
@@ -119,13 +129,28 @@ class WindowOperationsCoordinator:
         if panel is not None and job.status in {"succeeded", "failed", "cancelled"}:
             panel.navigation_coordinator.refresh_current_path()
 
+    def unpack_selected_archive_in_tab(self, tab: ExplorerTab) -> None:
+        """Unpack one selected archive from the provided explorer tab."""
+
+        archive = self._single_selected_or_current_path(tab)
+        if archive is None or not archive.is_file():
+            return
+        if archive.suffix.casefold() not in SUPPORTED_ARCHIVE_SUFFIXES:
+            self.window.statusBar().showMessage(
+                "Alt+F9 supports only .7z and .rar archives.",
+                2400,
+            )
+            return
+        self.unpack_archive(archive=archive)
+
     def test_archives(self, *, archives: list[Path]) -> None:
         """Queue or run an archive-integrity test for supported selections."""
 
         supported = [
             Path(path)
             for path in archives
-            if Path(path).is_file() and Path(path).suffix.casefold() in {".7z", ".rar"}
+            if Path(path).is_file()
+            and Path(path).suffix.casefold() in SUPPORTED_ARCHIVE_SUFFIXES
         ]
         if not supported:
             self.window.statusBar().showMessage(
@@ -149,6 +174,16 @@ class WindowOperationsCoordinator:
             f"Archive test job {job.job_id[:8]}: {job.status}.",
             3500,
         )
+
+    def test_selected_archives_in_tab(self, tab: ExplorerTab) -> None:
+        """Test the current tab archive selection through the shared workflow."""
+
+        selected_archives = [
+            path
+            for path in self._selected_or_current_paths(tab)
+            if path.is_file() and path.suffix.casefold() in SUPPORTED_ARCHIVE_SUFFIXES
+        ]
+        self.test_archives(archives=selected_archives)
 
     def transfer_selected_to_target(
         self, *, move: bool, configure: bool = False
@@ -205,6 +240,133 @@ class WindowOperationsCoordinator:
         if job.status in {"succeeded", "failed", "cancelled"}:
             source_panel.navigation_coordinator.refresh_current_path()
             target_panel.navigation_coordinator.refresh_current_path()
+
+    def calculate_selected_or_current_folder_sizes_in_tab(
+        self,
+        tab: ExplorerTab,
+    ) -> None:
+        """Calculate sizes for selected folders or the current folder row."""
+
+        targets = [
+            path for path in self._selected_or_current_paths(tab) if path.is_dir()
+        ]
+        if not targets:
+            self.window.statusBar().showMessage(
+                "Select one folder, or place the cursor on a folder, first.",
+                2600,
+            )
+            return
+        self.queue_folder_size_calculation(tab=tab, paths=targets, announce=True)
+
+    def calculate_visible_folder_sizes_in_tab(self, tab: ExplorerTab) -> None:
+        """Calculate sizes for every visible folder in the active file list."""
+
+        targets = tab.model.visible_directory_paths()
+        if not targets:
+            self.window.statusBar().showMessage(
+                "No visible folders are available for size calculation.",
+                2600,
+            )
+            return
+        self.queue_folder_size_calculation(tab=tab, paths=targets, announce=True)
+
+    def queue_folder_size_calculation(
+        self,
+        *,
+        tab: ExplorerTab,
+        paths: list[Path],
+        announce: bool,
+    ) -> int:
+        """Queue one folder-size batch using the configured preferred backend."""
+
+        calculator = folder_sizes.build_folder_size_calculator(
+            use_everything_sdk=self.window.settings.use_everything_sdk_for_folder_sizes,
+            everything_executable=self.window.settings.everything_executable,
+        )
+        queued = tab.model.request_folder_sizes(paths, calculator=calculator)
+        if not announce:
+            return int(queued)
+        if queued <= 0:
+            self.window.statusBar().showMessage(
+                "Folder sizes are already calculated or in progress.",
+                2400,
+            )
+            return int(queued)
+        if calculator.uses_everything_sdk:
+            self.window.statusBar().showMessage(
+                "Calculating folder sizes with Everything SDK when available.",
+                2600,
+            )
+            return int(queued)
+        self.window.statusBar().showMessage(
+            "Calculating folder sizes with native recursive scanning.",
+            2600,
+        )
+        return int(queued)
+
+    def create_directory_in_target_for_tab(self, tab: ExplorerTab) -> None:
+        """Create one folder in the resolved target pane for the active tab."""
+
+        target_panel = self._target_panel_for_tab(tab)
+        if target_panel is None:
+            self.window.statusBar().showMessage(
+                "No target pane is available. Create another pane first.",
+                2400,
+            )
+            return
+        suggested_name = "New Folder"
+        selected = self._single_selected_or_current_path(tab)
+        if selected is not None:
+            suggested_name = selected.name or suggested_name
+        name, ok = QInputDialog.getText(
+            self.window,
+            "New folder in target pane",
+            "Folder name:",
+            text=suggested_name,
+        )
+        if not ok or not name.strip():
+            return
+
+        created_path: Path | None = None
+
+        def _create() -> None:
+            nonlocal created_path
+            created_path = file_ops.create_folder(
+                target_panel.current_path(),
+                name.strip(),
+            )
+
+        if not self._run_action(_create):
+            return
+        target_tab = target_panel.current_tab()
+        if target_tab is not None and created_path is not None:
+            target_tab.navigation.set_path(
+                target_panel.current_path(),
+                push_history=False,
+                selection_hint=created_path,
+            )
+        target_panel.navigation_coordinator.refresh_current_path()
+
+    def open_selected_or_current_in_target_pane(self, tab: ExplorerTab) -> None:
+        """Mirror one selected folder, or the current path, into the target pane."""
+
+        target_panel = self._target_panel_for_tab(tab)
+        if target_panel is None:
+            self.window.statusBar().showMessage(
+                "No target pane is available. Create another pane first.",
+                2400,
+            )
+            return
+        candidate = self._single_selected_or_current_path(tab)
+        target_path = (
+            candidate
+            if candidate is not None and candidate.is_dir()
+            else tab.navigation.path
+        )
+        target_tab = target_panel.current_tab()
+        if target_tab is None:
+            return
+        target_tab.navigation.set_path(target_path)
 
     def build_operation_request(
         self,
@@ -382,4 +544,46 @@ class WindowOperationsCoordinator:
         directories = [Path(path) for path in sources if Path(path).is_dir()]
         if not directories:
             return
-        source_tab.queue_folder_size_calculation(directories, announce=False)
+        self.queue_folder_size_calculation(
+            tab=source_tab,
+            paths=directories,
+            announce=False,
+        )
+
+    def _selected_or_current_paths(self, tab: ExplorerTab) -> list[Path]:
+        """Return selected paths, or fall back to the current row for one tab."""
+
+        selected = tab.selected_paths()
+        if selected:
+            return selected
+        current = tab.current_path_or_none()
+        return [current] if current is not None else []
+
+    def _single_selected_or_current_path(self, tab: ExplorerTab) -> Path | None:
+        """Return one selected or current path when the tab resolves exactly one."""
+
+        paths = self._selected_or_current_paths(tab)
+        if len(paths) != 1:
+            return None
+        return paths[0]
+
+    def _target_panel_for_tab(self, tab: ExplorerTab) -> PanelWidget | None:
+        """Resolve the current target panel when the provided tab is active."""
+
+        active_panel = self.window.panels_coordinator.active_panel()
+        if active_panel is None or active_panel.current_tab() is not tab:
+            return None
+        target_panel = self.window.panels_coordinator.target_panel()
+        if target_panel is active_panel:
+            return None
+        return target_panel
+
+    def _run_action(self, action: Callable[[], object]) -> bool:
+        """Run one local action and surface UI failures consistently."""
+
+        try:
+            action()
+        except Exception as exc:  # pragma: no cover - UI error path
+            QMessageBox.critical(self.window, "Operation failed", str(exc))
+            return False
+        return True
