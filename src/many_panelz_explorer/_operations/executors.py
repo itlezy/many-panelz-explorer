@@ -498,22 +498,66 @@ def execute_operation_request(
 ) -> OperationResult:
     """Dispatch an operation request to the configured backend executor."""
     backend = request.backend_id
+    native_result = _execute_native_backend(request, backend)
+    if native_result is not None:
+        return native_result
+    command_result = _execute_command_backend(
+        request,
+        backend=backend,
+        wait=wait,
+        preferences=preferences,
+        artifacts=artifacts,
+    )
+    if command_result is not None:
+        return command_result
+    archive_result = _execute_archive_backend(
+        request,
+        backend=backend,
+        wait=wait,
+        preferences=preferences,
+        artifacts=artifacts,
+    )
+    if archive_result is not None:
+        return archive_result
+    return OperationResult(status="failed", message=f"Unknown backend: {backend}")
+
+
+def _execute_native_backend(
+    request: OperationRequest,
+    backend: str,
+) -> OperationResult | None:
+    """Execute one native backend that does not need artifact helpers."""
+
     if backend == BACKEND_PYTHON:
         return execute_python_builtin(request)
-    if backend == BACKEND_RECYCLE_BIN:
-        if request.kind != "delete":
-            return OperationResult(
-                status="failed", message="Recycle Bin backend supports delete only."
-            )
-        for source in request.sources:
-            send2trash(to_windows_long_path(source))
-        return OperationResult(
-            status="succeeded",
-            message=f"Deleted {len(request.sources)} item(s) to Recycle Bin.",
-            processed_count=len(request.sources),
-        )
     if backend == BACKEND_PERMANENT_NATIVE:
         return execute_permanent_delete(request)
+    if backend != BACKEND_RECYCLE_BIN:
+        return None
+    if request.kind != "delete":
+        return OperationResult(
+            status="failed",
+            message="Recycle Bin backend supports delete only.",
+        )
+    for source in request.sources:
+        send2trash(to_windows_long_path(source))
+    return OperationResult(
+        status="succeeded",
+        message=f"Deleted {len(request.sources)} item(s) to Recycle Bin.",
+        processed_count=len(request.sources),
+    )
+
+
+def _execute_command_backend(
+    request: OperationRequest,
+    *,
+    backend: str,
+    wait: bool,
+    preferences: OperationExecutionPreferences,
+    artifacts: OperationArtifacts,
+) -> OperationResult | None:
+    """Execute one command-backed non-archive backend when supported."""
+
     if backend == BACKEND_EXPLORER:
         return execute_windows_explorer(
             request,
@@ -523,16 +567,6 @@ def execute_operation_request(
         )
     if backend == BACKEND_ROBOCOPY:
         return execute_robocopy(request, artifacts, wait=wait, preferences=preferences)
-    if backend == BACKEND_TERACOPY:
-        return execute_external_command(
-            request,
-            artifacts,
-            wait=wait,
-            preferences=preferences,
-            executable=preferences.teracopy_executable,
-            args_template=preferences.teracopy_args_template,
-            use_extended_paths_default=preferences.use_extended_paths_teracopy,
-        )
     if backend == BACKEND_UNSTOPPABLE:
         return execute_unstoppable(
             request,
@@ -540,72 +574,115 @@ def execute_operation_request(
             wait=wait,
             preferences=preferences,
         )
-    if backend == BACKEND_EXTERNAL_COPYMOVE:
-        return execute_external_command(
+    if backend == BACKEND_CMD_DELETE:
+        return execute_cmd_delete(
             request,
             artifacts,
             wait=wait,
             preferences=preferences,
-            executable=preferences.generic_copymove_executable,
-            args_template=preferences.generic_copymove_args_template,
-            use_extended_paths_default=preferences.use_extended_paths_external_copymove,
-        )
-    if backend == BACKEND_CMD_DELETE:
-        return execute_cmd_delete(
-            request, artifacts, wait=wait, preferences=preferences
         )
     if backend == BACKEND_POWERSHELL_DELETE:
         return execute_powershell_delete(
-            request, artifacts, wait=wait, preferences=preferences
+            request,
+            artifacts,
+            wait=wait,
+            preferences=preferences,
         )
     if backend == BACKEND_RIMRAF:
         return execute_rimraf_delete(
-            request, artifacts, wait=wait, preferences=preferences
-        )
-    if backend == BACKEND_EXTERNAL_DELETE:
-        return execute_external_command(
             request,
             artifacts,
             wait=wait,
             preferences=preferences,
-            executable=preferences.generic_delete_executable,
-            args_template=preferences.generic_delete_args_template,
-            use_extended_paths_default=preferences.use_extended_paths_external_delete,
         )
-    if backend == BACKEND_ARCHIVE_7ZIP:
-        if request.kind == "archive_test":
-            args_template = DEFAULT_SEVEN_ZIP_TEST_ARGS
-        else:
-            args_template = (
-                preferences.seven_zip_pack_args_template
-                if request.kind == "pack"
-                else preferences.seven_zip_unpack_args_template
-            )
-        return execute_external_command(
-            request,
-            artifacts,
-            wait=wait,
-            preferences=preferences,
-            executable=preferences.seven_zip_executable,
-            args_template=args_template,
-            use_extended_paths_default=False,
-        )
-    if backend == BACKEND_ARCHIVE_WINRAR:
-        if request.kind == "archive_test":
-            args_template = DEFAULT_WINRAR_TEST_ARGS
-        else:
-            args_template = (
-                preferences.winrar_pack_args_template
-                if request.kind == "pack"
-                else preferences.winrar_unpack_args_template
-            )
-        return execute_external_command(
-            request,
-            artifacts,
-            wait=wait,
-            preferences=preferences,
-            executable=preferences.winrar_executable,
-            args_template=args_template,
-            use_extended_paths_default=False,
-        )
-    return OperationResult(status="failed", message=f"Unknown backend: {backend}")
+    command_specs = {
+        BACKEND_TERACOPY: (
+            preferences.teracopy_executable,
+            preferences.teracopy_args_template,
+            preferences.use_extended_paths_teracopy,
+        ),
+        BACKEND_EXTERNAL_COPYMOVE: (
+            preferences.generic_copymove_executable,
+            preferences.generic_copymove_args_template,
+            preferences.use_extended_paths_external_copymove,
+        ),
+        BACKEND_EXTERNAL_DELETE: (
+            preferences.generic_delete_executable,
+            preferences.generic_delete_args_template,
+            preferences.use_extended_paths_external_delete,
+        ),
+    }
+    spec = command_specs.get(backend)
+    if spec is None:
+        return None
+    executable, args_template, use_extended_paths_default = spec
+    return execute_external_command(
+        request,
+        artifacts,
+        wait=wait,
+        preferences=preferences,
+        executable=executable,
+        args_template=args_template,
+        use_extended_paths_default=use_extended_paths_default,
+    )
+
+
+def _execute_archive_backend(
+    request: OperationRequest,
+    *,
+    backend: str,
+    wait: bool,
+    preferences: OperationExecutionPreferences,
+    artifacts: OperationArtifacts,
+) -> OperationResult | None:
+    """Execute one archive backend when the request selects one."""
+
+    archive_specs = {
+        BACKEND_ARCHIVE_7ZIP: (
+            preferences.seven_zip_executable,
+            preferences.seven_zip_pack_args_template,
+            preferences.seven_zip_unpack_args_template,
+            DEFAULT_SEVEN_ZIP_TEST_ARGS,
+        ),
+        BACKEND_ARCHIVE_WINRAR: (
+            preferences.winrar_executable,
+            preferences.winrar_pack_args_template,
+            preferences.winrar_unpack_args_template,
+            DEFAULT_WINRAR_TEST_ARGS,
+        ),
+    }
+    spec = archive_specs.get(backend)
+    if spec is None:
+        return None
+    executable, pack_args, unpack_args, test_args = spec
+    args_template = _archive_args_template(
+        request.kind,
+        pack_args=pack_args,
+        unpack_args=unpack_args,
+        test_args=test_args,
+    )
+    return execute_external_command(
+        request,
+        artifacts,
+        wait=wait,
+        preferences=preferences,
+        executable=executable,
+        args_template=args_template,
+        use_extended_paths_default=False,
+    )
+
+
+def _archive_args_template(
+    request_kind: str,
+    *,
+    pack_args: str,
+    unpack_args: str,
+    test_args: str,
+) -> str:
+    """Resolve the correct archive argument template for one request kind."""
+
+    if request_kind == "archive_test":
+        return test_args
+    if request_kind == "pack":
+        return pack_args
+    return unpack_args

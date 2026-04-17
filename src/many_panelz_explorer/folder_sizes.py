@@ -235,7 +235,9 @@ def find_everything_sdk_dll(*, everything_executable: str) -> Path | None:
             Path(r"C:\Program Files\Everything\Everything64.dll"),
             Path(r"C:\Program Files (x86)\Everything\Everything64.dll"),
             Path(os.path.expandvars(r"%PROGRAMFILES%\Everything\Everything64.dll")),
-            Path(os.path.expandvars(r"%PROGRAMFILES(X86)%\Everything\Everything64.dll")),
+            Path(
+                os.path.expandvars(r"%PROGRAMFILES(X86)%\Everything\Everything64.dll")
+            ),
             Path.cwd() / EVERYTHING_DLL_NAME,
         ]
     )

@@ -157,15 +157,13 @@ def test_resolve_terminal_launcher_paths_uses_comspec_env_and_pwsh_path(
         resolved_windows_terminal,
         resolved_alacritty,
         resolved_wezterm,
-    ) = (
-        resolve_terminal_launcher_paths(
-            comspec_executable="%ComSpec%",
-            pwsh_executable="pwsh.exe",
-            powershell5_executable="powershell.exe",
-            windows_terminal_executable="wt.exe",
-            alacritty_executable="alacritty.exe",
-            wezterm_executable="wezterm-gui.exe",
-        )
+    ) = resolve_terminal_launcher_paths(
+        comspec_executable="%ComSpec%",
+        pwsh_executable="pwsh.exe",
+        powershell5_executable="powershell.exe",
+        windows_terminal_executable="wt.exe",
+        alacritty_executable="alacritty.exe",
+        wezterm_executable="wezterm-gui.exe",
     )
 
     assert resolved_comspec == str(cmd_path)

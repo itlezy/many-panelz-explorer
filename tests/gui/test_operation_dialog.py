@@ -290,6 +290,4 @@ def test_operation_dialog_updates_selection_size_summary_from_folder_sizes(
     model.status = "ready"
     model.bytes_value = 12
     model.folder_size_state_changed.emit(str(source_dir), "ready", 12)
-    qtbot.waitUntil(
-        lambda: "Selection size: 17" in dialog.summary_label.text()
-    )
+    qtbot.waitUntil(lambda: "Selection size: 17" in dialog.summary_label.text())

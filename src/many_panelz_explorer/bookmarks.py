@@ -6,7 +6,7 @@ import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypeGuard, cast
 
 from threep_commons.fs_paths import normalize_windows_path_text, path_key
 
@@ -253,12 +253,14 @@ def build_bookmark_tree(collection: BookmarkCollection) -> BookmarkFolderNode:
 def _parse_folders(raw_entries: object) -> list[BookmarkFolder]:
     folders: list[BookmarkFolder] = []
     seen_paths: set[str] = set()
-    if not isinstance(raw_entries, list):
+    if not _is_object_list(raw_entries):
         return folders
     for raw_entry in raw_entries:
-        if not isinstance(raw_entry, dict):
+        if not _is_string_object_dict(raw_entry):
             continue
-        folder_path = normalize_bookmark_folder_path(str(raw_entry.get("path", "")))
+        folder_path = normalize_bookmark_folder_path(
+            _entry_string_value(raw_entry, "path")
+        )
         if not folder_path or folder_path in seen_paths:
             continue
         folders.append(BookmarkFolder(path=folder_path))
@@ -269,13 +271,13 @@ def _parse_folders(raw_entries: object) -> list[BookmarkFolder]:
 def _parse_bookmarks(raw_entries: object) -> list[Bookmark]:
     bookmarks: list[Bookmark] = []
     seen_paths: set[str] = set()
-    if not isinstance(raw_entries, list):
+    if not _is_object_list(raw_entries):
         return bookmarks
     for raw_entry in raw_entries:
-        if not isinstance(raw_entry, dict):
+        if not _is_string_object_dict(raw_entry):
             continue
-        label = str(raw_entry.get("label", "")).strip()
-        path_text = str(raw_entry.get("path", "")).strip()
+        label = _entry_string_value(raw_entry, "label").strip()
+        path_text = _entry_string_value(raw_entry, "path").strip()
         if not label or not path_text:
             continue
         bookmark_path = Path(normalize_windows_path_text(path_text)).expanduser()
@@ -286,11 +288,34 @@ def _parse_bookmarks(raw_entries: object) -> list[Bookmark]:
             Bookmark(
                 label=label,
                 path=bookmark_path,
-                folder=normalize_bookmark_folder_path(str(raw_entry.get("folder", ""))),
+                folder=normalize_bookmark_folder_path(
+                    _entry_string_value(raw_entry, "folder")
+                ),
             )
         )
         seen_paths.add(dedupe_key)
     return bookmarks
+
+
+def _is_object_list(value: object) -> TypeGuard[list[object]]:
+    """Return whether the value is a plain object list."""
+
+    return isinstance(value, list)
+
+
+def _is_string_object_dict(value: object) -> TypeGuard[dict[str, object]]:
+    """Return whether the value is a string-keyed object mapping."""
+
+    if not isinstance(value, dict):
+        return False
+    raw_mapping = cast("dict[object, object]", value)
+    return all(isinstance(key, str) for key in raw_mapping)
+
+
+def _entry_string_value(entry: dict[str, object], key: str) -> str:
+    """Return one mapping value coerced to string for bookmark parsing."""
+
+    return str(entry.get(key, ""))
 
 
 def _append_folder_path_with_parents(

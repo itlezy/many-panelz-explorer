@@ -266,10 +266,7 @@ def test_help_text_mentions_total_commander_shortcuts(
     assert "Alt+F9: Open archive unpack dialog" in captured["text"]
     assert "Alt+Shift+F9: Test selected archives" in captured["text"]
     assert "Ctrl+L: Calculate size for selected/current folder" in captured["text"]
-    assert (
-        "Alt+Shift+Enter: Calculate size for all visible folders"
-        in captured["text"]
-    )
+    assert "Alt+Shift+Enter: Calculate size for all visible folders" in captured["text"]
     assert "Insert: Toggle selection and move down" in captured["text"]
     assert "Space: Toggle selection" in captured["text"]
     assert "Alt+F1: Open root picker for active tab" in captured["text"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import time
 import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import QBrush, QColor
+from shiboken6 import isValid
 from threep_commons.fs_paths import path_key
 
 from .file_icons import (
@@ -31,6 +33,7 @@ from .file_icons import (
     FILE_ICON_MODE_NONE,
     shared_file_icon_resolver,
 )
+from .runtime_trace import active_runtime_trace, trace_span
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -83,44 +86,59 @@ class FileListAggregate:
 
 
 def _scan_directory(path: Path) -> list[_DirEntry]:
+    started_ns = time.perf_counter_ns()
     entries: list[_DirEntry] = []
-    with os.scandir(path) as iterator:
-        for item in iterator:
-            item_path = Path(item.path)
-            try:
-                item_stat = item.stat(follow_symlinks=False)
-            except OSError:
-                continue
+    try:
+        with os.scandir(path) as iterator:
+            for item in iterator:
+                item_path = Path(item.path)
+                try:
+                    item_stat = item.stat(follow_symlinks=False)
+                except OSError:
+                    continue
 
-            try:
-                is_dir = item.is_dir(follow_symlinks=False)
-            except OSError:
-                is_dir = False
+                try:
+                    is_dir = item.is_dir(follow_symlinks=False)
+                except OSError:
+                    is_dir = False
 
-            name = item.name
-            extension = "" if is_dir else item_path.suffix.lstrip(".")
-            size = 0 if is_dir else int(item_stat.st_size)
-            hidden = name.startswith(".")
-            system = False
+                name = item.name
+                extension = "" if is_dir else item_path.suffix.lstrip(".")
+                size = 0 if is_dir else int(item_stat.st_size)
+                hidden = name.startswith(".")
+                system = False
 
-            if os.name == "nt":
-                attributes = int(getattr(item_stat, "st_file_attributes", 0))
-                hidden = hidden or bool(attributes & _HIDDEN_ATTRIBUTE_MASK)
-                system = bool(attributes & _SYSTEM_ATTRIBUTE_MASK)
+                if os.name == "nt":
+                    attributes = int(getattr(item_stat, "st_file_attributes", 0))
+                    hidden = hidden or bool(attributes & _HIDDEN_ATTRIBUTE_MASK)
+                    system = bool(attributes & _SYSTEM_ATTRIBUTE_MASK)
 
-            entries.append(
-                _DirEntry(
-                    path=item_path,
-                    name=name,
-                    extension=extension,
-                    is_dir=is_dir,
-                    size=size,
-                    modified_ts=float(item_stat.st_mtime),
-                    is_hidden=hidden,
-                    is_system=system,
+                entries.append(
+                    _DirEntry(
+                        path=item_path,
+                        name=name,
+                        extension=extension,
+                        is_dir=is_dir,
+                        size=size,
+                        modified_ts=float(item_stat.st_mtime),
+                        is_hidden=hidden,
+                        is_system=system,
+                    )
                 )
+        return entries
+    finally:
+        recorder = active_runtime_trace()
+        if recorder is not None:
+            recorder.record_complete(
+                "filesystem.scan_directory",
+                "filesystem",
+                started_ns=started_ns,
+                finished_ns=time.perf_counter_ns(),
+                args={
+                    "entry_count": len(entries),
+                    "path_depth": len(path.parts),
+                },
             )
-    return entries
 
 
 class _ModelSignals(QObject):
@@ -224,62 +242,98 @@ class FastDirModel(QAbstractTableModel):
         if not index.isValid():
             return None
 
-        if role == int(Qt.ItemDataRole.TextAlignmentRole) and index.column() == 2:
-            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        alignment = self._data_alignment(index, role)
+        if alignment is not None:
+            return alignment
 
         if role == int(Qt.ItemDataRole.UserRole):
             return self.filePath(index)
 
-        if role == int(Qt.ItemDataRole.DecorationRole) and index.column() == 0:
-            if self._is_parent_row(index.row()):
-                return None
-            entry = self._entry_for_row(index.row())
-            if entry is None:
-                return None
-            return shared_file_icon_resolver().icon_for_path(
-                entry.path,
-                is_dir=entry.is_dir,
-                mode=self._file_icon_mode,
-            )
+        if role == int(Qt.ItemDataRole.DecorationRole):
+            return self._decoration_data(index)
 
         if role == int(Qt.ItemDataRole.ForegroundRole):
-            if self._is_parent_row(index.row()):
-                return None
-            entry = self._entry_for_row(index.row())
-            if entry is None:
-                return None
-            if self._dim_hidden_entries and (entry.is_hidden or entry.is_system):
-                return QBrush(QColor("#7A7A7A"))
-            return None
+            return self._foreground_data(index)
 
         if role != int(Qt.ItemDataRole.DisplayRole):
             return None
 
+        return self._display_data(index)
+
+    def _data_alignment(
+        self,
+        index: QModelIndex | QPersistentModelIndex,
+        role: int,
+    ) -> int | None:
+        """Return alignment metadata for one cell when applicable."""
+
+        if role != int(Qt.ItemDataRole.TextAlignmentRole) or index.column() != 2:
+            return None
+        return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+    def _decoration_data(
+        self,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> object:
+        """Return icon decoration data for one file-list row."""
+
+        if index.column() != 0 or self._is_parent_row(index.row()):
+            return None
+        entry = self._entry_for_row(index.row())
+        if entry is None:
+            return None
+        return shared_file_icon_resolver().icon_for_path(
+            entry.path,
+            is_dir=entry.is_dir,
+            mode=self._file_icon_mode,
+        )
+
+    def _foreground_data(
+        self,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QBrush | None:
+        """Return foreground styling for hidden or system rows."""
+
+        if self._is_parent_row(index.row()):
+            return None
+        entry = self._entry_for_row(index.row())
+        if entry is None:
+            return None
+        if self._dim_hidden_entries and (entry.is_hidden or entry.is_system):
+            return QBrush(QColor("#7A7A7A"))
+        return None
+
+    def _display_data(
+        self,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> str:
+        """Return display text for one file-list cell."""
+
         row = index.row()
-        col = index.column()
-
+        column = index.column()
         if self._is_parent_row(row):
-            return ".." if col == 0 else ""
-
+            return ".." if column == 0 else ""
         entry = self._entry_for_row(row)
         if entry is None:
             return ""
-
-        if col == 0:
+        if column == 0:
             if not entry.is_dir:
                 return entry.name
             return self._format_directory_name(entry)
-        if col == 1:
+        if column == 1:
             return "" if entry.is_dir else entry.extension
-        if col == 2:
-            return (
-                self._format_directory_size(entry)
-                if entry.is_dir
-                else self._format_size(entry.size)
-            )
-        if col == 3:
+        if column == 2:
+            return self._display_size_text(entry)
+        if column == 3:
             return datetime.fromtimestamp(entry.modified_ts).strftime("%Y-%m-%d %H:%M")
         return ""
+
+    def _display_size_text(self, entry: _DirEntry) -> str:
+        """Return the rendered size text for one directory entry."""
+
+        if entry.is_dir:
+            return self._format_directory_size(entry)
+        return self._format_size(entry.size)
 
     def headerData(
         self,
@@ -325,15 +379,24 @@ class FastDirModel(QAbstractTableModel):
             model = model_ref()
             if model is None:
                 return
+            signals = model._live_signal_source()
+            if signals is None:
+                return
             try:
                 listing = future.result()
                 error: str | None = None
             except Exception as exc:  # pragma: no cover - defensive
                 listing = []
                 error = str(exc)
-            model._signals.listing_ready.emit(
-                request_id, str(target), list(listing), error
-            )
+            try:
+                signals.listing_ready.emit(
+                    request_id,
+                    str(target),
+                    list(listing),
+                    error,
+                )
+            except RuntimeError:
+                return
 
         future = self._executor.submit(_scan_directory, target)
         future.add_done_callback(_done_callback)
@@ -486,44 +549,53 @@ class FastDirModel(QAbstractTableModel):
             Number of newly queued folder calculations.
         """
 
-        queued = 0
-        generation = self._request_id
-        current_root_key = self._path_key(self._current_path)
-        unique_paths: dict[str, Path] = {}
-        for path in paths:
-            candidate = Path(path)
-            if (
-                not candidate.is_dir()
-                or self._path_key(candidate.parent) != current_root_key
-            ):
-                continue
-            unique_paths[self._path_key(candidate)] = candidate
-        for folder_key, folder_path in unique_paths.items():
-            existing_state = self._folder_size_states.get(folder_key)
-            if existing_state is not None and existing_state.status in {
-                "calculating",
-                "ready",
-            }:
-                continue
-            self._folder_size_states[folder_key] = _FolderSizeState(
-                path=folder_path,
-                status="calculating",
-            )
-            self.folder_size_state_changed.emit(
-                str(folder_path),
-                "calculating",
-                0,
-            )
-            self._emit_size_changed_for_path(folder_path)
-            queued += 1
-            future = self._executor.submit(calculator.calculate, folder_path)
-            future.add_done_callback(
-                self._folder_size_done_callback(
-                    request_id=generation,
-                    folder_path=folder_path,
+        with trace_span(
+            "filesystem.queue_folder_sizes",
+            "filesystem",
+            args={"candidate_count": len(paths)},
+        ):
+            queued = 0
+            generation = self._request_id
+            current_root_key = self._path_key(self._current_path)
+            unique_paths: dict[str, Path] = {}
+            for path in paths:
+                candidate = Path(path)
+                if (
+                    not candidate.is_dir()
+                    or self._path_key(candidate.parent) != current_root_key
+                ):
+                    continue
+                unique_paths[self._path_key(candidate)] = candidate
+            for folder_key, folder_path in unique_paths.items():
+                existing_state = self._folder_size_states.get(folder_key)
+                if existing_state is not None and existing_state.status in {
+                    "calculating",
+                    "ready",
+                }:
+                    continue
+                self._folder_size_states[folder_key] = _FolderSizeState(
+                    path=folder_path,
+                    status="calculating",
                 )
-            )
-        return queued
+                self.folder_size_state_changed.emit(
+                    str(folder_path),
+                    "calculating",
+                    0,
+                )
+                self._emit_size_changed_for_path(folder_path)
+                queued += 1
+                future = self._executor.submit(
+                    self._calculate_folder_size_with_trace,
+                    calculator,
+                    folder_path,
+                )
+                future.add_done_callback(
+                    self._folder_size_done_callback(
+                        request_id=generation,
+                        folder_path=folder_path,
+                    )
+                )
+            return queued
 
     def visible_directory_paths(self) -> list[Path]:
         """Return all currently visible directory rows in display order."""
@@ -594,6 +666,7 @@ class FastDirModel(QAbstractTableModel):
         entries: object,
         error: object,
     ) -> None:
+        started_ns = time.perf_counter_ns()
         if request_id != self._request_id:
             return
         if self._path_key(Path(path)) != self._path_key(self._current_path):
@@ -609,6 +682,18 @@ class FastDirModel(QAbstractTableModel):
             self._apply_entry_filters(parsed_entries)
         )
         self.endResetModel()
+        recorder = active_runtime_trace()
+        if recorder is not None:
+            recorder.record_complete(
+                "filesystem.apply_listing",
+                "filesystem",
+                started_ns=started_ns,
+                finished_ns=time.perf_counter_ns(),
+                args={
+                    "entry_count": len(self._visible_entries),
+                    "had_error": error is not None,
+                },
+            )
         self.directory_loaded.emit(str(self._current_path))
 
     def _on_folder_size_ready(
@@ -649,10 +734,45 @@ class FastDirModel(QAbstractTableModel):
             self._rebuild_visible(reset=True)
         self._emit_size_changed_for_path(folder_path)
 
+    def _live_signal_source(self) -> _ModelSignals | None:
+        """Return the signal helper only while its Qt object is still valid."""
+
+        if not isValid(self):
+            return None
+        signals = self._signals
+        if not isValid(signals):
+            return None
+        return signals
+
     def _refresh_filter_flags(self) -> None:
         self._show_hidden = bool(self._filter_flags & QDir.Filter.Hidden)
         self._show_system = bool(self._filter_flags & QDir.Filter.System)
         self._show_parent_entry = not bool(self._filter_flags & QDir.Filter.NoDotDot)
+
+    def _calculate_folder_size_with_trace(
+        self,
+        calculator: FolderSizeCalculator,
+        folder_path: Path,
+    ) -> int:
+        """Calculate one folder size while recording a trace span."""
+
+        started_ns = time.perf_counter_ns()
+        failed = False
+        try:
+            return int(calculator.calculate(folder_path))
+        except Exception:
+            failed = True
+            raise
+        finally:
+            recorder = active_runtime_trace()
+            if recorder is not None:
+                recorder.record_complete(
+                    "filesystem.calculate_folder_size",
+                    "filesystem",
+                    started_ns=started_ns,
+                    finished_ns=time.perf_counter_ns(),
+                    args={"failed": failed},
+                )
 
     def _apply_entry_filters(self, entries: list[_DirEntry]) -> list[_DirEntry]:
         filtered: list[_DirEntry] = []
@@ -915,17 +1035,23 @@ class FastDirModel(QAbstractTableModel):
             model = model_ref()
             if model is None:
                 return
+            signals = model._live_signal_source()
+            if signals is None:
+                return
             try:
                 result = int(future.result())
                 error: str | None = None
             except Exception as exc:  # pragma: no cover - defensive
                 result = 0
                 error = str(exc)
-            model._signals.folder_size_ready.emit(
-                request_id,
-                str(folder_path),
-                result,
-                error,
-            )
+            try:
+                signals.folder_size_ready.emit(
+                    request_id,
+                    str(folder_path),
+                    result,
+                    error,
+                )
+            except RuntimeError:
+                return
 
         return _done_callback

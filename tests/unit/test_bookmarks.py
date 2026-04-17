@@ -125,9 +125,7 @@ def test_bookmark_store_skips_incomplete_invalid_and_duplicate_entries(
 
     assert store.load() == BookmarkCollection(
         folders=(BookmarkFolder(path="Work"),),
-        bookmarks=(
-            Bookmark(label="Repo", path=Path("C:/prj/repo"), folder="Work"),
-        ),
+        bookmarks=(Bookmark(label="Repo", path=Path("C:/prj/repo"), folder="Work"),),
     )
 
 

@@ -90,9 +90,7 @@ def build_selection_size_line(
         return f"Selection size: {formatted_known}"
     details: list[str] = []
     if snapshot.pending_directory_count > 0:
-        details.append(
-            f"calculating {int(snapshot.pending_directory_count)} folder(s)"
-        )
+        details.append(f"calculating {int(snapshot.pending_directory_count)} folder(s)")
     if snapshot.unavailable_directory_count > 0:
         details.append(
             f"{int(snapshot.unavailable_directory_count)} folder size(s) unavailable"

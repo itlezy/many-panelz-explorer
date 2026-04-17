@@ -56,9 +56,7 @@ def test_session_roundtrip(qtbot, tmp_path: Path) -> None:
     source.show()
     qtbot.waitUntil(source.isMaximized)
 
-    first_panel_id = next(
-        panel_id for row in source.layout_rows for panel_id in row
-    )
+    first_panel_id = next(panel_id for row in source.layout_rows for panel_id in row)
     source.panels_coordinator.set_active_panel(first_panel_id)
     source.right_horizontal_tab_position_action.trigger()
     source.panels_coordinator.new_tab_in_active_panel()

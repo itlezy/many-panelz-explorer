@@ -515,9 +515,7 @@ class WindowUiComposer:
             self.window.panels_coordinator.focus_previous_panel
         )
 
-        self.window.next_tab_shortcut = QShortcut(
-            QKeySequence("Ctrl+Tab"), self.window
-        )
+        self.window.next_tab_shortcut = QShortcut(QKeySequence("Ctrl+Tab"), self.window)
         self.window.next_tab_shortcut.setContext(
             Qt.ShortcutContext.WidgetWithChildrenShortcut
         )

@@ -557,9 +557,7 @@ class ArchiveOperationDialog(QDialog):
                     "-ms=on" if self.seven_zip_pack_solid_checkbox.isChecked() else ""
                 ),
                 "header_mode": (
-                    "-mhc=on"
-                    if self.seven_zip_pack_header_checkbox.isChecked()
-                    else ""
+                    "-mhc=on" if self.seven_zip_pack_header_checkbox.isChecked() else ""
                 ),
                 "password_mode": self._pack_password_mode_for_backend(backend),
                 "header_encrypt_mode": (
