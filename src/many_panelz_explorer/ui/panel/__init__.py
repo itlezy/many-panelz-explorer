@@ -13,6 +13,7 @@ from .filter_overlay import PanelInlineFilterCoordinator
 from .navigation import PanelNavigationCoordinator
 from .presentation import PanelPresentationCoordinator
 from .state import PanelStateCoordinator
+from .tab_groups import PanelTabGroupsCoordinator
 from .widget_map import PanelWidgetMapCoordinator
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "PanelNavigationCoordinator",
     "PanelPresentationCoordinator",
     "PanelStateCoordinator",
+    "PanelTabGroupsCoordinator",
     "PanelWidgetMapCoordinator",
     "assign_panel_control_identities",
     "build_panel_filter",

@@ -275,10 +275,9 @@ class WindowPanelsCoordinator:
     def reopen_last_closed_tab(self) -> None:
         """Reopen the most recently closed tab into the best available panel."""
 
-        if not self.window.recently_closed_tabs:
+        closed_tab = self._take_last_closed_tab()
+        if closed_tab is None:
             return
-
-        closed_tab = self.window.recently_closed_tabs.pop(0)
         target_panel = self.active_panel()
         if target_panel is None:
             target_panel = self.window.panel_widgets.get(closed_tab["panel_id"])
@@ -650,13 +649,18 @@ class WindowPanelsCoordinator:
 
         return _handle_empty
 
-    def panel_closed_tab_callback(self, panel_id: int) -> Callable[[str], None]:
-        """Build the callback used when a panel closes a tab."""
+    def closed_tab_recorder(self, panel_id: int) -> Callable[[Path], None]:
+        """Build the callback used when a panel reports one closed tab."""
 
-        def _handle_tab_closed(path: str) -> None:
-            self._remember_closed_tab({"path": str(path), "panel_id": panel_id})
+        def _handle_tab_closed(path: Path) -> None:
+            self.remember_closed_tab_path(panel_id, path)
 
         return _handle_tab_closed
+
+    def remember_closed_tab_path(self, panel_id: int, path: Path) -> None:
+        """Record one closed tab path in the bounded window history."""
+
+        self._remember_closed_tab({"path": str(path), "panel_id": panel_id})
 
     def _remember_closed_tab(self, entry: ClosedTabState) -> None:
         """Push one closed tab onto the bounded recently closed history."""
@@ -671,6 +675,13 @@ class WindowPanelsCoordinator:
         self.window.recently_closed_tabs = [entry, *deduplicated][
             : self.CLOSED_TAB_HISTORY_LIMIT
         ]
+
+    def _take_last_closed_tab(self) -> ClosedTabState | None:
+        """Pop the most recent closed-tab entry when available."""
+
+        if not self.window.recently_closed_tabs:
+            return None
+        return self.window.recently_closed_tabs.pop(0)
 
     def _group_choice_labels(
         self,

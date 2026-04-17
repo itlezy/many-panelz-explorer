@@ -11,6 +11,8 @@ from PySide6.QtWidgets import QAbstractItemView, QTreeView, QWidget
 from shiboken6 import isValid
 from threep_commons.fs_paths import coerce_path, is_drive_root, path_key
 
+from .runtime_trace import trace_span
+
 if TYPE_CHECKING:
     from ._explorer_tab_columns import ExplorerTabColumns
     from .fast_dir_model import FastDirModel
@@ -117,33 +119,40 @@ class ExplorerTabNavigation(QObject):
         push_history: bool = True,
         selection_hint: Path | None = None,
     ) -> None:
-        target = coerce_path(path)
-        if not target.exists() or not target.is_dir():
-            target = Path.home()
-        previous_path = self.path if self._history else None
-        if previous_path is not None:
-            self._remember_current_row_for_path(previous_path)
-        prepare_for_path_change = getattr(self._owner, "prepare_for_path_change", None)
-        if callable(prepare_for_path_change):
-            prepare_for_path_change(previous_path, target)
+        with trace_span(
+            "navigation.set_path",
+            "navigation",
+            args={"push_history": push_history},
+        ):
+            target = coerce_path(path)
+            if not target.exists() or not target.is_dir():
+                target = Path.home()
+            previous_path = self.path if self._history else None
+            if previous_path is not None:
+                self._remember_current_row_for_path(previous_path)
+            prepare_for_path_change = getattr(
+                self._owner, "prepare_for_path_change", None
+            )
+            if callable(prepare_for_path_change):
+                prepare_for_path_change(previous_path, target)
 
-        self._show_parent_entry = self._should_show_parent_entry(target)
-        self._apply_model_filters()
+            self._show_parent_entry = self._should_show_parent_entry(target)
+            self._apply_model_filters()
 
-        if push_history:
-            if not self._history or self._history[self._history_index] != target:
-                self._history = self._history[: self._history_index + 1]
-                self._history.append(target)
-                self._history_index = len(self._history) - 1
-        elif not self._history:
-            self._history = [target]
-            self._history_index = 0
+            if push_history:
+                if not self._history or self._history[self._history_index] != target:
+                    self._history = self._history[: self._history_index + 1]
+                    self._history.append(target)
+                    self._history_index = len(self._history) - 1
+            elif not self._history:
+                self._history = [target]
+                self._history_index = 0
 
-        self._columns.preserve_for_reload()
-        index = self._model.setRootPath(str(target))
-        self._view.setRootIndex(index)
-        self._restore_current_row_for_path(target, preferred=selection_hint)
-        self.changed.emit()
+            self._columns.preserve_for_reload()
+            index = self._model.setRootPath(str(target))
+            self._view.setRootIndex(index)
+            self._restore_current_row_for_path(target, preferred=selection_hint)
+            self.changed.emit()
 
     def refresh(self) -> None:
         self.set_path(self.path, push_history=False)

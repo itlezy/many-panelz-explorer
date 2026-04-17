@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QSplitter, QWidget
 
 from ...explorer_tab import ExplorerTab
 from ...panel_widget import PanelWidget
+from ...runtime_trace import trace_span
 from .layout import WindowLayoutCoordinator
 
 if TYPE_CHECKING:
@@ -102,37 +103,45 @@ class WindowPanelRebuildCoordinator:
 
         normalized_rows = self._normalized_layout_rows()
         panel_ids = WindowLayoutCoordinator.ordered_panel_ids(normalized_rows)
-        self.window.layout_rows = normalized_rows
-        self.window.layout_coordinator.sync_panel_tree_from_rows()
+        with trace_span(
+            "window.rebuild_panels",
+            "layout",
+            args={
+                "panel_count": len(panel_ids),
+                "restoring_saved_active_panel": preferred_active_panel is not None,
+            },
+        ):
+            self.window.layout_rows = normalized_rows
+            self.window.layout_coordinator.sync_panel_tree_from_rows()
 
-        new_panel_widgets: dict[int, PanelWidget] = {}
-        for panel_id in panel_ids:
-            panel = self._build_panel_widget(
-                panel_id,
-                tabs_state.get(panel_id),
-                panel_activated_callback=panel_activated_callback,
-                panel_empty_callback=panel_empty_callback,
+            new_panel_widgets: dict[int, PanelWidget] = {}
+            for panel_id in panel_ids:
+                panel = self._build_panel_widget(
+                    panel_id,
+                    tabs_state.get(panel_id),
+                    panel_activated_callback=panel_activated_callback,
+                    panel_empty_callback=panel_empty_callback,
+                )
+                new_panel_widgets[panel_id] = panel
+
+            self.window.panel_widgets = new_panel_widgets
+
+            root_widget = _build_rows_widget(
+                self.window,
+                self.window.panel_widgets,
+                self.window.layout_rows,
             )
-            new_panel_widgets[panel_id] = panel
+            if root_widget is None:
+                root_widget = QWidget()
 
-        self.window.panel_widgets = new_panel_widgets
+            _clear_layout(self.window)
+            self.window.central_layout.addWidget(root_widget)
 
-        root_widget = _build_rows_widget(
-            self.window,
-            self.window.panel_widgets,
-            self.window.layout_rows,
-        )
-        if root_widget is None:
-            root_widget = QWidget()
-
-        _clear_layout(self.window)
-        self.window.central_layout.addWidget(root_widget)
-
-        target_active = self._resolved_active_panel_id(preferred_active_panel)
-        if target_active is not None:
-            set_active_panel(target_active)
-        else:
-            self.window.update_pane_visuals()
+            target_active = self._resolved_active_panel_id(preferred_active_panel)
+            if target_active is not None:
+                set_active_panel(target_active)
+            else:
+                self.window.update_pane_visuals()
 
     def _normalized_layout_rows(self) -> PanelRows:
         """Return normalized layout rows, ensuring at least one panel exists."""
@@ -154,42 +163,50 @@ class WindowPanelRebuildCoordinator:
     ) -> PanelWidget:
         """Create and restore one panel widget for the given identifier."""
 
-        panel = PanelWidget(
-            panel_id=panel_id,
-            default_path=self._resolved_seed_path(
-                self.window.preferences_coordinator.initial_path
-            ),
-            show_hidden=self.window.preferences_coordinator.show_hidden_enabled,
-            show_root_dropdown=(
-                self.window.preferences_coordinator.show_root_dropdown_enabled
-            ),
-            show_tab_close_buttons=(
-                self.window.preferences_coordinator.show_tab_close_buttons_enabled
-            ),
-            file_list_size_formatter=(
-                self.window.preferences_coordinator.format_file_list_bytes
-            ),
-            properties_size_formatter=(
-                self.window.preferences_coordinator.format_properties_bytes
-            ),
-            roots_provider=self.window.roots_provider,
-            parent=self.window,
-        )
-        panel.enable_right_click_row_selection = (
-            self.window.preferences_coordinator.enable_right_click_row_selection
-        )
-        panel.set_keypad_mark_scope(
-            self.window.preferences_coordinator.keypad_mark_scope
-        )
-        self._connect_panel_signals(
-            panel_id,
-            panel,
-            panel_activated_callback=panel_activated_callback,
-            panel_empty_callback=panel_empty_callback,
-        )
-        self._restore_panel_state(panel, panel_state)
-        self._apply_panel_preferences(panel)
-        return panel
+        with trace_span(
+            "panel.build",
+            "layout",
+            args={
+                "panel_id": panel_id,
+                "has_saved_state": panel_state is not None,
+            },
+        ):
+            panel = PanelWidget(
+                panel_id=panel_id,
+                default_path=self._resolved_seed_path(
+                    self.window.preferences_coordinator.initial_path
+                ),
+                show_hidden=self.window.preferences_coordinator.show_hidden_enabled,
+                show_root_dropdown=(
+                    self.window.preferences_coordinator.show_root_dropdown_enabled
+                ),
+                show_tab_close_buttons=(
+                    self.window.preferences_coordinator.show_tab_close_buttons_enabled
+                ),
+                file_list_size_formatter=(
+                    self.window.preferences_coordinator.format_file_list_bytes
+                ),
+                properties_size_formatter=(
+                    self.window.preferences_coordinator.format_properties_bytes
+                ),
+                roots_provider=self.window.roots_provider,
+                parent=self.window,
+            )
+            panel.enable_right_click_row_selection = (
+                self.window.preferences_coordinator.enable_right_click_row_selection
+            )
+            panel.set_keypad_mark_scope(
+                self.window.preferences_coordinator.keypad_mark_scope
+            )
+            self._connect_panel_signals(
+                panel_id,
+                panel,
+                panel_activated_callback=panel_activated_callback,
+                panel_empty_callback=panel_empty_callback,
+            )
+            self._restore_panel_state(panel, panel_state)
+            self._apply_panel_preferences(panel)
+            return panel
 
     def _connect_panel_signals(
         self,
@@ -207,8 +224,8 @@ class WindowPanelRebuildCoordinator:
             self.column_sync_coordinator.panel_widths_sync_callback(panel_id)
         )
         panel.became_empty.connect(panel_empty_callback(panel_id))
-        panel.tab_closed.connect(
-            self.window.panels_coordinator.panel_closed_tab_callback(panel_id)
+        panel.set_closed_tab_recorder(
+            self.window.panels_coordinator.closed_tab_recorder(panel_id)
         )
         panel.state_coordinator.set_column_width_auto_align_mode(
             self.window.preferences_coordinator.column_width_auto_align_mode

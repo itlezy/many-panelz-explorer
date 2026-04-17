@@ -1,5 +1,9 @@
 # Performance Observations — many-panelz-explorer
 
+Archived historical performance note. Treat the bottleneck descriptions here as
+point-in-time observations only; the current canonical backlog is
+`docs/BACKLOG.md`.
+
 ## Why Tabs Feel Slow
 
 ### Root Cause #1 — `rebuild_root_buttons()` runs on every tab switch

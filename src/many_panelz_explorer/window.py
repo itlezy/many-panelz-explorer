@@ -24,6 +24,7 @@ from threep_commons.qt.widget_identity import assign_widget_identity
 from . import widget_naming
 from ._context import ContextMenuController
 from .external_file_managers import ExternalFileManagerLauncher
+from .runtime_trace import trace_span
 from .ui.window import (
     WindowBookmarksCoordinator,
     WindowLayoutCoordinator,
@@ -54,7 +55,7 @@ if TYPE_CHECKING:
     from .app_controller import AppController
     from .operation_queue_widgets import OperationQueuePanel
     from .panel_widget import PanelWidget
-    from .ui.window.state_types import ClosedTabState, PanelRows, TabsState
+    from .ui.window.state_types import ClosedTabState, TabsState
     from .ui.window.status import StorageOverviewLabel
 
 
@@ -197,96 +198,104 @@ class ExplorerWindow(QMainWindow):
         roots_provider: RootsProvider | None = None,
     ) -> None:
         super().__init__(None)
-        self.controller = controller
-        self.settings = settings
-        self.window_id = window_id or uuid.uuid4().hex
-        self.roots_provider = roots_provider
-        self.active_panel_id: int | None = None
-        self.last_non_source_panel_id: int | None = None
+        with trace_span(
+            "window.init",
+            "window",
+            args={"has_initial_path": initial_path is not None},
+        ):
+            self.controller = controller
+            self.settings = settings
+            self.window_id = window_id or uuid.uuid4().hex
+            self.roots_provider = roots_provider
+            self.active_panel_id: int | None = None
+            self.last_non_source_panel_id: int | None = None
 
-        self.layout_coordinator = WindowLayoutCoordinator(self)
-        self.panel_tree = self.layout_coordinator.default_startup_tree()
-        self.panels_coordinator = WindowPanelsCoordinator(self)
-        self.status_coordinator = WindowStatusCoordinator(self)
-        self.operations_coordinator = WindowOperationsCoordinator(self)
-        self.external_file_manager_launcher = ExternalFileManagerLauncher(self)
-        self.persistence_coordinator = WindowPersistenceCoordinator(self)
-        ui_preferences = self.settings.ui_preferences()
-        self.preferences_coordinator = WindowPreferencesCoordinator(
-            self,
-            initial_path=initial_path,
-            preferences=ui_preferences,
-        )
-        self.views_coordinator = WindowViewsCoordinator(self)
-        self.bookmarks_coordinator = WindowBookmarksCoordinator(self)
-        self.ui_composer = WindowUiComposer(self)
-        self.context_menu_controller: ContextMenuController | None = None
+            self.layout_coordinator = WindowLayoutCoordinator(self)
+            self.panel_tree = self.layout_coordinator.default_startup_tree()
+            self.panels_coordinator = WindowPanelsCoordinator(self)
+            self.status_coordinator = WindowStatusCoordinator(self)
+            self.operations_coordinator = WindowOperationsCoordinator(self)
+            self.external_file_manager_launcher = ExternalFileManagerLauncher(self)
+            self.persistence_coordinator = WindowPersistenceCoordinator(self)
+            ui_preferences = self.settings.ui_preferences()
+            self.preferences_coordinator = WindowPreferencesCoordinator(
+                self,
+                initial_path=initial_path,
+                preferences=ui_preferences,
+            )
+            self.views_coordinator = WindowViewsCoordinator(self)
+            self.bookmarks_coordinator = WindowBookmarksCoordinator(self)
+            self.ui_composer = WindowUiComposer(self)
+            self.context_menu_controller: ContextMenuController | None = None
 
-        self.layout_rows: PanelRows = self.layout_coordinator.rows_from_tree(
-            self.panel_tree.root
-        )
-        self.panel_widgets: dict[int, PanelWidget] = {}
-        self.recently_closed_tabs: list[ClosedTabState] = []
+            self.layout_rows = self.layout_coordinator.rows_from_tree(
+                self.panel_tree.root
+            )
+            self.panel_widgets: dict[int, PanelWidget] = {}
+            self.recently_closed_tabs: list[ClosedTabState] = []
 
-        self._central = QWidget(self)
-        self.central_layout = QVBoxLayout(self._central)
-        self.central_layout.setContentsMargins(0, 0, 0, 0)
-        self.setCentralWidget(self._central)
-        self.default_maximize_on_first_show = True
-        self._did_schedule_initial_autofit = False
-        self._context_menu_refresh_dirty = False
-        self._context_menu_refresh_timer = QTimer(self)
-        self._context_menu_refresh_timer.setSingleShot(True)
-        self._context_menu_refresh_timer.timeout.connect(
-            self._flush_context_menu_refresh
-        )
+            self._central = QWidget(self)
+            self.central_layout = QVBoxLayout(self._central)
+            self.central_layout.setContentsMargins(0, 0, 0, 0)
+            self.setCentralWidget(self._central)
+            self.default_maximize_on_first_show = True
+            self._did_schedule_initial_autofit = False
+            self._context_menu_refresh_dirty = False
+            self._context_menu_refresh_timer = QTimer(self)
+            self._context_menu_refresh_timer.setSingleShot(True)
+            self._context_menu_refresh_timer.timeout.connect(
+                self._flush_context_menu_refresh
+            )
 
-        self.ui_composer.build_actions()
-        self.ui_composer.build_menus()
-        self.context_menu_controller = ContextMenuController(self, self.context_menu)
-        self.context_menu.aboutToShow.connect(self._on_context_menu_about_to_show)
-        self.ui_composer.build_shortcuts()
-        self.ui_composer.build_operation_queue_widgets()
-        self.status_coordinator.set_storage_bytes_formatter(
-            self.preferences_coordinator.format_status_bar_bytes
-        )
-        self.status_coordinator.set_storage_label_template(
-            self.preferences_coordinator.status_bar_storage_label_template
-        )
-        self.status_coordinator.set_status_bar_visible(
-            self.preferences_coordinator.show_status_bar_enabled
-        )
-        self.status_coordinator.set_storage_overview_enabled(
-            self.preferences_coordinator.show_storage_overview_enabled
-        )
-        self.controller.operation_queue_manager.job_updated.connect(
-            self._on_operation_job_updated
-        )
+            with trace_span("window.build_actions", "window"):
+                self.ui_composer.build_actions()
+            with trace_span("window.build_menus", "window"):
+                self.ui_composer.build_menus()
+            self.context_menu_controller = ContextMenuController(
+                self, self.context_menu
+            )
+            self.context_menu.aboutToShow.connect(self._on_context_menu_about_to_show)
+            with trace_span("window.build_shortcuts", "window"):
+                self.ui_composer.build_shortcuts()
+            with trace_span("window.build_operation_queue_widgets", "window"):
+                self.ui_composer.build_operation_queue_widgets()
+            self.status_coordinator.set_storage_bytes_formatter(
+                self.preferences_coordinator.format_status_bar_bytes
+            )
+            self.status_coordinator.set_storage_label_template(
+                self.preferences_coordinator.status_bar_storage_label_template
+            )
+            self.status_coordinator.set_status_bar_visible(
+                self.preferences_coordinator.show_status_bar_enabled
+            )
+            self.status_coordinator.set_storage_overview_enabled(
+                self.preferences_coordinator.show_storage_overview_enabled
+            )
+            self.controller.operation_queue_manager.job_updated.connect(
+                self._on_operation_job_updated
+            )
 
-        self.setWindowTitle("Many Panelz Explorer")
-        window_widget_id = widget_naming.window_widget_id(self.window_id)
-        assign_widget_identity(
-            self,
-            widget_id=window_widget_id,
-            widget_alias="window",
-        )
-        self.setWindowFlag(Qt.WindowType.Window, True)
+            self.setWindowTitle("Many Panelz Explorer")
+            window_widget_id = widget_naming.window_widget_id(self.window_id)
+            assign_widget_identity(
+                self,
+                widget_id=window_widget_id,
+                widget_alias="window",
+            )
+            self.setWindowFlag(Qt.WindowType.Window, True)
 
-        empty_state: TabsState = {}
-        self.layout_coordinator.sync_panel_tree_from_rows()
-        self.panels_coordinator.rebuild_from_tree(
-            tabs_state=empty_state,
-            preferred_active_panel=None,
-        )
-        self.ui_composer.apply_operation_queue_visibility()
-        self._refresh_context_menu(immediate=True)
+            empty_state: TabsState = {}
+            self.layout_coordinator.sync_panel_tree_from_rows()
+            with trace_span("window.initial_panel_rebuild", "window"):
+                self.panels_coordinator.rebuild_from_tree(
+                    tabs_state=empty_state,
+                    preferred_active_panel=None,
+                )
+            self.ui_composer.apply_operation_queue_visibility()
+            self._refresh_context_menu(immediate=True)
 
     def clone_current_window(self) -> None:
-        new_window = self.controller.new_window(from_window=self, show=False)
-        new_window.persistence_coordinator.apply_cloned_state(
-            self.persistence_coordinator.serialize_state()
-        )
-        new_window.show()
+        self.persistence_coordinator.clone_to_new_window()
 
     def set_on_top(self, enabled: bool) -> None:
         on_top = bool(enabled)
@@ -421,10 +430,11 @@ class ExplorerWindow(QMainWindow):
             app.quit()
 
     def update_pane_visuals(self) -> None:
-        self.status_coordinator.update_pane_visuals()
-        self.ui_composer.sync_active_panel_tab_position_actions()
-        self.ui_composer.sync_active_panel_tab_group_actions()
-        self._refresh_context_menu()
+        with trace_span("window.update_pane_visuals", "ui"):
+            self.status_coordinator.update_pane_visuals()
+            self.ui_composer.sync_active_panel_tab_position_actions()
+            self.ui_composer.sync_active_panel_tab_group_actions()
+            self._refresh_context_menu()
 
     def _refresh_context_menu(self, *, immediate: bool = False) -> None:
         """Mark the context menu dirty and rebuild lazily or immediately."""
@@ -448,8 +458,9 @@ class ExplorerWindow(QMainWindow):
 
         if self.context_menu_controller is None or not self._context_menu_refresh_dirty:
             return
-        self._context_menu_refresh_dirty = False
-        self.context_menu_controller.rebuild()
+        with trace_span("context_menu.rebuild", "context_menu"):
+            self._context_menu_refresh_dirty = False
+            self.context_menu_controller.rebuild()
 
     def default_close_warning(self) -> bool:
         return window_default_close_warning(self)

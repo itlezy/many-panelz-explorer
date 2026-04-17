@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import (
     QEvent,
     QObject,
-    QSignalBlocker,
     Qt,
     Signal,
 )
@@ -33,14 +31,6 @@ from . import widget_naming
 from .explorer_tab import ExplorerTab
 from .file_icons import ALLOWED_FILE_ICON_MODES, FILE_ICON_MODE_NONE
 from .mounts import list_roots_for_navigation
-from .panel_groups import (
-    DEFAULT_TAB_GROUP_ID,
-    DEFAULT_TAB_GROUP_TITLE,
-    is_default_tab_group,
-    new_tab_group_id,
-    normalize_tab_group_id,
-    normalize_tab_group_title,
-)
 from .panel_tab_positions import (
     TAB_POSITION_MODE_BOTTOM,
     TAB_POSITION_MODE_DEFAULT,
@@ -52,11 +42,13 @@ from .panel_tab_positions import (
     normalize_panel_tab_position_mode,
     resolve_tab_position_mode,
 )
+from .runtime_trace import trace_span
 from .ui.panel import (
     PanelInlineFilterCoordinator,
     PanelNavigationCoordinator,
     PanelPresentationCoordinator,
     PanelStateCoordinator,
+    PanelTabGroupsCoordinator,
     PanelWidgetMapCoordinator,
     assign_panel_control_identities,
     build_panel_filter,
@@ -109,17 +101,6 @@ class _FocusWatcher(QObject):
         return super().eventFilter(obj, event)
 
 
-@dataclass(slots=True)
-class _PanelTabGroupRuntime:
-    """Track one panel-local tab group and its live tab widgets."""
-
-    group_id: str
-    title: str
-    tabs: list[ExplorerTab] = field(default_factory=list)
-    current_index: int = 0
-    column_widths: list[int] = field(default_factory=list)
-
-
 class PanelWidget(QWidget):
     """Own one pane of tabs, navigation widgets, and focus state."""
 
@@ -142,7 +123,6 @@ class PanelWidget(QWidget):
     current_context_changed = Signal()
     column_widths_sync_requested = Signal(list, object)
     became_empty = Signal()
-    tab_closed = Signal(str)
     focus_watcher: _FocusWatcher
     refresh_btn: QPushButton
     root_buttons_host: QWidget
@@ -169,6 +149,8 @@ class PanelWidget(QWidget):
     alt_down_shortcut: QShortcut
     ctrl_f_shortcut: QShortcut
     address_completion_timer: QTimer
+    tab_groups_coordinator: PanelTabGroupsCoordinator
+    _closed_tab_recorder: Callable[[Path], None] | None
 
     def __init__(
         self,
@@ -201,10 +183,7 @@ class PanelWidget(QWidget):
         self.breadcrumb_buttons = []
         self._history_menu: QMenu | None = None
         self._root_picker_menu: QMenu | None = None
-        self._tab_groups: dict[str, _PanelTabGroupRuntime] = {}
-        self._group_order: list[str] = []
-        self._active_group_id = DEFAULT_TAB_GROUP_ID
-        self._mounted_group_id: str | None = None
+        self._closed_tab_recorder = None
         self.pane_role = "normal"
         self._address_completions_enabled = True
         self.active_role_color = QColor("#A8B6C4")
@@ -270,7 +249,7 @@ class PanelWidget(QWidget):
         root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         build_panel_toolbar(self, root)
         build_panel_tabs(self, root)
-        self._ensure_default_group()
+        self.tab_groups_coordinator = PanelTabGroupsCoordinator(self)
         build_panel_filter(self)
         assign_panel_control_identities(self)
         install_panel_focus_watchers(self)
@@ -281,23 +260,23 @@ class PanelWidget(QWidget):
     def active_group_id(self) -> str:
         """Return the identifier of the active tab group."""
 
-        return self._active_group_id
+        return self.tab_groups_coordinator.active_group_id
 
     @property
     def active_group_title(self) -> str:
         """Return the title of the active tab group."""
 
-        return self._active_group().title
+        return self.tab_groups_coordinator.active_group_title
 
     def group_count(self) -> int:
         """Return the number of tab groups owned by this panel."""
 
-        return len(self._group_order)
+        return self.tab_groups_coordinator.group_count()
 
     def total_tab_count(self) -> int:
         """Return the total number of tabs across all panel groups."""
 
-        return sum(len(group.tabs) for group in self._tab_groups.values())
+        return self.tab_groups_coordinator.total_tab_count()
 
     def ordered_group_choices(
         self,
@@ -306,20 +285,14 @@ class PanelWidget(QWidget):
     ) -> list[tuple[str, str]]:
         """Return ordered `(group_id, title)` pairs for this panel."""
 
-        choices: list[tuple[str, str]] = []
-        for group_id in self._group_order:
-            if not include_active and group_id == self._active_group_id:
-                continue
-            group = self._tab_groups.get(group_id)
-            if group is None:
-                continue
-            choices.append((group.group_id, group.title))
-        return choices
+        return self.tab_groups_coordinator.ordered_group_choices(
+            include_active=include_active
+        )
 
     def can_close_active_group(self) -> bool:
         """Return whether the active tab group can be closed."""
 
-        return self.group_count() > 1
+        return self.tab_groups_coordinator.can_close_active_group()
 
     def create_group(
         self,
@@ -330,222 +303,64 @@ class PanelWidget(QWidget):
     ) -> str:
         """Create a new tab group and optionally activate it."""
 
-        group_id = new_tab_group_id()
-        group_title = normalize_tab_group_title(
-            title,
-            fallback=self._next_group_title(),
+        return self.tab_groups_coordinator.create_group(
+            title=title,
+            seed_paths=seed_paths,
+            activate=activate,
         )
-        group = _PanelTabGroupRuntime(group_id=group_id, title=group_title)
-        if seed_paths is not None:
-            group.tabs = [self._build_tab_widget(Path(path)) for path in seed_paths]
-            if group.tabs:
-                group.current_index = len(group.tabs) - 1
-        self._tab_groups[group_id] = group
-        self._group_order.append(group_id)
-        if activate:
-            self.switch_to_group(group_id, focus_view=bool(group.tabs))
-        else:
-            self._sync_group_picker_controls()
-            self.current_context_changed.emit()
-            self.widget_map_coordinator.sync_overlay()
-        return group_id
 
     def rename_group(self, group_id: str, title: str) -> bool:
         """Rename one existing tab group."""
 
-        group = self._tab_groups.get(normalize_tab_group_id(group_id))
-        if group is None:
-            return False
-        group.title = normalize_tab_group_title(title, fallback=group.title)
-        self._sync_group_picker_controls()
-        self.current_context_changed.emit()
-        self.widget_map_coordinator.sync_overlay()
-        return True
+        return self.tab_groups_coordinator.rename_group(group_id, title)
 
     def close_group(self, group_id: str) -> bool:
         """Close one tab group when more than one group exists."""
 
-        normalized_group_id = normalize_tab_group_id(group_id)
-        if normalized_group_id not in self._tab_groups or self.group_count() <= 1:
-            return False
-
-        if normalized_group_id == self._active_group_id:
-            self._save_active_group_state()
-            self._remove_visible_tabs(delete_widgets=True)
-        group = self._tab_groups.pop(normalized_group_id)
-        self._group_order = [
-            current_group_id
-            for current_group_id in self._group_order
-            if current_group_id != normalized_group_id
-        ]
-        if normalized_group_id != self._active_group_id:
-            for tab in group.tabs:
-                tab.deleteLater()
-
-        if not self._group_order:
-            self._active_group_id = DEFAULT_TAB_GROUP_ID
-            self._ensure_default_group()
-        target_group_id = (
-            self._active_group_id
-            if self._active_group_id in self._tab_groups
-            else self._group_order[0]
-        )
-        self.switch_to_group(target_group_id, focus_view=True)
-        return True
+        return self.tab_groups_coordinator.close_group(group_id)
 
     def switch_to_group(self, group_id: str, *, focus_view: bool = False) -> bool:
         """Switch the visible tab strip to the requested group."""
 
-        normalized_group_id = normalize_tab_group_id(group_id)
-        if normalized_group_id not in self._tab_groups:
-            return False
-
-        current_group_id = self._mounted_group_id
-        with QSignalBlocker(self.tabs):
-            if current_group_id in self._tab_groups:
-                self._save_active_group_state()
-            self._remove_visible_tabs(delete_widgets=False)
-            target_group = self._tab_groups[normalized_group_id]
-            for tab in target_group.tabs:
-                self.tabs.addTab(tab, _tab_label(tab.navigation.path))
-            if target_group.tabs:
-                target_index = max(
-                    0,
-                    min(target_group.current_index, len(target_group.tabs) - 1),
-                )
-                self.tabs.setCurrentIndex(target_index)
-                target_group.current_index = target_index
-            self._active_group_id = normalized_group_id
-            self._mounted_group_id = normalized_group_id
-
-        active_group = self._active_group()
-        self.column_widths = list(active_group.column_widths)
-        if (
-            self.column_widths
-            and self.column_width_auto_align_mode != self.COLUMN_ALIGN_MODE_NONE
-        ):
-            self.state_coordinator.apply_column_widths_to_panel_tabs(self.column_widths)
-        self._sync_group_picker_controls()
-        self.presentation_coordinator.sync_toolbar_for_current_tab()
-        self.current_context_changed.emit()
-        self.widget_map_coordinator.sync_overlay()
-        if focus_view:
-            self._focus_current_view()
-        return True
+        return self.tab_groups_coordinator.switch_to_group(
+            group_id,
+            focus_view=focus_view,
+        )
 
     def focus_relative_group(self, step: int) -> bool:
         """Move forward or backward through ordered tab groups."""
 
-        if not self._group_order:
-            return False
-        if self._active_group_id in self._group_order:
-            current_index = self._group_order.index(self._active_group_id)
-            next_index = (current_index + step) % len(self._group_order)
-        else:
-            next_index = 0
-        return self.switch_to_group(self._group_order[next_index], focus_view=True)
+        return self.tab_groups_coordinator.focus_relative_group(step)
 
     def clone_current_tab_to_new_group(self) -> str | None:
         """Create a new group seeded with a copy of the current tab path."""
 
-        tab = self.current_tab()
-        if tab is None:
-            return None
-        return self.create_group(
-            seed_paths=[tab.navigation.path],
-            activate=True,
-        )
+        return self.tab_groups_coordinator.clone_current_tab_to_new_group()
 
     def move_current_tab_to_group(self, target_group_id: str) -> bool:
         """Move the current tab into another group and activate that group."""
 
-        normalized_target_group_id = normalize_tab_group_id(target_group_id)
-        if normalized_target_group_id == self._active_group_id:
-            return False
-        target_group = self._tab_groups.get(normalized_target_group_id)
-        if target_group is None:
-            return False
-
-        current_index = self.tabs.currentIndex()
-        widget = self.tabs.widget(current_index)
-        if current_index < 0 or not isinstance(widget, ExplorerTab):
-            return False
-
-        with QSignalBlocker(self.tabs):
-            self.tabs.removeTab(current_index)
-        source_group = self._active_group()
-        source_group.tabs = self._visible_tabs()
-        source_group.current_index = max(self.tabs.currentIndex(), 0)
-        source_group.column_widths = list(self.column_widths)
-
-        target_group.tabs.append(widget)
-        target_group.current_index = len(target_group.tabs) - 1
-
-        if not source_group.tabs and self.group_count() > 1:
-            self._tab_groups.pop(source_group.group_id, None)
-            self._group_order = [
-                group_id
-                for group_id in self._group_order
-                if group_id != source_group.group_id
-            ]
-
-        return self.switch_to_group(normalized_target_group_id, focus_view=True)
+        return self.tab_groups_coordinator.move_current_tab_to_group(target_group_id)
 
     def move_current_tab_to_new_group(self) -> str | None:
         """Move the current tab into a newly created tab group."""
 
-        current_tab = self.current_tab()
-        if current_tab is None:
-            return None
-        target_group_id = self.create_group(activate=False)
-        moved = self.move_current_tab_to_group(target_group_id)
-        if not moved:
-            self.close_group(target_group_id)
-            return None
-        return target_group_id
+        return self.tab_groups_coordinator.move_current_tab_to_new_group()
 
     def add_tab(self, path: Path) -> ExplorerTab:
         """Add one explorer tab to the active tab group."""
 
-        source_tab = self.current_tab()
-        source_widths = (
-            list(source_tab.columns.widths) if source_tab is not None else []
-        )
-        tab = self._build_tab_widget(path)
-        self.tabs.addTab(tab, _tab_label(path))
-        self.tabs.setCurrentWidget(tab)
-        self._mounted_group_id = self._active_group_id
-        self.retitle_tab(tab)
-        self.state_coordinator.initialize_new_tab_column_widths(
-            tab=tab,
-            source_widths=source_widths,
-        )
-        self._save_active_group_state()
-        self.presentation_coordinator.sync_toolbar_for_current_tab()
-        self.activated.emit()
-        self.current_context_changed.emit()
-        self.widget_map_coordinator.sync_overlay()
-        return tab
+        return self.tab_groups_coordinator.add_tab(path)
 
     def serialize_tab_groups(self) -> list[TabGroupState]:
         """Serialize all tab groups owned by this panel."""
 
-        self._save_active_group_state()
-        return [
-            {
-                "group_id": group.group_id,
-                "title": group.title,
-                "current_index": group.current_index,
-                "tabs": [tab.serialize_state() for tab in group.tabs],
-                "column_widths": list(group.column_widths),
-            }
-            for group in self._ordered_group_runtimes()
-        ]
+        return self.tab_groups_coordinator.serialize_tab_groups()
 
     def sync_active_group_state(self) -> None:
         """Persist the visible tab widget state back into the active group."""
 
-        self._save_active_group_state()
+        self.tab_groups_coordinator.sync_active_group_state()
 
     def restore_tab_groups(
         self,
@@ -555,60 +370,15 @@ class PanelWidget(QWidget):
     ) -> None:
         """Restore this panel from serialized tab-group state."""
 
-        self._clear_all_group_tabs()
-        self._tab_groups = {}
-        self._group_order = []
-
-        for group_state in groups:
-            group_id = normalize_tab_group_id(
-                group_state.get("group_id"),
-                fallback=new_tab_group_id(),
-            )
-            if group_id in self._tab_groups:
-                continue
-            title = normalize_tab_group_title(
-                group_state.get("title"),
-                fallback=self._next_group_title(),
-            )
-            tabs: list[ExplorerTab] = [
-                self._build_tab_widget(Path(tab_state["path"]))
-                for tab_state in group_state.get("tabs", [])
-            ]
-            group = _PanelTabGroupRuntime(
-                group_id=group_id,
-                title=title,
-                tabs=tabs,
-                current_index=max(0, int(group_state.get("current_index", 0))),
-                column_widths=[
-                    width for width in group_state.get("column_widths", []) if width > 0
-                ],
-            )
-            self._tab_groups[group_id] = group
-            self._group_order.append(group_id)
-
-        if not self._group_order:
-            self._ensure_default_group()
-
-        requested_group_id = normalize_tab_group_id(
-            active_group_id,
-            fallback=self._group_order[0],
+        self.tab_groups_coordinator.restore_tab_groups(
+            groups,
+            active_group_id=active_group_id,
         )
-        target_group_id = (
-            requested_group_id
-            if requested_group_id in self._tab_groups
-            else self._group_order[0]
-        )
-        self.switch_to_group(target_group_id)
 
     def on_group_picker_index_changed(self, index: int) -> None:
         """Switch groups when the toolbar picker changes selection."""
 
-        if index < 0:
-            return
-        group_id = str(self.group_picker_combo.itemData(index) or "").strip()
-        if not group_id:
-            return
-        self.switch_to_group(group_id, focus_view=True)
+        self.tab_groups_coordinator.on_group_picker_index_changed(index)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.Resize and (
@@ -899,180 +669,82 @@ class PanelWidget(QWidget):
     def iter_all_tabs(self) -> list[ExplorerTab]:
         """Return all explorer tabs across every tab group."""
 
-        self._save_active_group_state()
-        tabs: list[ExplorerTab] = []
-        for group in self._ordered_group_runtimes():
-            tabs.extend(group.tabs)
-        return tabs
+        return self.tab_groups_coordinator.iter_all_tabs()
 
-    def _ordered_group_runtimes(self) -> list[_PanelTabGroupRuntime]:
-        """Return tab groups in their current visual order."""
+    def build_tab_widget(self, path: Path) -> ExplorerTab:
+        """Create one connected explorer tab widget for this panel."""
 
-        groups: list[_PanelTabGroupRuntime] = []
-        for group_id in self._group_order:
-            group = self._tab_groups.get(group_id)
-            if group is not None:
-                groups.append(group)
-        return groups
+        return self._build_tab_widget(path)
 
-    def _active_group(self) -> _PanelTabGroupRuntime:
-        """Return the active tab group runtime, creating the default when needed."""
+    def focus_current_view(self) -> None:
+        """Focus the visible file list in the current tab when available."""
 
-        group = self._tab_groups.get(self._active_group_id)
-        if group is not None:
-            return group
-        self._ensure_default_group()
-        active_group = self._tab_groups.get(self._active_group_id)
-        if active_group is None:
-            raise RuntimeError("Active tab group is missing after initialization.")
-        return active_group
-
-    def _ensure_default_group(self) -> None:
-        """Ensure the panel has an implicit default tab group."""
-
-        if self._group_order:
-            self._sync_group_picker_controls()
-            return
-        default_group = _PanelTabGroupRuntime(
-            group_id=DEFAULT_TAB_GROUP_ID,
-            title=DEFAULT_TAB_GROUP_TITLE,
-        )
-        self._tab_groups = {DEFAULT_TAB_GROUP_ID: default_group}
-        self._group_order = [DEFAULT_TAB_GROUP_ID]
-        self._active_group_id = DEFAULT_TAB_GROUP_ID
-        self._mounted_group_id = None
-        self._sync_group_picker_controls()
-
-    def _next_group_title(self) -> str:
-        """Return the next default title for a newly created tab group."""
-
-        existing_titles = {group.title for group in self._tab_groups.values()}
-        candidate = 1
-        while True:
-            title = f"Group {candidate}"
-            if title not in existing_titles:
-                return title
-            candidate += 1
-
-    def _sync_group_picker_controls(self) -> None:
-        """Refresh the toolbar group picker and its visibility."""
-
-        with QSignalBlocker(self.group_picker_combo):
-            self.group_picker_combo.clear()
-            current_index = -1
-            for index, group in enumerate(self._ordered_group_runtimes()):
-                self.group_picker_combo.addItem(group.title, group.group_id)
-                if group.group_id == self._active_group_id:
-                    current_index = index
-            if current_index >= 0:
-                self.group_picker_combo.setCurrentIndex(current_index)
-        self.group_picker_combo.setVisible(self._should_show_group_picker())
-
-    def _should_show_group_picker(self) -> bool:
-        """Return whether the group picker should be shown for this panel."""
-
-        if self.group_count() != 1:
-            return True
-        group = self._active_group()
-        return not is_default_tab_group(group_id=group.group_id, title=group.title)
-
-    def _visible_tabs(self) -> list[ExplorerTab]:
-        """Return the explorer tabs currently mounted in the visible tab widget."""
-
-        tabs: list[ExplorerTab] = []
-        for index in range(self.tabs.count()):
-            widget = self.tabs.widget(index)
-            if isinstance(widget, ExplorerTab):
-                tabs.append(widget)
-        return tabs
-
-    def _save_active_group_state(self) -> None:
-        """Copy the visible tab widget state back into the active group runtime."""
-
-        mounted_group_id = self._mounted_group_id
-        if mounted_group_id is None:
-            return
-        group = self._tab_groups.get(mounted_group_id)
-        if group is None:
-            return
-        group.tabs = self._visible_tabs()
-        group.current_index = max(self.tabs.currentIndex(), 0) if group.tabs else 0
-        group.column_widths = list(self.column_widths)
-
-    def _remove_visible_tabs(self, *, delete_widgets: bool) -> list[ExplorerTab]:
-        """Remove all visible tabs, optionally deleting their widgets."""
-
-        tabs: list[ExplorerTab] = []
-        while self.tabs.count() > 0:
-            widget = self.tabs.widget(0)
-            self.tabs.removeTab(0)
-            if isinstance(widget, ExplorerTab):
-                tabs.append(widget)
-        if delete_widgets:
-            for tab in tabs:
-                tab.deleteLater()
-        self._mounted_group_id = None
-        return tabs
+        self._focus_current_view()
 
     def _build_tab_widget(self, path: Path) -> ExplorerTab:
         """Create and connect one explorer tab widget for the given path."""
 
-        tab = ExplorerTab(
-            path,
-            show_hidden=self._show_hidden,
-            show_system_files=self._show_system_files,
-            directories_sort_mode=self._directories_sort_mode,
-            show_parent_dir_at_drive_root=self._show_parent_dir_at_drive_root,
-            show_square_brackets_around_directories=(
-                self._show_square_brackets_around_directories
-            ),
-            append_directory_backslash=self._append_directory_backslash,
-            name_sort_method=self._name_sort_method,
-            file_icon_mode=self._file_icon_mode,
-            dim_hidden_entries=self._dim_hidden_entries,
-            enable_right_click_row_selection=self.enable_right_click_row_selection,
-            keypad_mark_scope=self.keypad_mark_scope,
-            file_list_size_formatter=self.file_list_size_formatter,
-            properties_size_formatter=self.properties_size_formatter,
-            parent=self,
-        )
-        self.widget_map_coordinator.assign_tab_identity(tab)
+        with trace_span(
+            "panel.build_tab_widget",
+            "panel",
+            args={"panel_id": self.panel_id},
+        ):
+            tab = ExplorerTab(
+                path,
+                show_hidden=self._show_hidden,
+                show_system_files=self._show_system_files,
+                directories_sort_mode=self._directories_sort_mode,
+                show_parent_dir_at_drive_root=self._show_parent_dir_at_drive_root,
+                show_square_brackets_around_directories=(
+                    self._show_square_brackets_around_directories
+                ),
+                append_directory_backslash=self._append_directory_backslash,
+                name_sort_method=self._name_sort_method,
+                file_icon_mode=self._file_icon_mode,
+                dim_hidden_entries=self._dim_hidden_entries,
+                enable_right_click_row_selection=self.enable_right_click_row_selection,
+                keypad_mark_scope=self.keypad_mark_scope,
+                file_list_size_formatter=self.file_list_size_formatter,
+                properties_size_formatter=self.properties_size_formatter,
+                parent=self,
+            )
+            self.widget_map_coordinator.assign_tab_identity(tab)
 
-        def _on_navigation_changed(t: ExplorerTab = tab) -> None:
-            self.state_coordinator.on_tab_navigation_changed(t)
+            def _on_navigation_changed(t: ExplorerTab = tab) -> None:
+                self.state_coordinator.on_tab_navigation_changed(t)
 
-        def _on_widths_changed(widths: object, t: ExplorerTab = tab) -> None:
-            self.state_coordinator.on_tab_column_widths_changed(t, widths)
+            def _on_widths_changed(widths: object, t: ExplorerTab = tab) -> None:
+                self.state_coordinator.on_tab_column_widths_changed(t, widths)
 
-        tab.navigation.changed.connect(_on_navigation_changed)
-        tab.columns.changed.connect(_on_widths_changed)
-        tab.view.setFont(self.file_list_font_value)
-        tab.set_file_list_icon_metrics(
-            icon_size_px=self._file_icon_size_px,
-            padding_horizontal_px=self._file_icon_padding_horizontal,
-            padding_vertical_px=self._file_icon_padding_vertical,
-        )
+            tab.navigation.changed.connect(_on_navigation_changed)
+            tab.columns.changed.connect(_on_widths_changed)
+            tab.view.setFont(self.file_list_font_value)
+            tab.set_file_list_icon_metrics(
+                icon_size_px=self._file_icon_size_px,
+                padding_horizontal_px=self._file_icon_padding_horizontal,
+                padding_vertical_px=self._file_icon_padding_vertical,
+            )
 
-        tab.installEventFilter(self.focus_watcher)
-        tab.view.installEventFilter(self.focus_watcher)
-        tab.installEventFilter(self)
-        tab.view.installEventFilter(self)
-        return tab
+            tab.installEventFilter(self.focus_watcher)
+            tab.view.installEventFilter(self.focus_watcher)
+            tab.installEventFilter(self)
+            tab.view.installEventFilter(self)
+            return tab
 
-    def _clear_all_group_tabs(self) -> None:
-        """Delete every live tab widget tracked by this panel."""
+    def set_closed_tab_recorder(
+        self,
+        recorder: Callable[[Path], None] | None,
+    ) -> None:
+        """Register the window-level callback used for closed-tab history."""
 
-        self._save_active_group_state()
-        self._remove_visible_tabs(delete_widgets=False)
-        seen_tab_ids: set[int] = set()
-        for group in self._tab_groups.values():
-            for tab in group.tabs:
-                tab_key = id(tab)
-                if tab_key in seen_tab_ids:
-                    continue
-                seen_tab_ids.add(tab_key)
-                tab.deleteLater()
-        self.column_widths = []
+        self._closed_tab_recorder = recorder
+
+    def record_closed_tab_path(self, path: Path) -> None:
+        """Report one closed tab path to the owning window coordinator."""
+
+        if self._closed_tab_recorder is None:
+            return
+        self._closed_tab_recorder(Path(path))
 
     def _is_active_files_list_source(self, obj: QObject) -> bool:
         tab = self.current_tab()

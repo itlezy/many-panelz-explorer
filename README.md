@@ -112,7 +112,20 @@ Runs via `hatch run python -m many_panelz_explorer`. Requires `hatch` in PATH.
 python -m many_panelz_explorer
 ```
 
-No command-line arguments. The app restores the previous session (windows, panels, tabs) on startup.
+The app restores the previous session (windows, panels, tabs) on startup.
+
+### JSON Trace Profiling
+
+```bat
+python -m many_panelz_explorer --trace-json c:\tmp\many-panelz-trace.json
+```
+
+Writes a Chrome Trace Event JSON file on exit. Open it in [Perfetto](https://ui.perfetto.dev/)
+or `chrome://tracing` to inspect startup, panel rebuilds, navigation, directory scans,
+folder-size calculation work, and other instrumented spans.
+
+You can also enable the same output with the `MANY_PANELZ_TRACE_JSON` environment variable.
+The CLI flag takes precedence when both are set.
 
 ### Root Controls
 

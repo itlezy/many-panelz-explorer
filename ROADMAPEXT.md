@@ -1,5 +1,9 @@
 # many-panelz-explorer — Extended Feature Roadmap
 
+Archived historical planning note. The current canonical backlog is
+`docs/BACKLOG.md`. Keep this file only as point-in-time research and feature
+history.
+
 Features gathered from Total Commander (Ghisler) forum and Double Commander
 community (GitHub issues, SourceForge reviews, forum threads). Each entry is an
 independent candidate — not yet triaged into Planned/Backlog. IDs are prefixed

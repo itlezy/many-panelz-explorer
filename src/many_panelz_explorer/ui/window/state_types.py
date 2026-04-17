@@ -68,4 +68,5 @@ class WindowStatePayload(TypedDict):
     geometry_b64: NotRequired[str]
 
 
-type SavedViewState = WindowStatePayload
+type WindowStateSnapshot = WindowStatePayload
+type SavedViewState = WindowStateSnapshot

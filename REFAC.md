@@ -1,5 +1,9 @@
 # Refactoring Notes
 
+Archived historical engineering note. Treat file paths, line counts, and policy
+violations here as point-in-time observations only. The current canonical
+product backlog is `docs/BACKLOG.md`.
+
 ## Immediate Fix (Quick Win)
 
 **3 files need `ruff format`:**

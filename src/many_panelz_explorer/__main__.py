@@ -9,7 +9,11 @@ from .app_controller import AppController
 
 def main() -> int:
     """Run the desktop application."""
-    controller = AppController(argv=sys.argv)
+    try:
+        controller = AppController(argv=sys.argv)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     return controller.run()
 
 

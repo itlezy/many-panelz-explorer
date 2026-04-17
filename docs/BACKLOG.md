@@ -3,6 +3,9 @@
 This document is the canonical backlog for `many-panelz-explorer`.
 It consolidates the older roadmap files, the shortcut backlog, and the recent
 CommanderStyle research into one product-facing view.
+Older root-level planning notes (`ROADMAP.md`, `ROADMAPEXT.md`, `REFAC.md`, and
+`MMPERFOBS.md`) are retained only as archived historical references and are not
+authoritative backlog sources.
 The goal is not to reproduce another file manager. The goal is to build a
 dense, keyboard-capable, many-panel explorer that borrows proven ideas where
 they strengthen the app's own identity.
@@ -41,25 +44,27 @@ The product lens is always:
 | `ITEM_013` | File and Root Icon Pipeline | 1 | visual scanning | `DONE` |
 | `ITEM_014` | CommanderStyle Keyboard and Target-Pane Baseline | 1 | interaction model | `DONE` |
 | `ITEM_015` | Function Key Bar Adapted to Many Panels | 1 | operational chrome | `PLANNED` |
-| `ITEM_016` | Rich Per-Panel Footer and Status Strip | 1 | status visibility | `PLANNED` |
+| `ITEM_016` | Rich Per-Panel Footer and Status Strip | 1 | status visibility | `PARTIAL` |
 | `ITEM_017` | Numeric Keypad Marking Suite | 1 | selection operations | `DONE` |
 | `ITEM_018` | Dense Panel Chrome Mode | 1 | UI density | `PLANNED` |
-| `ITEM_019` | Multi-Panel Source and Target Affordance Upgrade | 1 | many-panel identity | `PLANNED` |
+| `ITEM_019` | Multi-Panel Source and Target Affordance Upgrade | 1 | many-panel identity | `PARTIAL` |
 | `ITEM_020` | Hotlist Expansion for Many Panels | 1 | bookmarks | `PLANNED` |
-| `ITEM_021` | Quick Filter Parity Without Command Line | 1 | filtering | `PLANNED` |
+| `ITEM_021` | Quick Filter Surface Without Command Line | 1 | filtering | `PARTIAL` |
 | `ITEM_022` | Keyboard Discoverability Layer | 1 | usability | `PLANNED` |
 | `ITEM_023` | Pane Sync and Mirror Navigation | 1 | multi-panel workflows | `PLANNED` |
-| `ITEM_024` | Open in many-panelz and Open in Explorer Workflow | 1 | context actions | `PLANNED` |
-| `ITEM_025` | Tab Context Menu and Advanced Tab Workflow | 2 | tabs | `PLANNED` |
-| `ITEM_026` | Column Control and Details View Density Improvements | 2 | file list presentation | `PLANNED` |
+| `ITEM_024` | Open in many-panelz and Open in Explorer Workflow | 1 | context actions | `PARTIAL` |
+| `ITEM_048` | Visible Git Branch and Dirty Surface | 1 | contextual workflows | `PARTIAL` |
+| `ITEM_025` | Tab Context Menu and Advanced Tab Workflow | 2 | tabs | `PARTIAL` |
+| `ITEM_026` | Column Control, Density, and Lightweight View Presets | 2 | file list presentation | `PARTIAL` |
 | `ITEM_027` | Per-Folder View Memory | 2 | persistence | `PLANNED` |
 | `ITEM_028` | Compare, Branch, and Structured Selection Workflows | 2 | power workflows | `PLANNED` |
-| `ITEM_029` | Footer Aggregates Beyond Size | 2 | status visibility | `PLANNED` |
-| `ITEM_030` | Named Workspace and Tab Sessions | 2 | workspace state | `PLANNED` |
-| `ITEM_031` | Visual Role Cues for Active, Target, and Related Panels | 2 | many-panel identity | `PLANNED` |
+| `ITEM_029` | Footer Aggregates Beyond Size | 2 | status visibility | `PARTIAL` |
+| `ITEM_030` | Named Workspace and Tab Sessions | 2 | workspace state | `PARTIAL` |
+| `ITEM_047` | First-Run Workspace Onboarding and Tool Detection | 2 | onboarding | `PLANNED` |
+| `ITEM_031` | Visual Role Cues for Active, Target, and Related Panels | 2 | many-panel identity | `PARTIAL` |
 | `ITEM_032` | Saved Filters and Search Workflows | 2 | filtering | `PLANNED` |
 | `ITEM_033` | Export and Import Full App Configuration | 2 | portability | `PLANNED` |
-| `ITEM_034` | Contextual Overlays and Repo-Aware Signals | 2 | contextual workflows | `PLANNED` |
+| `ITEM_034` | Repo-Aware Overlays and Signals | 2 | contextual workflows | `PARTIAL` |
 | `ITEM_035` | Checkbox-Assisted Marking Column | 2 | accessibility | `PLANNED` |
 | `ITEM_036` | Recent Files and Virtual Collection Views | 2 | alternate navigation | `PLANNED` |
 | `ITEM_037` | Thumbnail and Media-Oriented Alternate Views | 3 | alternate views | `PLANNED` |
@@ -78,8 +83,12 @@ The product lens is always:
 | Status | Meaning |
 |---|---|
 | `DONE` | Already implemented or effectively present in the current app surface. |
+| `PARTIAL` | A meaningful baseline is already shipped, but the backlog item still has a clear follow-up scope. |
 | `PLANNED` | Approved backlog direction for future work. |
 | `REJECTED` | Intentionally excluded from the product direction. |
+
+Prefer finishing `PARTIAL` items before starting higher-phase greenfield work unless
+there is a strong dependency or a deliberate product reprioritization.
 
 ## Phase 1
 
@@ -270,15 +279,15 @@ the window contains more than two panels.
 
 ### ITEM_016 — Rich Per-Panel Footer and Status Strip
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `1`
 - Theme: status visibility
 - CommanderStyle inspiration: always-visible selected counts, totals, and drive context
 - many-panelz direction: each panel should own a compact footer that remains legible even when many panels are visible
 - Notes:
-- The footer should show marked vs visible counts and sizes.
-- Free-space context should be panel-relevant when useful.
-- The design should prefer short stable fields over verbose prose.
+- The app already ships a per-tab footer with marked/visible counts, file and directory counts, known-size totals, pending folder-size counts, and free-space text.
+- The remaining work is to make the footer denser and more role-aware, especially when many panels are visible at once.
+- Queue and active-work signals should complement the footer without forcing the queue dock open.
 
 ### ITEM_017 — Numeric Keypad Marking Suite
 
@@ -306,15 +315,15 @@ the window contains more than two panels.
 
 ### ITEM_019 — Multi-Panel Source and Target Affordance Upgrade
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `1`
 - Theme: many-panel identity
 - CommanderStyle inspiration: strong source-target framing for copy and move workflows
 - many-panelz direction: generalize source-target cues for N panels instead of keeping them implicit or locked to a left-right mental model
 - Notes:
-- Make active, target, and related panels visually obvious.
-- Keep operations fast when several candidate target panels exist.
-- Favor clear cues over modal dialogs for simple source-target decisions.
+- The app already has active and target panel tinting plus a real target-panel resolver for copy, move, and open-in-target actions.
+- The remaining work is to make role assignment more obvious when more than two panels are visible.
+- The follow-up should reduce left-right assumptions in labels and make target selection easier to understand at a glance.
 
 ### ITEM_020 — Hotlist Expansion for Many Panels
 
@@ -328,17 +337,17 @@ the window contains more than two panels.
 - Nested folders and favorite groups should stay compact.
 - This is a multi-panel navigation tool, not just a static bookmarks file editor.
 
-### ITEM_021 — Quick Filter Parity Without Command Line
+### ITEM_021 — Quick Filter Surface Without Command Line
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `1`
 - Theme: filtering
 - CommanderStyle inspiration: quick file filtering and show-mode toggles
 - many-panelz direction: strengthen inline filtering and file-list modes while explicitly excluding any command-line workflow
 - Notes:
-- Filtering should stay visible and reversible.
-- The quick filter must be panel-local and keyboard-friendly.
-- This backlog item should absorb shortcut parity work such as `Ctrl+S` only if it supports the no-command-line direction.
+- The app already has a panel-local inline filter overlay that opens from typing and pushes text into the active tab filter state.
+- The remaining work is to make filter state more visible, reversible, and discoverable without changing the no-command-line direction.
+- Keep this item focused on fast inline filtering; reusable saved filters and broader search workflows belong in `ITEM_032`.
 
 ### ITEM_022 — Keyboard Discoverability Layer
 
@@ -366,15 +375,27 @@ the window contains more than two panels.
 
 ### ITEM_024 — Open in many-panelz and Open in Explorer Workflow
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `1`
 - Theme: context actions
 - CommanderStyle inspiration: fast handoff from one file-management surface to another
 - many-panelz direction: make it easy to open folders in a new app window, a new tab, or system Explorer without breaking the current many-panel session
 - Notes:
-- This should emphasize fast workspace branching.
-- Opening in a new many-panelz window is more important than shell parity for its own sake.
-- The labels should stay product-native and avoid clone language.
+- The app already ships Explorer handoff actions and strong target-pane opening/mirroring flows.
+- The missing piece is direct open-selected-folder-in-new-window and open-selected-folder-in-new-tab behavior from the file-list context.
+- This item should emphasize fast workspace branching, not just more shell-launch variants.
+
+### ITEM_048 — Visible Git Branch and Dirty Surface
+
+- Status: `PARTIAL`
+- Phase: `1`
+- Theme: contextual workflows
+- CommanderStyle inspiration: repository-aware file managers that surface branch and dirty state near the active path
+- many-panelz direction: expose repository state in panel or tab chrome without turning the app into a full Git client
+- Notes:
+- The app already detects Git roots, reads the current branch, and resolves remote-origin URLs for context actions.
+- The remaining work is to show lightweight branch and dirty/clean state in panel chrome or tab chrome and provide a direct handoff into `git-statuz`.
+- File-level repo overlays remain future work under `ITEM_034`; this item is about high-value chrome-level visibility first.
 
 ## Phase 2
 
@@ -384,27 +405,27 @@ and stronger workspace persistence for real multi-context usage.
 
 ### ITEM_025 — Tab Context Menu and Advanced Tab Workflow
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: tabs
 - CommanderStyle inspiration: duplicate, rename, lock, reopen, and list-based tab workflows
 - many-panelz direction: make tabs significantly more powerful because the app multiplies them across many panels
 - Notes:
-- Include duplicate, rename, lock, copy to another panel, and reopen closed.
-- A tab list popup should remain fast even with many open tabs across the layout.
-- Locking rules should respect the app’s own navigation model.
+- The app already persists recently closed tabs and supports reopening the last closed tab.
+- The remaining work is a real tab context menu with duplicate, rename, lock, copy-to-another-panel, and richer reopen history affordances.
+- Any tab list popup should remain fast even with many open tabs across the full layout.
 
-### ITEM_026 — Column Control and Details View Density Improvements
+### ITEM_026 — Column Control, Density, and Lightweight View Presets
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: file list presentation
 - CommanderStyle inspiration: dense details mode, tabstop control, and aligned scanning
 - many-panelz direction: improve details-mode readability before chasing multiple legacy view modes
 - Notes:
-- Prioritize better extension alignment, compact spacing, and column control.
-- This item is about scanability, not novelty.
-- It should work well in narrow panels.
+- The app already supports fit-columns, column-width alignment across current panel, all panels, and all windows, plus heavier saved workspace views.
+- The remaining work is lighter file-list-centric presets, stronger column visibility control, and better dense-mode defaults without requiring full workspace view saves.
+- Keep this item focused on scanability and file-list ergonomics rather than introducing new view modes.
 
 ### ITEM_027 — Per-Folder View Memory
 
@@ -416,6 +437,7 @@ and stronger workspace persistence for real multi-context usage.
 - Notes:
 - Sort column, direction, and display mode are the high-value fields.
 - Start with session-level memory before worrying about cross-machine portability.
+- Build on the lighter view-preset groundwork in `ITEM_026`, not on full saved workspace views alone.
 - This should complement, not fight, explicit user changes.
 
 ### ITEM_028 — Compare, Branch, and Structured Selection Workflows
@@ -432,39 +454,51 @@ and stronger workspace persistence for real multi-context usage.
 
 ### ITEM_029 — Footer Aggregates Beyond Size
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: status visibility
 - CommanderStyle inspiration: richer aggregate summaries for the current marked set
 - many-panelz direction: extend the panel footer with counts and aggregate signals that remain compact enough for many simultaneous panels
 - Notes:
-- File count, directory count, and selected aggregate size are the baseline.
-- Media duration or similar domain aggregates should stay optional.
-- Expensive aggregates must remain asynchronous.
+- File count, directory count, size totals, pending-folder-size counts, and free-space text are already present in the shipped footer baseline.
+- The remaining work is optional higher-order aggregates and active-work summaries that stay compact enough for dense multi-panel layouts.
+- Expensive aggregates must remain asynchronous and should not regress navigation responsiveness.
 
 ### ITEM_030 — Named Workspace and Tab Sessions
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: workspace state
 - CommanderStyle inspiration: saving sets of tabs or work contexts for later reuse
 - many-panelz direction: treat saved sessions as first-class multi-panel workspace snapshots, not just startup restore
 - Notes:
-- Named sessions should complement the current auto-restored session.
-- Opening a saved session in a new window is especially valuable for this app.
-- Session management should stay lightweight and visible.
+- The app already restores startup session state, persists recently closed tabs, and supports named saved views for heavier workspace snapshots.
+- The remaining work is clearer session vocabulary, lighter named tab/workspace snapshots, and explicit open-in-new-window restore flows.
+- Keep session management lightweight and visible instead of burying it behind only one heavyweight save/restore model.
+
+### ITEM_047 — First-Run Workspace Onboarding and Tool Detection
+
+- Status: `PLANNED`
+- Phase: `2`
+- Theme: onboarding
+- CommanderStyle inspiration: practical first-run setup flows that help the user reach a productive baseline quickly
+- many-panelz direction: guide users through roots, startup layout, and tool-path setup without turning the app into a wizard-driven product
+- Notes:
+- Cover initial roots, startup layout choice, terminal/editor/Git-tool path detection, and optional starter bookmarks.
+- Only show automatically on first run or when the user explicitly reopens setup from the UI.
+- Reuse the workspace’s existing widget-identity and setup-dialog conventions rather than inventing a separate UI style.
 
 ### ITEM_031 — Visual Role Cues for Active, Target, and Related Panels
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: many-panel identity
 - CommanderStyle inspiration: obvious source-target awareness during operations
 - many-panelz direction: strengthen role cues across active, target, synced, and related panels in an N-panel layout
 - Notes:
-- Current tinting is the baseline, not the final answer.
-- The cues should be readable without overwhelming the file lists.
-- This item is key to keeping complex layouts understandable.
+- Active and target tinting already exist and should be treated as the shipped baseline.
+- The remaining work is to introduce clearer related, synced, and operation-role cues without overwhelming the file lists.
+- This item should refine the visual language introduced in `ITEM_019`, not duplicate it.
 
 ### ITEM_032 — Saved Filters and Search Workflows
 
@@ -476,7 +510,7 @@ and stronger workspace persistence for real multi-context usage.
 - Notes:
 - Saved filters should be easy to reapply from the current panel.
 - Search results should stay navigable inside the panel model.
-- This is a workflow feature, not a query-language project.
+- This item starts after `ITEM_021` provides a stronger inline-filter baseline; it should not absorb the fast-filter surface work.
 
 ### ITEM_033 — Export and Import Full App Configuration
 
@@ -490,17 +524,17 @@ and stronger workspace persistence for real multi-context usage.
 - Keep the export readable and versioned.
 - Machine-specific values should be handled defensively on import.
 
-### ITEM_034 — Contextual Overlays and Repo-Aware Signals
+### ITEM_034 — Repo-Aware Overlays and Signals
 
-- Status: `PLANNED`
+- Status: `PARTIAL`
 - Phase: `2`
 - Theme: contextual workflows
 - CommanderStyle inspiration: file list cues that expose repository or content state
 - many-panelz direction: add lightweight overlays only when they strengthen the current panel’s decision-making and do not clutter dense layouts
 - Notes:
-- Git status is the clearest initial use case.
-- These overlays should remain optional.
-- The signal density must stay appropriate for compact many-panel scanning.
+- Git context detection, branch parsing, and remote parsing already exist and feed the dynamic Context menu.
+- Chrome-level branch/dirty visibility is tracked in `ITEM_048`; this item is the follow-up for optional file-list overlays and deeper repo-aware signals.
+- These signals should remain optional and density-conscious so they help scanning instead of turning the list into noise.
 
 ### ITEM_035 — Checkbox-Assisted Marking Column
 

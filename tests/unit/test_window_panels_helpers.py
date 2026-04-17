@@ -18,12 +18,29 @@ class _StateCoordinatorStub:
 
 
 class _PanelStub:
-    def __init__(self, *, tab_count: int, state: dict[str, object]) -> None:
+    def __init__(
+        self,
+        *,
+        tab_count: int,
+        state: dict[str, object],
+        group_count: int = 1,
+        total_tab_count: int | None = None,
+    ) -> None:
         self._tab_count = tab_count
+        self._group_count = group_count
+        self._total_tab_count = (
+            total_tab_count if total_tab_count is not None else tab_count
+        )
         self.state_coordinator = _StateCoordinatorStub(state)
 
     def tab_count(self) -> int:
         return self._tab_count
+
+    def group_count(self) -> int:
+        return self._group_count
+
+    def total_tab_count(self) -> int:
+        return self._total_tab_count
 
 
 def test_serialize_window_tabs_state_collects_each_panel_state() -> None:

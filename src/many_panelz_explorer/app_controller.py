@@ -31,6 +31,12 @@ from .constants import (
     SETTINGS_ORG_NAME,
 )
 from .operation_queue_widgets import OperationQueuePanel, OperationQueueTableModel
+from .runtime_trace import (
+    configure_runtime_trace,
+    flush_runtime_trace,
+    resolve_runtime_trace_configuration,
+    trace_span,
+)
 from .terminal_launchers import TerminalLauncherSettings, configure_terminal_launchers
 from .window import ExplorerWindow
 
@@ -45,40 +51,64 @@ class AppController:
     """Own the QApplication and coordinate explorer windows."""
 
     def __init__(self, argv: Iterable[str] | None = None) -> None:
-        argv_list = list(argv) if argv is not None else []
-        configure_qsettings(APP_IDENTITY)
-        resolve_app_data_dir(APP_IDENTITY)
-        existing = QApplication.instance()
-        self.app: QApplication = (
-            existing if isinstance(existing, QApplication) else QApplication(argv_list)
-        )
-        self.app.setApplicationName(SETTINGS_APP_NAME)
-        self.app.setOrganizationName(SETTINGS_ORG_NAME)
-        self.app.setApplicationDisplayName(APP_DISPLAY_NAME)
-        self.app.setQuitOnLastWindowClosed(True)
-        self._default_app_font = QFont(self.app.font())
+        raw_argv = [str(part) for part in argv] if argv is not None else []
+        argv_list, trace_output_path = resolve_runtime_trace_configuration(raw_argv)
+        configure_runtime_trace(trace_output_path)
+        with trace_span(
+            "app_controller.init",
+            "startup",
+            args={
+                "argv_count": max(0, len(argv_list) - 1),
+                "trace_enabled": trace_output_path is not None,
+            },
+        ):
+            with trace_span("qsettings.configure", "startup"):
+                configure_qsettings(APP_IDENTITY)
+            with trace_span("app_data_dir.resolve", "startup"):
+                resolve_app_data_dir(APP_IDENTITY)
+            with trace_span("qapplication.init", "startup"):
+                existing = QApplication.instance()
+                self.app = (
+                    existing
+                    if isinstance(existing, QApplication)
+                    else QApplication(argv_list)
+                )
+                self.app.setApplicationName(SETTINGS_APP_NAME)
+                self.app.setOrganizationName(SETTINGS_ORG_NAME)
+                self.app.setApplicationDisplayName(APP_DISPLAY_NAME)
+                self.app.setQuitOnLastWindowClosed(True)
+                self._default_app_font = QFont(self.app.font())
 
-        self.settings = SettingsManager()
-        self._bootstrap_companion_tools_once()
-        initial_preferences = self.settings.ui_preferences()
-        self._apply_application_font(initial_preferences)
-        self._apply_file_open_routing(initial_preferences)
-        self._apply_terminal_launcher_routing(initial_preferences)
-        self.operation_queue_manager = OperationQueueManager(
-            preferences=self._preferences_to_operation_execution(initial_preferences),
-            parent=self.app,
-        )
-        self.operation_queue_model = OperationQueueTableModel(
-            self.operation_queue_manager
-        )
-        self.windows: list[ExplorerWindow] = []
-        self._queue_windows: list[QMainWindow] = []
-        self._is_raising_windows = False
-        self._activation_pass_done_for_current_active_state = False
-        self._last_closed_window_id: str | None = None
+            with trace_span("settings_manager.init", "startup"):
+                self.settings = SettingsManager()
+            self._bootstrap_companion_tools_once()
+            with trace_span("ui_preferences.load", "startup"):
+                initial_preferences = self.settings.ui_preferences()
+            with trace_span("application_font.apply", "startup"):
+                self._apply_application_font(initial_preferences)
+            with trace_span("file_open_routing.apply", "startup"):
+                self._apply_file_open_routing(initial_preferences)
+            with trace_span("terminal_launcher_routing.apply", "startup"):
+                self._apply_terminal_launcher_routing(initial_preferences)
+            with trace_span("operation_queue_manager.init", "startup"):
+                self.operation_queue_manager = OperationQueueManager(
+                    preferences=self._preferences_to_operation_execution(
+                        initial_preferences
+                    ),
+                    parent=self.app,
+                )
+            with trace_span("operation_queue_model.init", "startup"):
+                self.operation_queue_model = OperationQueueTableModel(
+                    self.operation_queue_manager
+                )
+            self.windows: list[ExplorerWindow] = []
+            self._queue_windows: list[QMainWindow] = []
+            self._is_raising_windows = False
+            self._activation_pass_done_for_current_active_state = False
+            self._last_closed_window_id: str | None = None
 
-        self.app.aboutToQuit.connect(self.save_session)
-        self.app.applicationStateChanged.connect(self._on_application_state_changed)
+            self.app.aboutToQuit.connect(self.save_session)
+            self.app.applicationStateChanged.connect(self._on_application_state_changed)
 
     def new_window(
         self,
@@ -88,37 +118,45 @@ class AppController:
         show: bool = True,
         roots_provider: Callable[[Path | None], list[Path]] | None = None,
     ) -> ExplorerWindow:
-        initial_path = Path.home()
-        if from_window is not None:
-            active_panel = from_window.panels_coordinator.active_panel()
-            if active_panel is not None:
-                initial_path = active_panel.current_path()
-            if roots_provider is None:
-                roots_provider = from_window.roots_provider
+        with trace_span(
+            "window.create",
+            "window",
+            args={
+                "from_existing_window": from_window is not None,
+                "show_immediately": show,
+            },
+        ):
+            initial_path = Path.home()
+            if from_window is not None:
+                active_panel = from_window.panels_coordinator.active_panel()
+                if active_panel is not None:
+                    initial_path = active_panel.current_path()
+                if roots_provider is None:
+                    roots_provider = from_window.roots_provider
 
-        window = ExplorerWindow(
-            controller=self,
-            settings=self.settings,
-            window_id=window_id,
-            initial_path=initial_path,
-            roots_provider=roots_provider,
-        )
-        window.request_new_window.connect(self._new_window_request_callback(window))
-        window.window_activated.connect(self._window_activated_callback(window))
+            window = ExplorerWindow(
+                controller=self,
+                settings=self.settings,
+                window_id=window_id,
+                initial_path=initial_path,
+                roots_provider=roots_provider,
+            )
+            window.request_new_window.connect(self._new_window_request_callback(window))
+            window.window_activated.connect(self._window_activated_callback(window))
 
-        if from_window is not None:
-            window.default_maximize_on_first_show = False
-            geo = from_window.geometry()
-            window.resize(geo.width(), geo.height())
-            window.move(geo.x() + 30, geo.y() + 30)
+            if from_window is not None:
+                window.default_maximize_on_first_show = False
+                geo = from_window.geometry()
+                window.resize(geo.width(), geo.height())
+                window.move(geo.x() + 30, geo.y() + 30)
 
-        self.windows.append(window)
-        if show:
-            if from_window is None:
-                window.showMaximized()
-            else:
-                window.show()
-        return window
+            self.windows.append(window)
+            if show:
+                if from_window is None:
+                    window.showMaximized()
+                else:
+                    window.show()
+            return window
 
     def close_window(self, window: ExplorerWindow) -> None:
         # Persist the last closed window so app restart can restore it.
@@ -157,29 +195,35 @@ class AppController:
                 window.showMinimized()
 
     def save_session(self) -> None:
-        window_ids: list[str] = []
-        for window in list(self.windows):
-            if not window.isVisible():
-                continue
-            window.persistence_coordinator.save_to_settings()
-            window_ids.append(window.window_id)
+        with trace_span(
+            "session.save",
+            "persistence",
+            args={"visible_window_count": len(self.windows)},
+        ):
+            window_ids: list[str] = []
+            for window in list(self.windows):
+                if not window.isVisible():
+                    continue
+                window.persistence_coordinator.save_to_settings()
+                window_ids.append(window.window_id)
 
-        if not window_ids and self._last_closed_window_id is not None:
-            window_ids = [self._last_closed_window_id]
+            if not window_ids and self._last_closed_window_id is not None:
+                window_ids = [self._last_closed_window_id]
 
-        self.settings.set_session_window_ids(window_ids)
-        self.settings.sync()
+            self.settings.set_session_window_ids(window_ids)
+            self.settings.sync()
 
     def restore_session(self) -> None:
-        window_ids = self.settings.session_window_ids()
-        if not window_ids:
-            self.new_window(show=True)
-            return
+        with trace_span("session.restore", "persistence"):
+            window_ids = self.settings.session_window_ids()
+            if not window_ids:
+                self.new_window(show=True)
+                return
 
-        for window_id in window_ids:
-            window = self.new_window(window_id=window_id, show=False)
-            window.persistence_coordinator.restore_from_settings()
-            window.show()
+            for window_id in window_ids:
+                window = self.new_window(window_id=window_id, show=False)
+                window.persistence_coordinator.restore_from_settings()
+                window.show()
 
     def _on_window_activated(self, _window: ExplorerWindow | None = None) -> None:
         if self._activation_pass_done_for_current_active_state:
@@ -193,8 +237,12 @@ class AppController:
             self._activation_pass_done_for_current_active_state = False
 
     def run(self) -> int:
-        self.restore_session()
-        return self.app.exec()
+        try:
+            self.restore_session()
+            with trace_span("qt.event_loop", "runtime"):
+                return self.app.exec()
+        finally:
+            flush_runtime_trace()
 
     def current_ui_preferences(self) -> UiPreferences:
         return self.settings.ui_preferences()
@@ -446,35 +494,40 @@ class AppController:
         )
 
     def _bootstrap_companion_tools_once(self) -> None:
-        if self.settings.ops_companion_bootstrap_done:
-            return
-        preferences = self.settings.ui_preferences()
-        resolved = resolve_companion_tool_paths(
-            self._preferences_to_operation_execution(preferences)
-        )
-        changed = False
-        if preferences.teracopy_executable != resolved.teracopy_executable:
-            self.settings.teracopy_executable = resolved.teracopy_executable
-            changed = True
-        if preferences.unstoppable_executable != resolved.unstoppable_executable:
-            self.settings.unstoppable_executable = resolved.unstoppable_executable
-            changed = True
-        if preferences.rimraf_executable != resolved.rimraf_executable:
-            self.settings.rimraf_executable = resolved.rimraf_executable
-            changed = True
-        resolved_total_commander, resolved_double_commander = (
-            resolve_external_file_manager_paths(
-                total_commander_executable=preferences.total_commander_executable,
-                double_commander_executable=preferences.double_commander_executable,
+        with trace_span(
+            "companion_tools.bootstrap",
+            "startup",
+            args={"already_bootstrapped": self.settings.ops_companion_bootstrap_done},
+        ):
+            if self.settings.ops_companion_bootstrap_done:
+                return
+            preferences = self.settings.ui_preferences()
+            resolved = resolve_companion_tool_paths(
+                self._preferences_to_operation_execution(preferences)
             )
-        )
-        if preferences.total_commander_executable != resolved_total_commander:
-            self.settings.total_commander_executable = resolved_total_commander
+            changed = False
+            if preferences.teracopy_executable != resolved.teracopy_executable:
+                self.settings.teracopy_executable = resolved.teracopy_executable
+                changed = True
+            if preferences.unstoppable_executable != resolved.unstoppable_executable:
+                self.settings.unstoppable_executable = resolved.unstoppable_executable
+                changed = True
+            if preferences.rimraf_executable != resolved.rimraf_executable:
+                self.settings.rimraf_executable = resolved.rimraf_executable
+                changed = True
+            resolved_total_commander, resolved_double_commander = (
+                resolve_external_file_manager_paths(
+                    total_commander_executable=preferences.total_commander_executable,
+                    double_commander_executable=preferences.double_commander_executable,
+                )
+            )
+            if preferences.total_commander_executable != resolved_total_commander:
+                self.settings.total_commander_executable = resolved_total_commander
+                changed = True
+            if preferences.double_commander_executable != resolved_double_commander:
+                self.settings.double_commander_executable = resolved_double_commander
+                changed = True
+            self.settings.ops_companion_bootstrap_done = True
             changed = True
-        if preferences.double_commander_executable != resolved_double_commander:
-            self.settings.double_commander_executable = resolved_double_commander
-            changed = True
-        self.settings.ops_companion_bootstrap_done = True
-        changed = True
-        if changed:
-            self.settings.sync()
+            if changed:
+                self.settings.sync()

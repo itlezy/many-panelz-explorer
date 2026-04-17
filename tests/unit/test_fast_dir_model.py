@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
@@ -7,8 +8,9 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import QDir, Qt
+from PySide6.QtCore import QCoreApplication, QDir, QEvent, Qt
 from PySide6.QtGui import QBrush
+from shiboken6 import isValid
 
 from many_panelz_explorer.fast_dir_model import (
     FastDirModel,
@@ -48,6 +50,18 @@ def _visible_names(model: FastDirModel) -> list[str]:
         Path(model.filePath(model.index(row, 0))).name
         for row in range(model.rowCount())
     ]
+
+
+def _delete_qobject(obj: object, qapp: object) -> None:
+    """Delete one Qt object and flush deferred-delete events."""
+
+    delete_later = getattr(obj, "deleteLater", None)
+    if callable(delete_later):
+        delete_later()
+    QCoreApplication.sendPostedEvents(None, int(QEvent.Type.DeferredDelete))
+    process_events = getattr(qapp, "processEvents", None)
+    if callable(process_events):
+        process_events()
 
 
 def test_filter_flags_split_hidden_and_system_entries(tmp_path: Path, qapp) -> None:
@@ -275,3 +289,25 @@ def test_summary_for_paths_deduplicates_paths_and_ignores_missing_entries(
         known_bytes=50,
         pending_dirs=0,
     )
+
+
+def test_folder_size_done_callback_ignores_deleted_model(
+    tmp_path: Path,
+    qapp: object,
+) -> None:
+    """Folder-size callbacks should no-op after the model Qt object is deleted."""
+
+    model = FastDirModel()
+    folder_path = tmp_path / "alpha"
+    folder_path.mkdir()
+    callback = model._folder_size_done_callback(
+        request_id=3,
+        folder_path=folder_path,
+    )
+    future: Future[int] = Future()
+    future.set_result(9)
+
+    _delete_qobject(model, qapp)
+
+    assert isValid(model) is False
+    callback(future)

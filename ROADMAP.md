@@ -1,5 +1,8 @@
 # many-panelz-explorer — Functional Roadmap
 
+Archived historical planning note. The current canonical backlog is
+`docs/BACKLOG.md`. Keep this file only as point-in-time product history.
+
 This document tracks planned functional improvements. Items are categorized as
 **Planned** (committed), **Backlog** (considered, not scheduled), or **Rejected**
 (deliberately excluded to keep scope focused).
